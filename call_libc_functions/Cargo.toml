@@ -8,12 +8,12 @@ edition = "2021"
 libc = { version = "0.2", default-features = false }
 
 [profile.dev]
-# Must always use panic = "abort" to avoid needing to define the unstable eh_personality lang item.
 panic = "abort"
+opt-level = 0
 
 [profile.release]
-opt-level = "z"     # Optimize for size.
-lto = true          # Enable Link Time Optimization
-codegen-units = 1   # Reduce number of codegen units to increase optimizations.
-panic = "abort"     # Abort on panic
-strip = true        # Automatically strip symbols from the binary.
+opt-level = 3 
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

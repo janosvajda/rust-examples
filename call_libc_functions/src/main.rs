@@ -5,9 +5,11 @@ extern crate libc;
 
 #[no_mangle]
 pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
-    const TEXT: &'static str = "Hello, world from libc!";
+    const HAYSTACK: & str = "Hello World!\n\0";
+    const NEEDLE: & str = "World!\n\0";
     unsafe {
-        libc::printf(TEXT.as_ptr() as *const _);
+        let result = libc::strstr(HAYSTACK.as_ptr() as *const i8, NEEDLE.as_ptr() as *const i8);
+        libc::printf(result);
     }
     0
 }
