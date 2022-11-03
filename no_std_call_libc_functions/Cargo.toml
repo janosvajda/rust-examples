@@ -1,5 +1,5 @@
 [package]
-name = "call_libc_functions"
+name = "no_std_call_libc_functions"
 authors = ["janosvajda <vajdajanos@gmail.com>"]
 version = "0.1.0"
 edition = "2021"
