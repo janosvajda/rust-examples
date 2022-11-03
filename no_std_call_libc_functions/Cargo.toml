@@ -19,4 +19,4 @@ opt-level = 3
 lto = true # LTO can produce better optimized code, using whole-program analysis, at the cost of longer linking time
 codegen-units = 1
 panic = "abort"
-strip = "debuginfo, symbols"
+strip = true #strip = true is equivalent to strip = "symbols"
