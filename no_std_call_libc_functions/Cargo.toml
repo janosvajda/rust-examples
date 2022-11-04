@@ -14,6 +14,9 @@ libc = { version = "0.2", default-features = false }
 panic = "abort"
 opt-level = 0
 
+[profile.test]
+opt-level = 0
+
 [profile.release]
 opt-level = 3 
 lto = true # LTO can produce better optimized code, using whole-program analysis, at the cost of longer linking time
