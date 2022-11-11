@@ -26,22 +26,3 @@ fn call_strstr() -> *mut i8 {
 fn my_panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_call_strstr() {
-        let haystack = "Hello Gorld!\n\0";
-        let result = call_strstr() as *mut char;
-        let the_bits = result as *const _ as usize;
-        assert_eq!(&haystack[..the_bits], "World!");
-    }
-    #[test]
-    fn test_call_strstr_position() {
-        let result = call_strstr() as *mut char;
-        let the_bits = result as *const _ as usize;
-        assert_eq!(the_bits, 2);
-    }
-}
