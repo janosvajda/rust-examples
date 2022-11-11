@@ -10,4 +10,8 @@ fn main() {
     // error: `x` does not live long enough
     // y = &x;
     //println!("{}", y);
+
+    
+
+
 }
