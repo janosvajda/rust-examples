@@ -16,7 +16,6 @@ fn call_strstr() -> *mut i8 {
     const NEEDLE: &str = "World!\n\0";
     // Finds the first occurrence of a substring in a string
     unsafe {
-        
         libc::strstr(HAYSTACK.as_ptr() as *const i8, NEEDLE.as_ptr() as *const i8)
     }
 }
