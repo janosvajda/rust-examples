@@ -32,7 +32,11 @@ impl Board {
     }
 
     fn display(&self) {
+        println!("  1   2   3"); // Horizontal indices
+        println!("-------------");
+
         for (i, cell) in self.cells.iter().enumerate() {
+
             if let Some(player) = cell {
                 print!("| {} ", player);
             } else {
@@ -47,6 +51,7 @@ impl Board {
             }
         }
     }
+
 
     fn check_win(&self, player: Player) -> bool {
         let win_conditions = [
@@ -107,7 +112,7 @@ fn main() {
         board.display();
 
         if current_player == Player::X {
-            println!("Player {}, enter your move (0-8):", current_player);
+            println!("Player {}, enter your move (1-9):", current_player);
 
             let mut input = String::new();
             std::io::stdin()
@@ -117,30 +122,33 @@ fn main() {
             let position: usize = match input.trim().parse() {
                 Ok(num) => num,
                 Err(_) => {
-                    println!("Invalid input. Please enter a number from 0 to 8.");
+                    println!("Invalid input. Please enter a number from 1 to 9.");
                     continue;
                 }
             };
 
-            if position < 9 {
-                if let Some(_) = board.cells[position] {
-                    println!("Invalid move. The position is already occupied.");
-                    continue;
-                } else {
-                    board.make_move(position, current_player);
-
-                    if board.check_win(current_player) {
-                        clear_console();
-                        board.display();
-                        println!("Player {} wins!", current_player);
-                        break;
-                    }
-
-                    current_player = Player::O;
-                }
-            } else {
-                println!("Invalid input. Please enter a number from 0 to 8.");
+            if position < 1 || position > 9 {
+                println!("Invalid input. Please enter a number from 1 to 9.");
                 continue;
+            }
+
+            let index = position - 1;
+
+            if let Some(_) = board.cells[index] {
+                println!("Invalid move. The position is already occupied.");
+                continue;
+            } else {
+                board.make_move(index, current_player);
+                println!("\x07"); // Beep sound
+
+                if board.check_win(current_player) {
+                    clear_console();
+                    board.display();
+                    println!("Player {} wins!", current_player);
+                    break;
+                }
+
+                current_player = Player::O;
             }
         } else {
             println!("Computer's turn (Player {}).", current_player);
