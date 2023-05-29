@@ -14,5 +14,3 @@
 
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
-
-Feel free to explore the examples and deepen your understanding of Rust concepts.
