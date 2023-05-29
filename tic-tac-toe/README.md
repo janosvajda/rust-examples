@@ -1,20 +1,18 @@
 # Tic-Tac-Toe Game
 
-This is a simple command-line implementation of the Tic-Tac-Toe game in Rust.
+This is a simple command-line implementation of the Tic-Tac-Toe game in Rust. I created it for fun.
 
 ## How to Run
 
-1. Make sure you have Rust installed on your system. If not, you can install it from the official Rust website: [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install)
+1. Clone the repository or download the source code.
 
-2. Clone the repository or download the source code.
+2. Open a terminal and navigate to the project directory.
 
-3. Open a terminal and navigate to the project directory.
+3. You can build and run the game using the following command:
 
-4. Build and run the game using the following command:
-
-/```shell
-cargo run --bin tic-tac-toe
-/```
+```shell
+cargo run
+```
 
 5. Follow the prompts in the terminal to play the game. You can make your moves by entering the position number of the cell you want to mark. The positions are numbered from 1 to 9, corresponding to the cells on the board.
 
@@ -24,9 +22,9 @@ cargo run --bin tic-tac-toe
 
 The project includes unit tests to verify the functionality of the game. To run the tests, use the following command:
 
-/```shell
-cargo test --bin tic-tac-toe
-/```
+```shell
+cargo test
+```
 
 The test results will be displayed in the terminal.
 
