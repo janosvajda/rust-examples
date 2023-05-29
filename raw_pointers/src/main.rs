@@ -1,19 +1,24 @@
+fn get_value_from_raw_pointer(raw_p: *const u32) -> u32 {
+    unsafe { *raw_p }
+}
+
 fn main() {
-    // Creating a raw pointer is safe.
     let raw_p: *const u32 = &99;
+    let p = get_value_from_raw_pointer(raw_p);
 
-    // The raw pointers dereferencing is not checked by the compile-time checking process so they must be wrapped by unsafe{}.
-
-    // This works, but it is not the best practice as the unsafe part in the code should be as short as it can be.
-    unsafe {
-        if *raw_p == 99 {
-            println!("{}", *raw_p);
-        }
-    }
-
-    // So, this does the same that code above, but this is a better practice.
-    let p = unsafe {*raw_p};
     if p == 99 {
         println!("{}", p);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_value_from_raw_pointer() {
+        let raw_p: *const u32 = &99;
+        let value = get_value_from_raw_pointer(raw_p);
+        assert_eq!(value, 99);
     }
 }
