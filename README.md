@@ -9,6 +9,8 @@
 - [Raw Pointers](./raw_pointers): Demonstrates the usage of raw pointers in Rust.
 - [Standard C Math Example](./standard_c_math_example): Performs math calculations using standard C math functions in a `no_std` environment.
 - [Threads](./threads): Shows how to use threads for concurrent execution.
+- [Factory Pattern](./factory-pattern): Shows how to use factory design pattern in Rust.
+
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
 
