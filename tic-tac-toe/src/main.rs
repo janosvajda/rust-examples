@@ -183,3 +183,92 @@ fn main() {
         println!("It's a tie!");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_board_new() {
+        let board = Board::new();
+        assert_eq!(board.cells, [None; 9]);
+    }
+
+    #[test]
+    fn test_board_make_move() {
+        let mut board = Board::new();
+        board.make_move(0, Player::X);
+        board.make_move(4, Player::O);
+        board.make_move(8, Player::X);
+
+        assert_eq!(board.cells, [
+            Some(Player::X), None, None,
+            None, Some(Player::O), None,
+            None, None, Some(Player::X),
+        ]);
+    }
+
+    #[test]
+    fn test_board_check_win() {
+        let mut board = Board::new();
+        board.make_move(0, Player::X);
+        board.make_move(1, Player::X);
+        board.make_move(2, Player::X);
+
+        assert_eq!(board.check_win(Player::X), true);
+        assert_eq!(board.check_win(Player::O), false);
+
+        let mut board = Board::new();
+        board.make_move(0, Player::O);
+        board.make_move(3, Player::O);
+        board.make_move(6, Player::O);
+
+        assert_eq!(board.check_win(Player::X), false);
+        assert_eq!(board.check_win(Player::O), true);
+    }
+
+    // Add more unit tests as needed
+
+    #[test]
+    fn test_board_is_full() {
+        let mut board = Board::new();
+        assert_eq!(board.is_full(), false);
+
+        for i in 0..9 {
+            board.make_move(i, Player::X);
+        }
+        assert_eq!(board.is_full(), true);
+    }
+    #[test]
+    fn test_board_predict_win() {
+        let mut board = Board::new();
+        board.make_move(0, Player::X);
+        board.make_move(1, Player::X);
+        assert_eq!(board.predict_win(Player::X), Some(2)); // Winning move is 2
+    }
+    
+    #[test]
+    fn test_board_predict_loosing() {
+        // Test losing move
+        let mut board = Board::new();
+        board.make_move(0, Player::O);
+        board.make_move(1, Player::O);
+        assert_eq!(board.predict_win(Player::O), Some(2)); // Losing move is 2
+    }
+    
+    #[test]
+    fn test_board_predict_tie() {
+        // Test tie scenario
+        let mut board = Board::new();
+        board.make_move(0, Player::X);
+        board.make_move(1, Player::O);
+        board.make_move(2, Player::X);
+        board.make_move(3, Player::O);
+        board.make_move(4, Player::O);
+        board.make_move(5, Player::X);
+        board.make_move(6, Player::O);
+        board.make_move(7, Player::X);
+        board.make_move(8, Player::O);
+        assert_eq!(board.predict_win(Player::X), None); // Tie scenario, no winning move
+    }
+}
