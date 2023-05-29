@@ -14,9 +14,9 @@ The example code demonstrates two key aspects:
 
 To run the example, use the following command:
 
-/```bash
+```bash
 $ cargo run
-/```
+```
 
 This will execute the `main` function, which calculates the cosine of an angle and prints the results to the console.
 
@@ -24,6 +24,6 @@ This will execute the `main` function, which calculates the cosine of an angle a
 
 The example includes a test case to validate the correctness of the cosine and ceiling calculations. To run the tests, use the following command:
 
-/```bash
+```bash
 $ cargo test
-/```
+```
