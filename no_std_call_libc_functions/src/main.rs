@@ -1,27 +1,56 @@
-#![no_std]
-#![no_main]
+#![cfg_attr(not(test), no_std)]
+#![cfg_attr(not(test), no_main)]
+
 extern crate libc;
 
-#[no_mangle]
-pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
-    unsafe {
-        //Prints characters and values to stdout.
-        libc::printf(call_strstr());
-    }
-    0
-}
-
-fn call_strstr() -> *mut i8 {
-    const HAYSTACK: &str = "Hello World!\n\0";
-    const NEEDLE: &str = "World!\n\0";
-    // Finds the first occurrence of a substring in a string
-    unsafe {
-        libc::strstr(HAYSTACK.as_ptr() as *const i8, NEEDLE.as_ptr() as *const i8)
-    }
-}
-
-#[panic_handler]
 #[cfg(not(test))]
-fn my_panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
+mod no_std_specific {
+    use libc::{c_char, printf};
+    
+    #[no_mangle]
+    pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
+        let res = super::call_strstr();
+
+        unsafe {
+            match res {
+                Some(substring) => printf("Substring found: %s\n\0".as_ptr() as *const c_char, substring.as_ptr() as *const c_char),
+                None => printf("Substring not found!\n\0".as_ptr() as *const c_char),
+            };
+        }
+
+        0
+    }
+
+    #[panic_handler]
+    #[cfg(not(test))]
+    fn my_panic(_info: &core::panic::PanicInfo) -> ! {
+        loop {}
+    }
+}
+
+pub fn call_strstr() -> Option<&'static [u8]> {
+    let haystack: &'static [u8] = b"Hello World!\n\0";
+    let needle: &'static [u8] = b"World!\n\0";
+
+    unsafe {
+        let found_ptr = libc::strstr(haystack.as_ptr() as *const i8, needle.as_ptr() as *const i8);
+
+        if found_ptr.is_null() {
+            None
+        } else {
+            let found_index = found_ptr as usize - haystack.as_ptr() as usize;
+            Some(&haystack[found_index..])
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_call_strstr() {
+        let result = call_strstr().unwrap();
+        assert_eq!(result, b"World!\n\0");
+    }
 }
