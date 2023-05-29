@@ -11,8 +11,8 @@ enum Player {
 impl fmt::Display for Player {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Player::X => write!(f, "X"),
-            Player::O => write!(f, "O"),
+            Player::X => write!(f, "\x1b[36mX\x1b[0m"), // Cyan
+            Player::O => write!(f, "O"), // Default color
         }
     }
 }
