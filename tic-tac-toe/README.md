@@ -11,6 +11,7 @@ This is a simple command-line implementation of the Tic-Tac-Toe game in Rust. I 
 3. You can build and run the game using the following command:
 
 ```shell
+cd tic-tac-toe
 cargo run
 ```
 
@@ -23,6 +24,7 @@ cargo run
 The project includes unit tests to verify the functionality of the game. To run the tests, use the following command:
 
 ```shell
+cd tic-tac-toe
 cargo test
 ```
 
