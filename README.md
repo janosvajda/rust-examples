@@ -13,6 +13,6 @@
 - [Abstract Factory Pattern](./abstract-factory-pattern): Shows how to use abstract factory design pattern in Rust.
 - [Tic Tac Toe console game](./tic-tac-toe): Simple Tic Tac Toe game in Rust.
 - [Test minifb - Human Face mouse follower](./test-minifb): Abstract human face follow the mouse movment in a window.
-
+- [Imperative & Declarative paradigm - Fibonacci algoritmh](./fibonacci): Imperative & Declarative paradigm example.
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
