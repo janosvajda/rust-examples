@@ -77,7 +77,7 @@ fn main() {
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
     let mut window = Window::new(
-        "Human Face Mov Move",
+        "Human Face Mouse Move",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
@@ -113,6 +113,21 @@ fn main() {
         window
             .update_with_buffer(&buffer, WIDTH, HEIGHT)
             .unwrap();
+
+        // Get the mouse position (handling when mouse is outside window)
+        let (mouse_x, mouse_y) = if let Some(pos) = window.get_mouse_pos(minifb::MouseMode::Discard) {
+            pos
+        } else {
+            (ball.x as f32, ball.y as f32)
+        };
+
+        // Calculate the velocity based on the mouse position
+        let velocity_x = (mouse_x as isize - ball.x as isize) / 30;
+        let velocity_y = (mouse_y as isize - ball.y as isize) / 30;
+
+        // Update the ball velocity
+        ball.velocity_x = velocity_x;
+        ball.velocity_y = velocity_y;
 
         // Delay for a short period
         thread::sleep(Duration::from_millis(16));
