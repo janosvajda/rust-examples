@@ -29,15 +29,15 @@ const GRAVITY: f32 = 0.2;
 
 // Structure for the ball (human face)
 struct Ball {
-    x: isize,
-    y: isize,
+    x: usize,
+    y: usize,
     velocity_x: isize,
     velocity_y: isize,
 }
 
 impl Ball {
     // Create a new ball
-    fn new(x: isize, y: isize, velocity_x: isize, velocity_y: isize) -> Self {
+    fn new(x: usize, y: usize, velocity_x: isize, velocity_y: isize) -> Self {
         Ball {
             x,
             y,
@@ -47,20 +47,15 @@ impl Ball {
     }
 
     // Update the position of the ball
-    fn update(&mut self, mouse_x: isize, mouse_y: isize, window_width: usize, window_height: usize) {
-        if mouse_x >= 0 && mouse_x < window_width as isize && mouse_y >= 0 && mouse_y < window_height as isize {
-            self.velocity_x = (mouse_x - self.x).signum() * 5;
-            self.velocity_y = (mouse_y - self.y).signum() * 5;
-        }
-
-        let new_x = self.x + self.velocity_x;
-        let new_y = self.y + self.velocity_y;
+    fn update(&mut self) {
+        let new_x = (self.x as isize).wrapping_add(self.velocity_x) as usize;
+        let new_y = (self.y as isize).wrapping_add(self.velocity_y) as usize;
 
         // Check if the new position is within the valid range
-        if new_x + BALL_RADIUS as isize >= window_width as isize || new_x < BALL_RADIUS as isize {
+        if new_x + BALL_RADIUS >= WIDTH || new_x < BALL_RADIUS {
             self.velocity_x = -self.velocity_x;
         }
-        if new_y + BALL_RADIUS as isize >= window_height as isize || new_y < BALL_RADIUS as isize {
+        if new_y + BALL_RADIUS >= HEIGHT || new_y < BALL_RADIUS {
             self.velocity_y = -self.velocity_y;
         }
 
@@ -82,7 +77,7 @@ fn main() {
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
     let mut window = Window::new(
-        "Human Face Mov Mov",
+        "Human Face Mov Move",
         WIDTH,
         HEIGHT,
         WindowOptions::default(),
@@ -91,32 +86,18 @@ fn main() {
         panic!("{}", e);
     });
 
-    let mut ball = Ball::new(WIDTH as isize / 2, HEIGHT as isize / 2, 5, 5);
+    let mut ball = Ball::new(WIDTH / 2, HEIGHT / 2, 5, 5);
     let mut particles: Vec<Particle> = Vec::new();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        if let Some((mouse_x, mouse_y)) = window.get_mouse_pos(minifb::MouseMode::Discard) {
-            ball.update(
-                mouse_x as isize,
-                mouse_y as isize,
-                WIDTH,
-                HEIGHT,
-            );
-        } else {
-            ball.update(
-                ball.x,
-                ball.y,
-                WIDTH,
-                HEIGHT,
-            );
-        }
+        ball.update();
 
         // Clear the buffer
         buffer.iter_mut().for_each(|pixel| *pixel = 0);
 
         // Spawn fireworks randomly
         if thread_rng().gen::<f32>() < 0.02 {
-            spawn_firework(&mut particles, ball.x as usize, ball.y as usize);
+            spawn_firework(&mut particles, ball.x, ball.y);
         }
 
         // Update and draw the particles
@@ -140,22 +121,22 @@ fn main() {
 
 // Draw the ball (human face)
 fn draw_ball(buffer: &mut [u32], ball: &Ball) {
-    draw_circle(buffer, ball.x as usize, ball.y as usize, BALL_RADIUS, BALL_COLOR);
+    draw_circle(buffer, ball.x, ball.y, BALL_RADIUS, BALL_COLOR);
 }
 
 // Draw the eyes
 fn draw_eyes(buffer: &mut [u32], ball: &Ball) {
     draw_circle(
         buffer,
-        (ball.x - EYE_OFFSET_X) as usize,
-        (ball.y - EYE_OFFSET_Y) as usize,
+        ball.x - EYE_OFFSET_X as usize,
+        ball.y - EYE_OFFSET_Y as usize,
         EYE_RADIUS,
         EYE_COLOR,
     );
     draw_circle(
         buffer,
-        (ball.x + EYE_OFFSET_X) as usize,
-        (ball.y - EYE_OFFSET_Y) as usize,
+        ball.x + EYE_OFFSET_X as usize,
+        ball.y - EYE_OFFSET_Y as usize,
         EYE_RADIUS,
         EYE_COLOR,
     );
@@ -163,12 +144,12 @@ fn draw_eyes(buffer: &mut [u32], ball: &Ball) {
 
 // Draw the mouth
 fn draw_mouth(buffer: &mut [u32], ball: &Ball) {
-    let mouth_x = ball.x - MOUTH_WIDTH as isize / 2;
-    let mouth_y = ball.y + MOUTH_OFFSET_Y as isize;
+    let mouth_x = ball.x - MOUTH_WIDTH / 2;
+    let mouth_y = ball.y + MOUTH_OFFSET_Y as usize;
     draw_rectangle(
         buffer,
-        mouth_x as usize,
-        mouth_y as usize,
+        mouth_x,
+        mouth_y,
         MOUTH_WIDTH,
         MOUTH_HEIGHT,
         MOUTH_COLOR,
