@@ -260,3 +260,54 @@ fn generate_random_color() -> u32 {
 
     (a << 24) | (r << 16) | (g << 8) | b
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ball_update_within_bounds() {
+        let mut ball = Ball::new(WIDTH / 2, HEIGHT / 2, 5, 5);
+
+        ball.update();
+
+        assert!(ball.x >= BALL_RADIUS && ball.x <= WIDTH - BALL_RADIUS);
+        assert!(ball.y >= BALL_RADIUS && ball.y <= HEIGHT - BALL_RADIUS);
+    }
+
+    #[test]
+    fn test_ball_update_hit_left_wall() {
+        let mut ball = Ball::new(BALL_RADIUS, HEIGHT / 2, -5, 0);
+
+        ball.update();
+
+        assert_eq!(ball.velocity_x, 5);
+    }
+
+    #[test]
+    fn test_ball_update_hit_top_wall() {
+        let mut ball = Ball::new(WIDTH / 2, BALL_RADIUS, 0, -5);
+
+        ball.update();
+
+        assert_eq!(ball.velocity_y, 5);
+    }
+
+    #[test]
+    fn test_ball_update_hit_bottom_wall() {
+        let mut ball = Ball::new(WIDTH / 2, HEIGHT - BALL_RADIUS, 0, 5);
+
+        ball.update();
+
+        assert_eq!(ball.velocity_y, -5);
+    }
+
+    #[test]
+    fn test_ball_update_hit_right_wall() {
+        let mut ball = Ball::new(WIDTH - BALL_RADIUS, HEIGHT / 2, 5, 0);
+
+        ball.update();
+
+        assert_eq!(ball.velocity_x, -5);
+    }
+}
