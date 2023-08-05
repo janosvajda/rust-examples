@@ -1,10 +1,10 @@
 # Functional Programming Paradigm in Rust 🚀
 
-## What's the Buzz About Functional Programming?
+## What is Functional Programming?
 
 Functional programming is a programming paradigm that treats computation as the evaluation of mathematical functions and avoids changing state and mutable data. In functional programming, functions are first-class citizens, which means they can be assigned to variables, passed as arguments to other functions, and returned from functions. The paradigm emphasizes writing code in a declarative manner, where the focus is on "what to do" rather than "how to do it."
 
-## The Lowdown on Functional Programming
+## The main principles of Functional Programming
 
 So, what's the deal with functional programming? Here are the key principles you need to know:
 
@@ -61,3 +61,8 @@ Why go functional, you ask? Here are the perks:
 Functional programming is a powerful paradigm that promotes writing code in a more declarative and immutable manner. By emphasizing pure functions, immutability, and higher-order functions, functional programming helps build reliable, maintainable, and parallelizable software systems. Understanding the principles of functional programming can enhance the way you design and implement software solutions, even in non-functional languages, by adopting functional-style programming techniques. 👩‍💻👨‍💻
 
 Remember, there's no one-size-fits-all in coding, so choose the right paradigm for the job. Whether it's functional, object-oriented, or something else, keep experimenting and leveling up your coding skills! However, like any paradigm, functional programming has its drawbacks, and it may not be the best fit for all types of applications or development teams. Evaluating the trade-offs and understanding the specific requirements of your project will help determine whether functional programming is the right approach.
+
+
+## Examples
+
+- [Concept of Pure Functions - Basic example](./pure-function-basic/): Filtering Even Numbers example.
