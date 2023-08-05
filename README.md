@@ -15,13 +15,12 @@
 - [Test minifb - Human Face mouse follower](./test-minifb): Abstract human face follow the mouse movment in a window.
 - [Imperative & Declarative paradigm - Fibonacci algoritmh](./fibonacci): Imperative & Declarative paradigm example.
 
+# Data structures
+- [Heap](./data-structures/heap): Basic implementation of heap.
 
-# Data structures examples
 
-# Functional programming examples
+# Functional programming
 - [Concept of Pure Functions](./functional_programming/pure-function-basic): Filtering Even Numbers example.
-
-
 
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
