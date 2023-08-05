@@ -1,6 +1,6 @@
 # rust-examples
 
-# Examples
+# Examples without category
 
 - [Borrowing](./borrowing): Demonstrates borrowing and ownership concepts in Rust.
 - [Borrowing Ownership Moves](./borrowing_ownership_moves): Illustrates the movement of ownership between variables in Rust.
@@ -14,5 +14,14 @@
 - [Tic Tac Toe console game](./tic-tac-toe): Simple Tic Tac Toe game in Rust.
 - [Test minifb - Human Face mouse follower](./test-minifb): Abstract human face follow the mouse movment in a window.
 - [Imperative & Declarative paradigm - Fibonacci algoritmh](./fibonacci): Imperative & Declarative paradigm example.
+
+
+# Data structures examples
+
+# Functional programming examples
+- [Concept of Pure Functions](./functional_programming/pure-function-basic): Filtering Even Numbers example.
+
+
+
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
