@@ -22,7 +22,7 @@
 # Functional programming
 - [Functional Programming short docs](./functional_programming): Couple of words about functional programming paradigm.
 - [Concept of Pure Functions](./functional_programming/pure-function-basic): Filtering Even Numbers example.
-- [Immutability](./functional_programming/immutability//): Filtering Even Numbers example.
+- [Immutability](./functional_programming/immutability//): Couple examples of immutability in Rust.
 
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
