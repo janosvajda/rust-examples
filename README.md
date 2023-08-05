@@ -1,4 +1,21 @@
-# rust-examples
+# Rust Examples
+
+This repository contains various Rust code examples to demonstrate different concepts and features in the Rust programming language.
+
+## Motivation
+
+I created these examples for the sheer fun of exploring Rust and learning more about this excellent programming language.
+
+Feel free to use these examples to learn Rust or as a reference for your own projects. If you find any issues or have ideas for improvement, I'd be happy to receive contributions and feedback.
+
+## How to Contribute
+
+Contributions are welcome! If you have any interesting Rust examples, bug fixes, or enhancements, feel free to submit a pull request. Let's collaborate and build a collection of useful and educational Rust examples together.
+
+## Usage
+
+Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
+
 
 # Examples without category
 
@@ -26,3 +43,11 @@
 
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
+
+
+## License
+
+I am happy if you find this repository useful. :)
+
+If you find these examples helpful, feel free to use them and share with others.
+
