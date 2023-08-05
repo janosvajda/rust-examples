@@ -66,3 +66,4 @@ Remember, there's no one-size-fits-all in coding, so choose the right paradigm f
 ## Examples
 
 - [Concept of Pure Functions - Basic example](./pure-function-basic/): Filtering Even Numbers example.
+- [Immutability](./immutability/): Couple examples of immutability in Rust.
