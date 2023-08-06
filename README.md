@@ -42,6 +42,7 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Concept of Pure Functions](./functional_programming/pure-function-basic): Filtering Even Numbers example.
 - [Immutability](./functional_programming/immutability//): Couple examples of immutability in Rust.
 - [Higher Order Functions](./functional_programming/higher-oreder-functions/): Couple examples for Higher Order Functions in Rust.
+- [Function composition](./functional_programming/function-composition/): Couple examples for Function composition in Rust.
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
 

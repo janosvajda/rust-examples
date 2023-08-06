@@ -68,3 +68,4 @@ Remember, there's no one-size-fits-all in coding, so choose the right paradigm f
 - [Concept of Pure Functions - Basic example](./pure-function-basic/): Filtering Even Numbers example.
 - [Immutability](./immutability/): Couple examples of immutability in Rust.
 - [Higher Order Functions](./higher-oreder-functions/): Couple examples for Higher Order Functions in Rust.
+- [Function composition](./function-composition/): Couple examples for Function composition in Rust.
