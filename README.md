@@ -34,6 +34,8 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Factory Pattern](./design-patterns/factory-pattern/): Shows how to use factory design pattern in Rust.
 - [Abstract Factory Pattern](./design-patterns/abstract-factory-pattern/): Shows how to use abstract factory design pattern in Rust.
 - [Command Pattern](./design-patterns/command-pattern/): Shows how to use factory command pattern in Rust. It demonstartes it by a simple implementation of Mars Rover kata.
+- [Builder Pattern](./design-patterns/builder-pattern/): Shows how to use a builder design pattern in Rust.
+
 
 
 # Data structures
