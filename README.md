@@ -19,7 +19,7 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 
 # Examples without category
 
-- [Borrowing](./borrowing): Demonstrates borrowing and ownership concepts in Rust.
+- [Borrowing](./borrowing/): Demonstrates borrowing and ownership concepts in Rust.
 - [Borrowing Ownership Moves](./borrowing_ownership_moves): Illustrates the movement of ownership between variables in Rust.
 - [Closures and Anonymous Functions](./closures_anonymous_functions): Shows the usage of closures and anonymous functions in Rust.
 - [No Std Call Libc Functions](./no_std_call_libc_functions): Uses libc functions in a `no_std` environment.
