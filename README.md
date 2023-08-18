@@ -37,7 +37,8 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Command Pattern](./design-patterns/command-pattern/): Shows how to use factory command pattern in Rust. It demonstartes it by a simple implementation of Mars Rover kata.
 - [Builder Pattern](./design-patterns/builder-pattern/): Shows how to use a builder design pattern in Rust.
 
-
+# Math examples
+- [Basic Calorie Calculator](./math/bmr-calculator/): It shows how math operators can be used in Rust.
 
 # Data structures
 - [Heap](./data-structures/heap): Basic implementation of heap.
