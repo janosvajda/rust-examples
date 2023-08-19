@@ -40,6 +40,9 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Basic Calorie Calculator](./math/bmr-calculator/): It shows how math operators can be used in Rust.
 - [Imperative & Declarative paradigm - Fibonacci algoritmh](./math/fibonacci/): Imperative & Declarative paradigm example.
 
+# Network
+- [Simple HTTP server](./network/basic-http-server/): It shows how to create a very simple HTTP server in Rust without using external library.
+
 # Data structures
 - [Heap](./data-structures/heap): Basic implementation of heap.
 
