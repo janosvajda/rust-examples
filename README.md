@@ -29,7 +29,6 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Threads](./threads): Shows how to use threads for concurrent execution.
 - [Tic Tac Toe console game](./tic-tac-toe): Simple Tic Tac Toe game in Rust.
 - [Test minifb - Human Face mouse follower](./test-minifb): Abstract human face follow the mouse movment in a window.
-- [Imperative & Declarative paradigm - Fibonacci algoritmh](./fibonacci): Imperative & Declarative paradigm example.
 
 # Design patterns
 - [Factory Pattern](./design-patterns/factory-pattern/): Shows how to use factory design pattern in Rust.
@@ -39,6 +38,7 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 
 # Math examples
 - [Basic Calorie Calculator](./math/bmr-calculator/): It shows how math operators can be used in Rust.
+- [Imperative & Declarative paradigm - Fibonacci algoritmh](./math/fibonacci/): Imperative & Declarative paradigm example.
 
 # Data structures
 - [Heap](./data-structures/heap): Basic implementation of heap.
