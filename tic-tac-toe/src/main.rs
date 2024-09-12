@@ -227,8 +227,6 @@ mod tests {
         assert_eq!(board.check_win(Player::O), true);
     }
 
-    // Add more unit tests as needed
-
     #[test]
     fn test_board_is_full() {
         let mut board = Board::new();

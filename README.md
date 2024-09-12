@@ -19,7 +19,8 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 
 # Examples without category
 
-- [Borrowing](./borrowing): Demonstrates borrowing and ownership concepts in Rust.
+- [Borrowing](./borrowing/): Demonstrates borrowing and ownership concepts in Rust.
+- [Borrowing various other example](./borrowing-various-aspects/): Demonstrates borrowing and ownership concepts.
 - [Borrowing Ownership Moves](./borrowing_ownership_moves): Illustrates the movement of ownership between variables in Rust.
 - [Closures and Anonymous Functions](./closures_anonymous_functions): Shows the usage of closures and anonymous functions in Rust.
 - [No Std Call Libc Functions](./no_std_call_libc_functions): Uses libc functions in a `no_std` environment.
@@ -28,11 +29,19 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Threads](./threads): Shows how to use threads for concurrent execution.
 - [Tic Tac Toe console game](./tic-tac-toe): Simple Tic Tac Toe game in Rust.
 - [Test minifb - Human Face mouse follower](./test-minifb): Abstract human face follow the mouse movment in a window.
-- [Imperative & Declarative paradigm - Fibonacci algoritmh](./fibonacci): Imperative & Declarative paradigm example.
 
 # Design patterns
 - [Factory Pattern](./design-patterns/factory-pattern/): Shows how to use factory design pattern in Rust.
 - [Abstract Factory Pattern](./design-patterns/abstract-factory-pattern/): Shows how to use abstract factory design pattern in Rust.
+- [Command Pattern](./design-patterns/command-pattern/): Shows how to use factory command pattern in Rust. It demonstartes it by a simple implementation of Mars Rover kata.
+- [Builder Pattern](./design-patterns/builder-pattern/): Shows how to use a builder design pattern in Rust.
+
+# Math examples
+- [Basic Calorie Calculator](./math/bmr-calculator/): It shows how math operators can be used in Rust.
+- [Imperative & Declarative paradigm - Fibonacci algoritmh](./math/fibonacci/): Imperative & Declarative paradigm example.
+
+# Network
+- [Simple HTTP server](./network/basic-http-server/): It shows how to create a very simple HTTP server in Rust without using external library.
 
 # Data structures
 - [Heap](./data-structures/heap): Basic implementation of heap.
