@@ -1,0 +1,7 @@
+Timestamp, SensorID, SensorReading, Unit, Location, ExperimentType
+2024-09-10 12:00, A12, 23.5, Celsius, Lab 1, Temperature Monitoring
+2024-09-10 12:05, B22, 760, mmHg, Lab 2, Pressure Measurement
+2024-09-10 12:10, C33, 7.1, pH, Lab 3, Chemical pH Monitoring
+2024-09-10 12:15, A12, 24.1, Celsius, Lab 1, Temperature Monitoring
+2024-09-10 12:20, B22, 755, mmHg, Lab 2, Pressure Measurement
+2024-09-10 12:25, C33, 7.4, pH, Lab 3, Chemical pH Monitoring
