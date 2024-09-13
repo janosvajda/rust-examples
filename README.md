@@ -43,8 +43,12 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 # Network
 - [Simple HTTP server](./network/basic-http-server/): It shows how to create a very simple HTTP server in Rust without using external library.
 
+# Data processing
+- [CSV](./data-processing/csv-processing/): Basic implementation of CSV processing and a data pipeline.
+
 # Data structures
-- [Heap](./data-structures/heap): Basic implementation of heap.
+- [Heap](./data-structures/heap/): Basic implementation of heap.
+- [Hast tables & memory managmenet](./data-structures/hash-map-memory-allcoation/) Basic implementation of hash table and show its memory usage.
 
 # Functional programming
 - [Functional Programming short docs](./functional_programming): Couple of words about functional programming paradigm.
