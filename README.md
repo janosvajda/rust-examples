@@ -2,6 +2,10 @@
 
 This repository contains various Rust code examples to demonstrate different concepts and features in the Rust programming language.
 
+| ![loveRust](logo.svg) |
+|:--:|
+| `loveRust.rs` |
+
 ## Motivation
 
 I created these examples for the sheer fun of exploring Rust and learning more about this excellent programming language.
