@@ -43,8 +43,9 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Basic Calorie Calculator](./math/bmr-calculator/): It shows how math operators can be used in Rust.
 - [Imperative & Declarative paradigm - Fibonacci algoritmh](./math/fibonacci/): Imperative & Declarative paradigm example.
 
-# Network
-- [Simple HTTP server](./network/basic-http-server/): It shows how to create a very simple HTTP server in Rust without using external library.
+
+# Generics
+- [Simple example](./generics/generic_storage/): Shows how to use generics in Rust.
 
 # Data processing
 - [CSV](./data-processing/csv-processing/): Basic implementation of CSV processing and a data pipeline.
@@ -59,6 +60,12 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 - [Immutability](./functional_programming/immutability//): Couple examples of immutability in Rust.
 - [Higher Order Functions](./functional_programming/higher-oreder-functions/): Couple examples for Higher Order Functions in Rust.
 - [Function composition](./functional_programming/function-composition/): Couple examples for Function composition in Rust.
+
+# Network
+- [Simple HTTP server](./network/basic-http-server/): It shows how to create a very simple HTTP server in Rust without using external library.
+
+# Streams
+- [Simple streaming](./streams/sensor_stream/): It shows how to create a very simple HTTP sensor data writing and reading solution.
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
 
