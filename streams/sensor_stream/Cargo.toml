@@ -1,0 +1,15 @@
+[package]
+name = "sensor_stream"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rand = "0.8.4"
+
+[[bin]]
+name = "server"
+path = "src/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/client.rs"
