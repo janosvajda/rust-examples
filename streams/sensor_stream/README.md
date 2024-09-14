@@ -38,7 +38,7 @@ Clone the project to your local machine using Git:
 ```bash
 git https://github.com/janosvajda/rust-examples
 cd /rust-examples/streams/sensor_stream
-
+```
 
 
 ### Step 2: Run server and client on a separated terminal
