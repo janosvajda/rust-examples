@@ -6,7 +6,7 @@ This repository contains various Rust code examples to demonstrate different con
 |:--:|
 | `loveRust.rs` |
 
-## Motivation
+## Why?
 
 I created these examples for the sheer fun of exploring Rust and learning more about this excellent programming language.
 
@@ -73,10 +73,4 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
 
-
-## License
-
-I am happy if you find this repository useful. :)
-
-If you find these examples helpful, feel free to use them and share with others.
 
