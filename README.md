@@ -1,4 +1,4 @@
-# Rust Examples
+# Rust Practice Hub
 
 This repository contains various Rust code examples to demonstrate different concepts and features in the Rust programming language.
 
