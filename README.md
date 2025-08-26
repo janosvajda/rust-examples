@@ -16,6 +16,8 @@ Contributions are welcome! If you have any interesting Rust examples, bug fixes,
 
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
 
+# AWS examples
+- [simple-aws-lambda](./aws-lambda-example-hello-world/): Very basic AWS Lambda example in Rust.
 
 # Examples without category
 
