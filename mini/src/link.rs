@@ -1,5 +1,8 @@
+//! Platform-specific linking helpers for turning object files into executables.
+
 use anyhow::{bail, Result};
 
+/// Invoke the appropriate system linker to produce a runnable binary.
 pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -32,6 +35,7 @@ pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> 
                 out_exe.to_str().unwrap(),
                 "-arch",
                 arch,
+                // supply minimum and current macOS platform versions to satisfy ld
                 "-platform_version",
                 "macos",
                 &platform_ver,
@@ -52,6 +56,7 @@ pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> 
 
     #[cfg(target_os = "linux")]
     {
+        // Prefer gcc when available for convenience; otherwise fall back to ld/ld.lld.
         if which::which("gcc").is_ok() {
             let status = std::process::Command::new("gcc")
                 .args([obj.to_str().unwrap(), "-o", out_exe.to_str().unwrap(), "-lc"])
@@ -75,6 +80,7 @@ pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> 
 
     #[cfg(target_os = "windows")]
     {
+        // Use MSVC's linker directly; rely on the CRT and legacy printf symbols.
         let status = std::process::Command::new("link.exe")
             .args([
                 obj.to_str().unwrap(),

@@ -1,3 +1,5 @@
+//! LLVM IR generation for Mini programs using Inkwell.
+
 use anyhow::{anyhow, Result};
 use inkwell::{
     builder::Builder,
@@ -11,12 +13,14 @@ use std::collections::HashMap;
 
 use crate::ast::{Expr, Program, Stmt};
 
+/// Representation of a Mini variable during codegen.
 #[derive(Clone, Copy)]
 enum Var<'ctx> {
     Int { alloca: inkwell::values::PointerValue<'ctx> }, // i32*
     Str { alloca: inkwell::values::PointerValue<'ctx> }, // i8*
 }
 
+/// Generates LLVM IR, keeps track of intrinsics, and records local bindings.
 pub struct Codegen<'ctx> {
     ctx: &'ctx LlvmContext,
     builder: Builder<'ctx>,
@@ -28,6 +32,7 @@ pub struct Codegen<'ctx> {
 }
 
 impl<'ctx> Codegen<'ctx> {
+    /// Create a new code generator configured for the supplied target triple.
     pub fn new(ctx: &'ctx LlvmContext, triple: &TargetTriple) -> Self {
         let module = ctx.create_module("mini");
         module.set_triple(triple);
@@ -51,6 +56,7 @@ impl<'ctx> Codegen<'ctx> {
         Self { ctx, builder, module, printf, fmt_int, fmt_str, vars: HashMap::new() }
     }
 
+    /// Walk the AST, build the `main` function, and populate the module.
     pub fn emit_program(&mut self, program: &Program) -> Result<()> {
         let i32_t = self.ctx.i32_type();
         let i8_t = self.ctx.i8_type();
@@ -101,22 +107,31 @@ impl<'ctx> Codegen<'ctx> {
         Ok(())
     }
 
+    /// Generate an integer value for the given expression, enforcing type checks.
+    ///
+    /// Expressions are evaluated eagerly; every branch either returns a concrete
+    /// `i32` value or fails with a semantic error (e.g. using a string in math).
     fn gen_expr_int(&mut self, expr: &Expr) -> Result<IntValue<'ctx>> {
         let i32_t = self.ctx.i32_type();
 
         Ok(match expr {
+            // literal integers map directly to LLVM constants
             Expr::Int(v) => i32_t.const_int(*v as i64 as u64, true),
             Expr::Var(name) => {
                 match *self.vars.get(name).ok_or_else(|| anyhow!(format!("undefined variable `{}`", name)))? {
+                    // load previously stored integer variable
                     Var::Int { alloca } => self.builder.build_load(i32_t, alloca, "loadi").unwrap().into_int_value(),
+                    // prohibit mixing string bindings inside arithmetic expressions
                     Var::Str { .. } => anyhow::bail!("type error: `{}` is a string, expected integer", name),
                 }
             }
             Expr::UnaryNeg(e) => {
+                // recursively evaluate RHS and negate
                 let v = self.gen_expr_int(e)?;
                 self.builder.build_int_neg(v, "neg").unwrap()
             }
             Expr::Add(a, b) => {
+                // evaluate operands left-to-right and build the arithmetic instruction
                 let l = self.gen_expr_int(a)?;
                 let r = self.gen_expr_int(b)?;
                 self.builder.build_int_add(l, r, "add").unwrap()
@@ -140,6 +155,7 @@ impl<'ctx> Codegen<'ctx> {
         })
     }
 
+    /// Verify the module and write out an object file using the host target machine.
     pub fn write_object(&self, triple: &TargetTriple, out_obj: &std::path::Path) -> Result<()> {
         self.module.verify().map_err(|e| anyhow!(e.to_string()))?;
         inkwell::targets::Target::initialize_all(&InitializationConfig::default());
@@ -176,6 +192,7 @@ fn expect_string_literal(e: &Expr) -> Result<String> {
     }
 }
 
+/// Grab the default target triple for the build machine.
 pub fn host_triple() -> TargetTriple {
     TargetMachine::get_default_triple()
 }

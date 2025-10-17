@@ -1,3 +1,5 @@
+//! Command-line driver: parse source, emit LLVM IR, link into a native executable.
+
 use anyhow::Context;
 use std::{env, fs, path::PathBuf};
 
@@ -5,6 +7,7 @@ use mini::{ast::Program, codegen::{Codegen, host_triple}, link::link_exe, parser
 use inkwell::context::Context as LlvmContext;
 
 fn main() -> anyhow::Result<()> {
+    // CLI expects `<input.mini> <output-exe>` for simplicity.
     let args = env::args().skip(1).collect::<Vec<_>>();
     if args.len() != 2 {
         eprintln!("Usage: mini <input.mini> <output-exe>");
@@ -32,6 +35,7 @@ fn main() -> anyhow::Result<()> {
         fs::set_permissions(&out_exe, perm)?;
     }
 
+    // Basic success message so users know where the binary landed.
     println!("Built {}", out_exe.display());
     Ok(())
 }

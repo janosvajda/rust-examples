@@ -1,11 +1,18 @@
+//! Hand-rolled parser for Mini source: statement scanning plus a Pratt expression parser.
+
 use anyhow::{bail, Context, Result};
 use regex::Regex;
 
 use crate::ast::{Expr, Program, Stmt};
 
+/// Entry point for turning source code into an AST.
 pub struct Parser;
 
 impl Parser {
+    /// Parse a complete Mini program from raw source text.
+    ///
+    /// This handles line-oriented statements (`let`, `print`) and delegates to the
+    /// Pratt parser for arithmetic expressions.
     pub fn parse(src: &str) -> Result<Program> {
         let let_re = Regex::new(r#"^let\s+([A-Za-z_]\w*)\s*=\s*(.+);\s*$"#).unwrap();
         let print_re = Regex::new(r#"^print\s+([A-Za-z_]\w*)\s*;\s*$"#).unwrap();
@@ -59,6 +66,7 @@ impl Parser {
 //   infix left:  '+','-'    (add/sub)         binding power: 5
 // atoms: INT, IDENT, '(' expr ')'
 
+/// Parse an arithmetic expression into an AST node, rejecting trailing tokens.
 fn parse_int_expr(s: &str) -> Result<Expr> {
     let mut it = Lexer::new(s).peekable();
     let expr = parse_bp(&mut it, 0)?;
@@ -86,6 +94,7 @@ struct Lexer<'a> {
     i: usize,
 }
 impl<'a> Lexer<'a> {
+    /// Construct a lexer over a slice of source.
     fn new(s: &'a str) -> Self { Self { s, i: 0 } }
 }
 impl<'a> Iterator for Lexer<'a> {
@@ -133,6 +142,12 @@ impl<'a> Iterator for Lexer<'a> {
     }
 }
 
+/// Pratt-style precedence parser (a top-down operator-precedence algorithm).
+///
+/// Each operator is assigned a binding power; recursive calls enforce precedence
+/// by raising `min_bp` when stepping into tighter-binding operators. This keeps
+/// the implementation compact compared with writing an explicit grammar, which
+/// suits this example project.
 fn parse_bp<I>(it: &mut std::iter::Peekable<I>, min_bp: u8) -> Result<Expr>
 where
     I: Iterator<Item = Tok>,
@@ -183,6 +198,7 @@ where
 }
 
 // Minimal escapes for our language's string literals: \n \t \" \\
+/// Parse and unescape the limited string literal syntax Mini supports.
 fn parse_string(mut s: &str) -> Result<String> {
     if !(s.starts_with('"') && s.ends_with('"')) { bail!("not a string literal"); }
     s = &s[1..s.len() - 1];
