@@ -1,0 +1,12 @@
+# Build artifacts
+/target
+
+# Binaries produced by examples/tests
+/hello
+/expr
+
+# Object files and other intermediates
+*.o
+
+# macOS metadata
+.DS_Store
