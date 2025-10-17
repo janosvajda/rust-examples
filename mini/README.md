@@ -140,10 +140,10 @@ The codebase stays small and hackable, but the output is **real machine code**.
 
 ## 🧑‍💻 Author
 
-Built with ❤️ and Rust by **Your Name**
+Built with ❤️ and Rust by **Janos Vajda**
 
 ---
 
 ## 📜 License
 
-MIT License
+Free
