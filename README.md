@@ -67,6 +67,9 @@ Each directory contains an example showcasing a specific topic in Rust. Click on
 # Streams
 - [Simple streaming](./streams/sensor_stream/): It shows how to create a very simple HTTP sensor data writing and reading solution.
 
+# Programming fun
+- [Mini](./mini/): Mini programming language designed in Rust. It shows how can we use LLVM in Rust.
+
 Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
 
 
