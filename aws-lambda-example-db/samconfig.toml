@@ -1,0 +1,28 @@
+version = 0.1
+
+[prod]
+[prod.deploy]
+[prod.deploy.parameters]
+stack_name = "aws-lambda-example-db-prod"
+resolve_s3 = true
+s3_prefix = "aws-lambda-example-db/prod"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "EnvironmentName=Prod"
+
+[staging]
+[staging.deploy]
+[staging.deploy.parameters]
+stack_name = "aws-lambda-example-db-staging"
+resolve_s3 = true
+s3_prefix = "aws-lambda-example-db/staging"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "EnvironmentName=Staging"
+
+[local]
+[local.deploy]
+[local.deploy.parameters]
+stack_name = "aws-lambda-example-db-local"
+resolve_s3 = true
+s3_prefix = "aws-lambda-example-db/local"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "EnvironmentName=Local"

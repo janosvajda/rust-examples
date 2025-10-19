@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-lambda-example-db — Rust Lambda with DynamoDB backend
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: Prod
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+    Description: Deployment environment name (e.g., Prod, Staging, Local)
+  JwtSecretParameterName:
+    Type: String
+    Default: aws-lambda-example-db/${EnvironmentName}/JWT_SECRET
+    Description: SSM Parameter (SecureString) containing the JWT signing secret
+
+Globals:
+  Function:
+    Runtime: provided.al2
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - x86_64
+
+Resources:
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "Users_${EnvironmentName}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: familyId
+          AttributeType: S
+        - AttributeName: userName
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: FamilyUserIndex
+          KeySchema:
+            - AttributeName: familyId
+              KeyType: HASH
+            - AttributeName: userName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  UserCredentialsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "UserCredentials_${EnvironmentName}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+
+  UserRefreshTokensTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "UserRefreshTokens_${EnvironmentName}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: refreshToken
+          AttributeType: S
+      KeySchema:
+        - AttributeName: refreshToken
+          KeyType: HASH
+        - IndexName: FamilyIdIndex
+          KeySchema:
+            - AttributeName: familyId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: FamilyUserIndex
+          KeySchema:
+            - AttributeName: familyId
+              KeyType: HASH
+            - AttributeName: userName
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  UserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: aws-lambda-example-db
+      Handler: bootstrap
+      CodeUri: ./target/lambda/aws-lambda-example-db
+      Environment:
+        Variables:
+          ENVIRONMENT_NAME: !Ref EnvironmentName
+          CREDENTIALS_TABLE_NAME: !Ref UserCredentialsTable
+          REFRESH_TOKEN_TABLE_NAME: !Ref UserRefreshTokensTable
+          JWT_SECRET_PARAMETER: !Ref JwtSecretParameterName
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserCredentialsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserRefreshTokensTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+                - ssm:GetParameters
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${JwtSecretParameterName}
+      Events:
+        UsersApi:
+          Type: Api
+          Properties:
+            Path: /users
+            Method: ANY
+        LoginApi:
+          Type: Api
+          Properties:
+            Path: /login
+            Method: POST
+        TokenRefreshApi:
+          Type: Api
+          Properties:
+            Path: /token/refresh
+            Method: POST
+        TokenRevokeApi:
+          Type: Api
+          Properties:
+            Path: /token/revoke
+            Method: POST
+
+Outputs:
+  UsersApiUrl:
+    Description: Invoke URL for API Gateway stage
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/users"
+  TableName:
+    Description: DynamoDB table name
+    Value: !Ref UserTable
+  CredentialsTableName:
+    Description: DynamoDB credentials table name
+    Value: !Ref UserCredentialsTable
+  RefreshTokensTableName:
+    Description: DynamoDB refresh token table name
+    Value: !Ref UserRefreshTokensTable
