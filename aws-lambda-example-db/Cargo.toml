@@ -1,0 +1,26 @@
+[package]
+name = "aws-lambda-example-db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aws-config = "1"
+aws-sdk-dynamodb = "1"
+aws-sdk-ssm = "1"
+lambda_http = "0.17"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+thiserror = "1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
+tracing = "0.1"
+argon2 = "0.5"
+rand = "0.8"
+jsonwebtoken = "9"
+
+[dev-dependencies]
+anyhow = "1"
+aws-credential-types = "1"
+serial_test = "2"
