@@ -38,6 +38,11 @@ All three tables use `DeletionPolicy: Retain`, so deleting the CloudFormation
 stack leaves the data behind; drop the tables manually if you really want them
 removed.
 
+The Lambda keeps exactly one active refresh token per user. On login (or token
+refresh) it deletes any existing entries for that `familyId + userId` before
+writing the newly generated token, so stale refresh tokens cannot linger in the
+table.
+
 You can extend the schema by updating `UserRecord` in `src/user.rs` and the
 `UserTable` resource inside `template.yaml`.
 
@@ -140,7 +145,7 @@ USERS_URL="https://abc123.execute-api.us-east-1.amazonaws.com/Prod/users"
 # Create a user
 curl -X POST "$USERS_URL" \
   -H 'content-type: application/json' \
-  -d '{"userName":"alice","email":"alice@example.com","password":"secret","familyId":"fam-1"}'
+  -d '{"userName":"alice2","email":"alicefam2@example.com","password":"secret","familyId":"fam-2"}'
 
 # Fetch the user by userId
 curl -X GET "$USERS_URL?userId=<user-id-from-create>"
@@ -180,6 +185,10 @@ aws dynamodb scan --table-name Users_Prod
 CloudWatch Logs capture the Lambda output (`/aws/lambda/aws-lambda-example-db`) and
 should show the structured error logs if anything goes wrong. Delete the sample
 user with the `/token/revoke` endpoint when you finish testing.
+
+CloudWatch also creates a dashboard named `${stack-name}-lambda` with widgets
+for invocations, errors, duration percentiles, concurrency, and the most recent
+log events so you can keep an eye on production traffic at a glance.
 
 > **Stage prefixes**  
 > The template sets `AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH=true`, which tells

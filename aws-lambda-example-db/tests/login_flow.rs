@@ -54,6 +54,31 @@ async fn login_success_and_failure() -> Result<()> {
     assert!(login_json["refreshToken"].as_str().is_some());
     assert_eq!(login_json["refreshExpiresIn"], REFRESH_TOKEN_TTL_SECONDS);
 
+    let tokens = ctx
+        .client()
+        .query()
+        .table_name(ctx.refresh_table())
+        .index_name("FamilyUserIndex")
+        .key_condition_expression("#fid = :fid AND #uid = :uid")
+        .expression_attribute_names("#fid", "familyId")
+        .expression_attribute_names("#uid", "userId")
+        .expression_attribute_values(
+            ":fid",
+            aws_sdk_dynamodb::types::AttributeValue::S(family_id.clone()),
+        )
+        .expression_attribute_values(
+            ":uid",
+            aws_sdk_dynamodb::types::AttributeValue::S(
+                login_json["userId"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
+        )
+        .send()
+        .await?;
+    assert_eq!(tokens.count, 1);
+
     let bad_login_payload = json!({
         "email": "integration@example.com",
         "password": "wrong"

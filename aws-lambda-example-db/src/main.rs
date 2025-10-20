@@ -1,3 +1,10 @@
+//! Lambda entrypoint.
+//!
+//! The binary initialises logging, discovers which environment it is running in,
+//! bootstraps dependencies (DynamoDB tables locally, SSM secrets everywhere), and
+//! then hands execution to `lambda_http`. Each invocation reuses the `AppContext`
+//! so the SDK clients and configuration are cached across requests.
+
 use std::sync::Arc;
 
 use aws_lambda_example_db::{
