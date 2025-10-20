@@ -11,14 +11,15 @@ Parameters:
     Description: Deployment environment name (e.g., Prod, Staging, Local)
   JwtSecretParameterPrefix:
     Type: String
-    Default: aws-lambda-example-db
+    Default: /apps/aws-lambda-example-db
     Description: |
-      Prefix for the JWT secret stored in SSM Parameter Store.
+      Prefix for the JWT secret stored in SSM Parameter Store (include the leading `/`
+      and avoid reserved segments like `aws`, `ssm`, or `amazon`).
       The deployed Lambda reads ${prefix}/${EnvironmentName}/JWT_SECRET.
 
 Globals:
   Function:
-    Runtime: provided.al2
+    Runtime: provided.al2023
     Timeout: 30
     MemorySize: 256
     Architectures:
@@ -119,6 +120,7 @@ Resources:
           CREDENTIALS_TABLE_NAME: !Ref UserCredentialsTable
           REFRESH_TOKEN_TABLE_NAME: !Ref UserRefreshTokensTable
           JWT_SECRET_PARAMETER: !Sub "${JwtSecretParameterPrefix}/${EnvironmentName}/JWT_SECRET"
+          AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH: "true"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UserTable
@@ -131,7 +133,7 @@ Resources:
               Action:
                 - ssm:GetParameter
                 - ssm:GetParameters
-              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${JwtSecretParameterPrefix}/${EnvironmentName}/JWT_SECRET
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${JwtSecretParameterPrefix}/${EnvironmentName}/JWT_SECRET
       Events:
         UsersApi:
           Type: Api

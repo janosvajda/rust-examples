@@ -297,7 +297,7 @@ pub async fn setup_environment() -> Option<TestSetup> {
     let user_table = format!("Users_{}", env_name);
     let credentials_table = format!("UserCredentials_{}", env_name);
     env::set_var("CREDENTIALS_TABLE_NAME", &credentials_table);
-    let secret_param = format!("aws-lambda-example-db/{}/JWT_SECRET", env_name);
+    let secret_param = format!("/apps/aws-lambda-example-db/{}/JWT_SECRET", env_name);
     env::set_var("JWT_SECRET_PARAMETER", &secret_param);
     env::set_var("JWT_SECRET", "integration-secret");
     let refresh_table = format!("UserRefreshTokens_{}", env_name);

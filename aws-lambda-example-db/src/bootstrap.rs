@@ -162,10 +162,7 @@ async fn ensure_credentials_table(
     wait_for_active(client, table).await
 }
 
-async fn ensure_refresh_table(
-    client: &Client,
-    table: &str,
-) -> Result<(), aws_sdk_dynamodb::Error> {
+async fn ensure_refresh_table(client: &Client, table: &str) -> Result<(), aws_sdk_dynamodb::Error> {
     if table_exists(client, table).await? {
         return Ok(());
     }
