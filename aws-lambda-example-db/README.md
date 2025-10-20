@@ -78,13 +78,13 @@ which AWS account the command will target.
 
 Before deploying, create the JWT signing secret in AWS Systems Manager Parameter
 Store. By default the stack looks for a `SecureString` at
-`aws-lambda-example-db/<environment>/JWT_SECRET` (overrideable via
-`JwtSecretParameterPrefix`). Seed each environment’s secret ahead of time, for
-example:
+`/apps/aws-lambda-example-db/<environment>/JWT_SECRET` (overrideable via
+`JwtSecretParameterPrefix`; note SSM forbids prefixes beginning with `aws` or
+`ssm`). Seed each environment’s secret ahead of time, for example:
 
 ```bash
 aws ssm put-parameter \
-  --name aws-lambda-example-db/Prod/JWT_SECRET \
+  --name /apps/aws-lambda-example-db/Prod/JWT_SECRET \
   --type SecureString \
   --value 'replace-with-strong-secret' \
   --overwrite
@@ -94,34 +94,112 @@ Repeat the command for staging, dev, and any other environments so the Lambda
 can retrieve the secret during startup.
 
 ```bash
-cargo lambda deploy \
-    --profile default \
-    --template template.yaml \
+cargo lambda build --release
+sam deploy \
     --config-env prod \
-    --enable-function-url # optional: publish Function URL
+    --no-confirm-changeset
 ```
+
+The bundled `samconfig.toml` supplies the stack name, S3 bucket prefix, and
+capabilities. This command packages the build artifacts and deploys the SAM /
+CloudFormation stack (Lambda function, API Gateway routes, DynamoDB tables, and
+IAM policies) in one step. The stack targets the `provided.al2023` runtime, so
+as long as you build with `cargo lambda build --release` on macOS or Linux the
+resulting binary is compatible with the Lambda execution environment—no Docker
+or cross-compilation flags required.
 
 Use the same profile you validated with `aws sts get-caller-identity` so the
 deployment targets the expected AWS account and region.
 
 The template provisions the DynamoDB table, IAM permissions, and the Lambda
 function. Output values include the API Gateway endpoint for the `/users`
-resource.
+resource. The implicit API Gateway stage remains `Prod` unless you override it
+in the template or via additional parameters.
+
+### Post-deploy checks
+
+After CloudFormation finishes, run a quick verification:
+
+```bash
+STACK_NAME=aws-lambda-example-db-prod
+aws cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --query 'Stacks[0].Outputs[?OutputKey==`UsersApiUrl`].OutputValue' \
+  --output text
+```
+
+Save the returned invoke URL (for example, `https://abc123.execute-api.us-east-1.amazonaws.com/Prod/users`)
+and test the live API:
+
+```bash
+USERS_URL="https://abc123.execute-api.us-east-1.amazonaws.com/Prod/users"
+
+# Create a user
+curl -X POST "$USERS_URL" \
+  -H 'content-type: application/json' \
+  -d '{"userName":"alice","email":"alice@example.com","password":"secret","familyId":"fam-1"}'
+
+# Fetch the user by userId
+curl -X GET "$USERS_URL?userId=<user-id-from-create>"
+
+# Log in to retrieve tokens
+curl -X POST "${USERS_URL%/users}/login" \
+  -H 'content-type: application/json' \
+  -d '{"email":"alice@example.com","password":"secret"}'
+```
+
+Grab the `refreshToken` from the login response and exercise the token
+endpoints:
+
+```bash
+REFRESH_URL="${USERS_URL%/users}/token/refresh"
+REVOKE_URL="${USERS_URL%/users}/token/revoke"
+REFRESH_TOKEN="<refresh-token-from-login>"
+
+# Rotate the refresh token (returns a new access + refresh pair)
+curl -X POST "$REFRESH_URL" \
+  -H 'content-type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}"
+
+# Revoke the refresh token so it can no longer be used
+curl -X POST "$REVOKE_URL" \
+  -H 'content-type: application/json' \
+  -d "{\"refreshToken\":\"$REFRESH_TOKEN\"}"
+```
+
+You can inspect DynamoDB to confirm the records were written:
+
+```bash
+aws dynamodb describe-table --table-name Users_Prod
+aws dynamodb scan --table-name Users_Prod
+```
+
+CloudWatch Logs capture the Lambda output (`/aws/lambda/aws-lambda-example-db`) and
+should show the structured error logs if anything goes wrong. Delete the sample
+user with the `/token/revoke` endpoint when you finish testing.
+
+> **Stage prefixes**  
+> The template sets `AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH=true`, which tells
+> `lambda_http` to strip the API Gateway stage (`/Prod`, `/Staging`, etc.) before
+> dispatching. You can copy the invoke URL shown above directly—no need to add
+> or remove the stage manually when calling the Lambda.
 
 ### Environment manifests
 
-The project ships with a `samconfig.toml` that captures per-environment
-parameters:
+The stack ships with `EnvironmentName=Prod`. To target a different environment,
+override the parameter at deploy time:
 
-| Config env | Stack name                      | Parameter overrides          |
-|------------|---------------------------------|------------------------------|
-| `prod`     | `aws-lambda-example-db-prod`    | `EnvironmentName=Prod`       |
-| `staging`  | `aws-lambda-example-db-staging` | `EnvironmentName=Staging`    |
-| `local`    | `aws-lambda-example-db-local`   | `EnvironmentName=Local`      |
+```bash
+sam deploy \
+  --config-env prod \
+  --no-confirm-changeset \
+  --parameter-overrides EnvironmentName=Staging
+```
 
-Pick the appropriate environment by passing `--config-env`. Adjust or extend the
-file to match your AWS profiles, regions, or additional parameters (memory,
-timeouts, alarms, etc.).
+Create the matching SSM secret first (e.g.,
+`/apps/aws-lambda-example-db/Staging/JWT_SECRET`). Whichever value you supply
+drives the DynamoDB table names (`Users_<env>`), the JWT secret path, and the
+Lambda's `ENVIRONMENT_NAME` variable.
 
 At runtime the handler respects the `ENVIRONMENT_NAME` variable. If it is not
 present, the code falls back to `Local` when running under tooling like
@@ -131,12 +209,12 @@ corresponding DynamoDB table `Users_<name>`.
 
 ### Environment overview
 
-| Environment | How to run/deploy                                                  | DynamoDB table         | Notes                           |
-|-------------|--------------------------------------------------------------------|------------------------|---------------------------------|
-| `Prod`      | `cargo lambda deploy --config-env prod`                            | `Users_Prod`           | Requires AWS credentials        |
-| `Staging`   | `cargo lambda deploy --config-env staging`                         | `Users_Staging`        | Same code, isolated resources   |
-| `Local`     | `cargo lambda watch --env-file env/local.env` *(or set var inline)* | `Users_Local`          | Works with local/remote tables  |
-| custom name | `ENVIRONMENT_NAME=Dev cargo lambda deploy --template template.yaml` | `Users_Dev` (derived)  | Useful for ephemeral test envs  |
+| Environment | How to run/deploy                                                        | DynamoDB table         | Notes                           |
+|-------------|--------------------------------------------------------------------------|------------------------|---------------------------------|
+| `Prod`      | `sam deploy --config-env prod --no-confirm-changeset`                    | `Users_Prod`           | Uses `samconfig.toml` defaults  |
+| `Staging`   | `sam deploy --config-env prod --no-confirm-changeset --parameter-overrides EnvironmentName=Staging` | `Users_Staging`        | Supply staging secret + tables |
+| `Local`     | `cargo lambda watch --env-file env/local.env` *(or set var inline)*       | `Users_Local`          | Works with local/remote tables  |
+| custom name | `sam deploy --config-env prod --no-confirm-changeset --parameter-overrides EnvironmentName=Dev` | `Users_Dev` (derived)  | Useful for ephemeral test envs  |
 
 ### DynamoDB Local
 
@@ -157,12 +235,10 @@ cargo lambda watch --env-file env/local.env
 The env file seeds every required variable (environment name, table overrides,
 JWT secret pointers, etc.), so prefer that workflow to avoid drift. For deployed
 environments the JWT secret should live in AWS Systems Manager Parameter Store
-(`aws-lambda-example-db/<env>/JWT_SECRET` by default). 
-
-Set `JWT_SECRET_PARAMETER` to that name; the Lambda fetches it with
+(`/apps/aws-lambda-example-db/<env>/JWT_SECRET` by default). Set
+`JWT_SECRET_PARAMETER` to that name; the Lambda fetches it with
 `ssm:GetParameter`. If the lookup fails (e.g., running locally without access)
 the code falls back to the `JWT_SECRET` env var so you can still test offline.
-
 
 Table creation on startup only happens when `BOOTSTRAP_DYNAMODB_TABLES` is
 truthy; the local env file enables it, while deployed stacks should leave the
@@ -177,6 +253,8 @@ variable unset so CloudFormation owns the DynamoDB lifecycle.
    curl -X POST http://127.0.0.1:9000/users \
      -H 'content-type: application/json' \
      -d '{"userName":"alice","email":"alice@example.com","password":"secret","familyId":"fam-1"}'
+
+   curl -X GET "http://127.0.0.1:9000/users?userId=b85abfff-5309-414c-9b22-097405674921"
 
    curl -X POST http://127.0.0.1:9000/login \
      -H 'content-type: application/json' \
