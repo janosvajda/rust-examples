@@ -135,12 +135,12 @@ Save the returned invoke URL (for example, `https://abc123.execute-api.us-east-1
 and test the live API:
 
 ```bash
-USERS_URL="https://omps220310.execute-api.eu-west-2.amazonaws.com/Prod/users"
+USERS_URL="https://abc123.execute-api.us-east-1.amazonaws.com/Prod/users"
 
 # Create a user
 curl -X POST "$USERS_URL" \
   -H 'content-type: application/json' \
-  -d '{"userName":"alice","email":"alice@example.com","password":"secret","familyId":"fam-1"}'
+  -d '{"userName":"alice2","email":"alicefam2@example.com","password":"secret","familyId":"fam-2"}'
 
 # Fetch the user by userId
 curl -X GET "$USERS_URL?userId=<user-id-from-create>"
