@@ -35,9 +35,23 @@ async fn main() -> Result<(), LambdaError> {
     let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let client = Client::new(&config);
 
-    ensure_tables(&client, &table_name, &credentials_table, &refresh_table)
-        .await
-        .map_err(|e| LambdaError::from(format!("failed to ensure DynamoDB tables: {e}")))?;
+    let bootstrap_tables = std::env::var("BOOTSTRAP_DYNAMODB_TABLES")
+        .map(|value| match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            _ => false,
+        })
+        .unwrap_or_else(|_| environment.name().eq_ignore_ascii_case("Local"));
+
+    if bootstrap_tables {
+        ensure_tables(&client, &table_name, &credentials_table, &refresh_table)
+            .await
+            .map_err(|e| LambdaError::from(format!("failed to ensure DynamoDB tables: {e}")))?;
+    } else {
+        info!(
+            environment = environment.name(),
+            "skipping DynamoDB table bootstrap"
+        );
+    }
     let ssm = aws_sdk_ssm::Client::new(&config);
     let jwt_secret = match ssm
         .get_parameter()

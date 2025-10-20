@@ -1,7 +1,11 @@
 # aws-lambda-example-db
 
-Fully Rust Lambda example that showcases `cargo-lambda` packaging, DynamoDB
-integration, and an HTTP-style handler built with `lambda_http`.
+`aws-lambda-example-db` is a fully Rust, serverless user-management API designed
+for AWS Lambda. It demonstrates end-to-end packaging with `cargo-lambda`,
+persists identities in DynamoDB, and exposes login/token flows over an HTTP
+interface implemented with `lambda_http`. The stack provisions application,
+credentials, and refresh-token tables plus an API Gateway front door so you can
+deploy a realistic auth service with minimal setup.
 
 ```
 aws-lambda-example-db/
@@ -31,7 +35,7 @@ the partition key and attributes `userId`, `familyId`, and `passwordHash`.
 Opaque refresh tokens live in `UserRefreshTokens_<env>` with attributes
 `refreshToken` (partition key), `userId`, `familyId`, and `expiresAt`.
 
-You can extend the schema by updating `UserRecord` in `src/main.rs` and the
+You can extend the schema by updating `UserRecord` in `src/user.rs` and the
 `UserTable` resource inside `template.yaml`.
 
 ## Lambda API
@@ -65,6 +69,30 @@ Artifacts end up in `target/lambda/aws-lambda-example-db/`.
 
 ## Deploying with cargo-lambda
 
+`cargo lambda deploy` uses the standard AWS credential chain. Explicit CLI
+arguments (such as `--profile`) win first, followed by the `AWS_PROFILE`
+environment variable, then direct access keys (`AWS_ACCESS_KEY_ID`, etc.), and
+finally your default AWS CLI profile or instance role. Run
+`aws sts get-caller-identity [--profile your-profile]` before deploying to verify
+which AWS account the command will target.
+
+Before deploying, create the JWT signing secret in AWS Systems Manager Parameter
+Store. By default the stack looks for a `SecureString` at
+`aws-lambda-example-db/<environment>/JWT_SECRET` (overrideable via
+`JwtSecretParameterPrefix`). Seed each environment’s secret ahead of time, for
+example:
+
+```bash
+aws ssm put-parameter \
+  --name aws-lambda-example-db/Prod/JWT_SECRET \
+  --type SecureString \
+  --value 'replace-with-strong-secret' \
+  --overwrite
+```
+
+Repeat the command for staging, dev, and any other environments so the Lambda
+can retrieve the secret during startup.
+
 ```bash
 cargo lambda deploy \
     --profile default \
@@ -72,6 +100,9 @@ cargo lambda deploy \
     --config-env prod \
     --enable-function-url # optional: publish Function URL
 ```
+
+Use the same profile you validated with `aws sts get-caller-identity` so the
+deployment targets the expected AWS account and region.
 
 The template provisions the DynamoDB table, IAM permissions, and the Lambda
 function. Output values include the API Gateway endpoint for the `/users`
@@ -126,10 +157,16 @@ cargo lambda watch --env-file env/local.env
 The env file seeds every required variable (environment name, table overrides,
 JWT secret pointers, etc.), so prefer that workflow to avoid drift. For deployed
 environments the JWT secret should live in AWS Systems Manager Parameter Store
-(`aws-lambda-example-db/<env>/JWT_SECRET` by default). Set
-`JWT_SECRET_PARAMETER` to that name; the Lambda fetches it with
+(`aws-lambda-example-db/<env>/JWT_SECRET` by default). 
+
+Set `JWT_SECRET_PARAMETER` to that name; the Lambda fetches it with
 `ssm:GetParameter`. If the lookup fails (e.g., running locally without access)
 the code falls back to the `JWT_SECRET` env var so you can still test offline.
+
+
+Table creation on startup only happens when `BOOTSTRAP_DYNAMODB_TABLES` is
+truthy; the local env file enables it, while deployed stacks should leave the
+variable unset so CloudFormation owns the DynamoDB lifecycle.
 
 1. Start DynamoDB Local (see the section above) so all three tables exist:
    `Users_Local`, `UserCredentials_Local`, and `UserRefreshTokens_Local`.
@@ -159,8 +196,8 @@ the code falls back to the `JWT_SECRET` env var so you can still test offline.
 
 The provided `env/local.env` sets the required environment variables (including
 `DYNAMODB_ENDPOINT`, `AWS_ALLOW_HTTP`, `AWS_SDK_LOAD_CONFIG`,
-`CREDENTIALS_TABLE_NAME`, `REFRESH_TOKEN_TABLE_NAME`, `JWT_SECRET_PARAMETER`, and
-`JWT_SECRET`) so the
+`CREDENTIALS_TABLE_NAME`, `REFRESH_TOKEN_TABLE_NAME`, `JWT_SECRET_PARAMETER`,
+`JWT_SECRET`, and `BOOTSTRAP_DYNAMODB_TABLES`) so the
 SDK can talk to DynamoDB Local over HTTP without TLS. Integration tests rely on
 the same variables and will skip automatically if DynamoDB is unreachable.
 

@@ -173,10 +173,60 @@ impl TablesGuard {
                     .attribute_type(ScalarAttributeType::S)
                     .build()?,
             )
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("familyId")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("userId")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
             .key_schema(
                 KeySchemaElement::builder()
                     .attribute_name("refreshToken")
                     .key_type(KeyType::Hash)
+                    .build()?,
+            )
+            .global_secondary_indexes(
+                GlobalSecondaryIndex::builder()
+                    .index_name("FamilyIdIndex")
+                    .key_schema(
+                        KeySchemaElement::builder()
+                            .attribute_name("familyId")
+                            .key_type(KeyType::Hash)
+                            .build()?,
+                    )
+                    .projection(
+                        Projection::builder()
+                            .projection_type(ProjectionType::All)
+                            .build(),
+                    )
+                    .build()?,
+            )
+            .global_secondary_indexes(
+                GlobalSecondaryIndex::builder()
+                    .index_name("FamilyUserIndex")
+                    .key_schema(
+                        KeySchemaElement::builder()
+                            .attribute_name("familyId")
+                            .key_type(KeyType::Hash)
+                            .build()?,
+                    )
+                    .key_schema(
+                        KeySchemaElement::builder()
+                            .attribute_name("userId")
+                            .key_type(KeyType::Range)
+                            .build()?,
+                    )
+                    .projection(
+                        Projection::builder()
+                            .projection_type(ProjectionType::All)
+                            .build(),
+                    )
                     .build()?,
             )
             .billing_mode(BillingMode::PayPerRequest)
