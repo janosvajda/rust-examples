@@ -159,6 +159,77 @@ Resources:
             Path: /token/revoke
             Method: POST
 
+  UserDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-lambda"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Invocations & Errors",
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${UserFunction}" ],
+                  [ ".", "Errors", ".", "." ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "title": "Duration p50 / p95",
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${UserFunction}", { "stat": "p50" } ],
+                  [ ".", ".", ".", ".", { "stat": "p95" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "view": "timeSeries",
+                "region": "${AWS::Region}",
+                "title": "Throttles & Concurrent Execs",
+                "metrics": [
+                  [ "AWS/Lambda", "Throttles", "FunctionName", "${UserFunction}" ],
+                  [ ".", "ConcurrentExecutions", ".", "." ]
+                ]
+              }
+            },
+            {
+              "type": "log",
+              "x": 12,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${UserFunction}' | fields @timestamp, @message | sort @timestamp desc | limit 20",
+                "region": "${AWS::Region}",
+                "title": "Recent Lambda Logs"
+              }
+            }
+          ]
+        }
+
 Outputs:
   UsersApiUrl:
     Description: Invoke URL for API Gateway stage

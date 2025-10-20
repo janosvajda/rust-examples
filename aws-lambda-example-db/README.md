@@ -135,7 +135,7 @@ Save the returned invoke URL (for example, `https://abc123.execute-api.us-east-1
 and test the live API:
 
 ```bash
-USERS_URL="https://abc123.execute-api.us-east-1.amazonaws.com/Prod/users"
+USERS_URL="https://omps220310.execute-api.eu-west-2.amazonaws.com/Prod/users"
 
 # Create a user
 curl -X POST "$USERS_URL" \
@@ -180,6 +180,10 @@ aws dynamodb scan --table-name Users_Prod
 CloudWatch Logs capture the Lambda output (`/aws/lambda/aws-lambda-example-db`) and
 should show the structured error logs if anything goes wrong. Delete the sample
 user with the `/token/revoke` endpoint when you finish testing.
+
+CloudWatch also creates a dashboard named `${stack-name}-lambda` with widgets
+for invocations, errors, duration percentiles, concurrency, and the most recent
+log events so you can keep an eye on production traffic at a glance.
 
 > **Stage prefixes**  
 > The template sets `AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH=true`, which tells
