@@ -180,12 +180,69 @@ async fn ensure_refresh_table(
                 .build()
                 .expect("refresh token definition"),
         )
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("familyId")
+                .attribute_type(ScalarAttributeType::S)
+                .build()
+                .expect("refresh familyId definition"),
+        )
+        .attribute_definitions(
+            AttributeDefinition::builder()
+                .attribute_name("userId")
+                .attribute_type(ScalarAttributeType::S)
+                .build()
+                .expect("refresh userId definition"),
+        )
         .key_schema(
             KeySchemaElement::builder()
                 .attribute_name("refreshToken")
                 .key_type(KeyType::Hash)
                 .build()
                 .expect("refresh token key"),
+        )
+        .global_secondary_indexes(
+            GlobalSecondaryIndex::builder()
+                .index_name("FamilyIdIndex")
+                .key_schema(
+                    KeySchemaElement::builder()
+                        .attribute_name("familyId")
+                        .key_type(KeyType::Hash)
+                        .build()
+                        .expect("refresh familyId key"),
+                )
+                .projection(
+                    Projection::builder()
+                        .projection_type(ProjectionType::All)
+                        .build(),
+                )
+                .build()
+                .expect("FamilyIdIndex definition"),
+        )
+        .global_secondary_indexes(
+            GlobalSecondaryIndex::builder()
+                .index_name("FamilyUserIndex")
+                .key_schema(
+                    KeySchemaElement::builder()
+                        .attribute_name("familyId")
+                        .key_type(KeyType::Hash)
+                        .build()
+                        .expect("refresh familyId key"),
+                )
+                .key_schema(
+                    KeySchemaElement::builder()
+                        .attribute_name("userId")
+                        .key_type(KeyType::Range)
+                        .build()
+                        .expect("refresh userId range key"),
+                )
+                .projection(
+                    Projection::builder()
+                        .projection_type(ProjectionType::All)
+                        .build(),
+                )
+                .build()
+                .expect("FamilyUserIndex definition"),
         )
         .billing_mode(BillingMode::PayPerRequest)
         .send()

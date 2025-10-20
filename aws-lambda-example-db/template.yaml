@@ -9,10 +9,12 @@ Parameters:
     Default: Prod
     AllowedPattern: "^[A-Za-z0-9_-]+$"
     Description: Deployment environment name (e.g., Prod, Staging, Local)
-  JwtSecretParameterName:
+  JwtSecretParameterPrefix:
     Type: String
-    Default: aws-lambda-example-db/${EnvironmentName}/JWT_SECRET
-    Description: SSM Parameter (SecureString) containing the JWT signing secret
+    Default: aws-lambda-example-db
+    Description: |
+      Prefix for the JWT secret stored in SSM Parameter Store.
+      The deployed Lambda reads ${prefix}/${EnvironmentName}/JWT_SECRET.
 
 Globals:
   Function:
@@ -47,6 +49,12 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+        - IndexName: FamilyIdIndex
+          KeySchema:
+            - AttributeName: familyId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
         - IndexName: FamilyUserIndex
           KeySchema:
             - AttributeName: familyId
@@ -76,9 +84,14 @@ Resources:
       AttributeDefinitions:
         - AttributeName: refreshToken
           AttributeType: S
+        - AttributeName: familyId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
       KeySchema:
         - AttributeName: refreshToken
           KeyType: HASH
+      GlobalSecondaryIndexes:
         - IndexName: FamilyIdIndex
           KeySchema:
             - AttributeName: familyId
@@ -89,7 +102,7 @@ Resources:
           KeySchema:
             - AttributeName: familyId
               KeyType: HASH
-            - AttributeName: userName
+            - AttributeName: userId
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -105,7 +118,7 @@ Resources:
           ENVIRONMENT_NAME: !Ref EnvironmentName
           CREDENTIALS_TABLE_NAME: !Ref UserCredentialsTable
           REFRESH_TOKEN_TABLE_NAME: !Ref UserRefreshTokensTable
-          JWT_SECRET_PARAMETER: !Ref JwtSecretParameterName
+          JWT_SECRET_PARAMETER: !Sub "${JwtSecretParameterPrefix}/${EnvironmentName}/JWT_SECRET"
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UserTable
@@ -118,7 +131,7 @@ Resources:
               Action:
                 - ssm:GetParameter
                 - ssm:GetParameters
-              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${JwtSecretParameterName}
+              Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${JwtSecretParameterPrefix}/${EnvironmentName}/JWT_SECRET
       Events:
         UsersApi:
           Type: Api

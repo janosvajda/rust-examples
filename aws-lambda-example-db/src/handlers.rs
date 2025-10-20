@@ -7,7 +7,7 @@ use lambda_http::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::{
     auth::{
@@ -422,6 +422,21 @@ async fn revoke_refresh_token(
 }
 fn json_response<T: Serialize>(status: StatusCode, value: T) -> Response<Body> {
     let body = serde_json::to_string(&value).unwrap_or_else(|_| "{}".into());
+
+    if status.is_server_error() {
+        error!(
+            http_status = status.as_u16(),
+            body = %body,
+            "returning server error response"
+        );
+    } else if status.is_client_error() {
+        warn!(
+            http_status = status.as_u16(),
+            body = %body,
+            "returning client error response"
+        );
+    }
+
     Response::builder()
         .status(status)
         .header("content-type", "application/json")
