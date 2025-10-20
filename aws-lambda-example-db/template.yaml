@@ -28,6 +28,7 @@ Globals:
 Resources:
   UserTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
     Properties:
       TableName: !Sub "Users_${EnvironmentName}"
       BillingMode: PAY_PER_REQUEST
@@ -67,6 +68,7 @@ Resources:
 
   UserCredentialsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
     Properties:
       TableName: !Sub "UserCredentials_${EnvironmentName}"
       BillingMode: PAY_PER_REQUEST
@@ -79,6 +81,7 @@ Resources:
 
   UserRefreshTokensTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
     Properties:
       TableName: !Sub "UserRefreshTokens_${EnvironmentName}"
       BillingMode: PAY_PER_REQUEST

@@ -34,6 +34,9 @@ Credentials are stored separately in `UserCredentials_<env>` with `email` as
 the partition key and attributes `userId`, `familyId`, and `passwordHash`.
 Opaque refresh tokens live in `UserRefreshTokens_<env>` with attributes
 `refreshToken` (partition key), `userId`, `familyId`, and `expiresAt`.
+All three tables use `DeletionPolicy: Retain`, so deleting the CloudFormation
+stack leaves the data behind; drop the tables manually if you really want them
+removed.
 
 You can extend the schema by updating `UserRecord` in `src/user.rs` and the
 `UserTable` resource inside `template.yaml`.
