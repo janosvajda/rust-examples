@@ -247,6 +247,43 @@ async fn login_user(ctx: &AppContext, event: Request) -> Result<Response<Body>, 
     )
     .map_err(lambda_error)?;
 
+    // Ensure only one active refresh token per user by removing existing entries first.
+    let existing_tokens = ctx
+        .client()
+        .query()
+        .table_name(ctx.refresh_table())
+        .index_name("FamilyUserIndex")
+        .key_condition_expression("#fid = :fid AND #uid = :uid")
+        .expression_attribute_names("#fid", "familyId")
+        .expression_attribute_names("#uid", "userId")
+        .expression_attribute_values(":fid", AttributeValue::S(family_id.to_string()))
+        .expression_attribute_values(":uid", AttributeValue::S(user_id.to_string()))
+        .projection_expression("refreshToken")
+        .send()
+        .await
+        .map_err(|e| lambda_error(AppError::Dynamo(e.to_string())))?;
+
+    let tokens_to_delete: Vec<String> = existing_tokens
+        .items()
+        .iter()
+        .filter_map(|token_item| {
+            token_item
+                .get("refreshToken")
+                .and_then(|attr| attr.as_s().ok())
+                .map(|s| s.to_string())
+        })
+        .collect();
+
+    for refresh in tokens_to_delete {
+        let _ = ctx
+            .client()
+            .delete_item()
+            .table_name(ctx.refresh_table())
+            .key("refreshToken", AttributeValue::S(refresh))
+            .send()
+            .await;
+    }
+
     let refresh_token = generate_refresh_token();
     let now = current_epoch_seconds().map_err(lambda_error)?;
     let refresh_exp = now + REFRESH_TOKEN_TTL_SECONDS as i64;

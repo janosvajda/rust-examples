@@ -1,3 +1,12 @@
+//! DynamoDB bootstrap helpers.
+//!
+//! The Lambda skips table creation in production deployments (the CloudFormation
+//! template provisions them), but local tooling and integration tests still rely on
+//! being able to spin up a fresh schema automatically. The helpers below describe
+//! the exact table layout the application expects—attributes, GSIs, and billing
+//! mode—and block until the tables become `ACTIVE`. They are intentionally
+//! deterministic so that the runtime and the CloudFormation template stay in sync.
+
 use aws_sdk_dynamodb::{
     types::{
         AttributeDefinition, BillingMode, GlobalSecondaryIndex, KeySchemaElement, KeyType,
@@ -7,6 +16,12 @@ use aws_sdk_dynamodb::{
 };
 use tokio::time::{sleep, Duration};
 
+/// Ensure the three DynamoDB tables the application depends on exist.
+///
+/// This is only invoked when the `BOOTSTRAP_DYNAMODB_TABLES` flag (or the
+/// implicit local environment detection) is enabled. In production the tables
+/// are managed by CloudFormation, but during local development/tests we still
+/// create them on the fly so the handlers can execute against a known schema.
 pub async fn ensure_tables(
     client: &Client,
     user_table: &str,

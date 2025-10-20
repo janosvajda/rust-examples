@@ -52,6 +52,32 @@ async fn refresh_and_revoke_flow() -> Result<()> {
         .expect("refresh token")
         .to_string();
 
+    let tokens_after_login = ctx
+        .client()
+        .query()
+        .table_name(ctx.refresh_table())
+        .index_name("FamilyUserIndex")
+        .key_condition_expression("#fid = :fid AND #uid = :uid")
+        .expression_attribute_names("#fid", "familyId")
+        .expression_attribute_names("#uid", "userId")
+        .expression_attribute_values(
+            ":fid",
+            aws_sdk_dynamodb::types::AttributeValue::S(family_id.clone()),
+        )
+        .expression_attribute_values(
+            ":uid",
+            aws_sdk_dynamodb::types::AttributeValue::S(
+                login_json["userId"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
+        )
+        .projection_expression("refreshToken")
+        .send()
+        .await?;
+    assert_eq!(tokens_after_login.count, 1);
+
     let refresh_payload = json!({ "refreshToken": refresh_token });
     let refresh_request = lambda_http::http::Request::builder()
         .method("POST")
@@ -70,6 +96,32 @@ async fn refresh_and_revoke_flow() -> Result<()> {
         .expect("new refresh")
         .to_string();
     assert_ne!(new_refresh_token, refresh_token);
+
+    let tokens_after_refresh = ctx
+        .client()
+        .query()
+        .table_name(ctx.refresh_table())
+        .index_name("FamilyUserIndex")
+        .key_condition_expression("#fid = :fid AND #uid = :uid")
+        .expression_attribute_names("#fid", "familyId")
+        .expression_attribute_names("#uid", "userId")
+        .expression_attribute_values(
+            ":fid",
+            aws_sdk_dynamodb::types::AttributeValue::S(family_id.clone()),
+        )
+        .expression_attribute_values(
+            ":uid",
+            aws_sdk_dynamodb::types::AttributeValue::S(
+                refresh_json["userId"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
+        )
+        .projection_expression("refreshToken")
+        .send()
+        .await?;
+    assert_eq!(tokens_after_refresh.count, 1);
 
     // Old token should be invalid after rotation
     let stale_refresh_payload = json!({ "refreshToken": refresh_token });
