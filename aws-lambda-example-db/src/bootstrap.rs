@@ -7,6 +7,12 @@
 //! mode—and block until the tables become `ACTIVE`. They are intentionally
 //! deterministic so that the runtime and the CloudFormation template stay in sync.
 
+// These functions return the AWS SDK's own `aws_sdk_dynamodb::Error`, which is
+// larger than Clippy's default limit for error types. They run once at startup
+// to create tables, so the size has no practical cost, and boxing the error
+// would mean converting it at every `?`.
+#![allow(clippy::result_large_err)]
+
 use aws_sdk_dynamodb::{
     types::{
         AttributeDefinition, BillingMode, GlobalSecondaryIndex, KeySchemaElement, KeyType,
