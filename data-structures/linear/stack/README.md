@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Stack
 
 A **stack** is a LIFO (last in, first out) collection: the last item pushed is the first one popped, like a stack of plates. This crate implements one on top of a `Vec`, plus a bracket-balancing checker that shows a classic use of a stack.

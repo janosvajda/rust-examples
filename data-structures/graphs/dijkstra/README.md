@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Dijkstra's shortest path
 
 Finds the cheapest route in a graph with weighted edges, using a min-heap as a priority queue. Demo: fastest driving routes between Hungarian cities.

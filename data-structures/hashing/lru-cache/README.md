@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # LRU cache
 
 A fixed-size cache that evicts the least recently used entry. Combines a `HashMap` (find by key) with a doubly linked list (usage order), both O(1). The list lives in a `Vec` and is linked by indexes (an arena), the usual Rust alternative to `Rc<RefCell<…>>`.

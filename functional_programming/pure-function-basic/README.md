@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Pure Functions in Rust
 
 ## Concept of Pure Functions

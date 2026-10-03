@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Queue (ring buffer)
 
 A FIFO (first in, first out) queue stored in a growable ring buffer, the same idea as `std::collections::VecDeque`. Shows why `Vec::remove(0)` is slow and how wrapping indexes with `%` avoids it.

@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Trie (prefix tree)
 
 Stores strings by sharing common prefixes. Answers "is this a word?", "does any word start with this?" and autocomplete queries in time proportional to the word length.

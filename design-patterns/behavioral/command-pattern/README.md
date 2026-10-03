@@ -1,3 +1,4 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
 
 # Command Design Pattern Example - Mars Rover Kata
 

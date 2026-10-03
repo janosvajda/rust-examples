@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Generic Storage System in Rust
 
 This project demonstrates how to use **Rust Generics** to build a flexible storage system that can store various types of real-world items such as books, food, and clothes.

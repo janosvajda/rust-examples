@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Higher-Order Functions in Functional Programming
 
 In functional programming, Higher-Order Functions are a powerful concept that allows functions to be treated as first-class citizens. A Higher-Order Function is a function that takes one or more functions as arguments and/or returns a function as its result. This abstraction enables developers to write more generic and reusable code by separating behaviors from implementations.

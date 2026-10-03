@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Rust Borrowing Example
 
 This repository contains a simple Rust example that demonstrates the concept of borrowing in Rust. Borrowing is a fundamental concept in Rust's ownership system that allows you to work with data without transferring ownership. Instead of copying data, borrowing enables efficient and safe sharing of data between different parts of your code.

@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Data structures in Rust
 
 Classic data structures written from scratch, one small crate each. Every

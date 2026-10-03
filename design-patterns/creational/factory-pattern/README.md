@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Factory Design Pattern Example
 
 This example demonstrates the Factory design pattern in Rust. The project is divided into multiple files each representing a separate module:

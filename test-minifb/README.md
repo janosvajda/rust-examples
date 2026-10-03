@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Human Face Mouse Move
 
 This is a simple interactive application that displays a bouncing human face on a window. The face follows the movement of the mouse cursor within the window and bounces off the walls.

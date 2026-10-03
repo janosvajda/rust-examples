@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Functional Programming Paradigm in Rust 🚀
 
 ## What is Functional Programming?

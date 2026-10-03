@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Rust Ownership Moves Example
 
 This example shows the difference between **copying** and **moving** a value in Rust.

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="rust-exampleslogo.png" alt="Rust Examples logo" width="320">
+</p>
+
 # Rust Practice Hub
 
 This repository contains various Rust code examples to demonstrate different concepts and features in the Rust programming language.
@@ -71,10 +75,30 @@ Build those from their own directories. They are checked with Clippy in CI as we
 - [Box and Arc](./smart-pointers/box-and-arc/): Shows `Box<T>` for recursive types and trait objects, and `Arc<T>` / `Arc<Mutex<T>>` for sharing data between threads.
 
 # Design patterns
-- [Factory Pattern](./design-patterns/factory-pattern/): Shows how to use factory design pattern in Rust.
-- [Abstract Factory Pattern](./design-patterns/abstract-factory-pattern/): Shows how to use abstract factory design pattern in Rust.
-- [Command Pattern](./design-patterns/command-pattern/): Shows how to use the command pattern in Rust. It demonstrates it by a simple implementation of Mars Rover kata.
-- [Builder Pattern](./design-patterns/builder-pattern/): Shows how to use a builder design pattern in Rust.
+Design patterns are proven, reusable solutions to problems that come up again and again when designing software. Each example below explains its pattern in plain language with an everyday analogy, shows a small runnable program, and points out what's different when you write it in Rust.
+
+**Creational** — how objects get created
+- [Factory Pattern](./design-patterns/creational/factory-pattern/): One place that decides which kind of robot to build.
+- [Abstract Factory Pattern](./design-patterns/creational/abstract-factory-pattern/): Families of related objects (fruits and vegetables) created through a common interface.
+- [Builder Pattern](./design-patterns/creational/builder-pattern/): Building complex spacecraft step by step.
+- [Singleton Pattern](./design-patterns/creational/singleton-pattern/): One shared app configuration and a thread-safe global ID counter, using `OnceLock` and atomics.
+
+**Structural** — how objects fit together
+- [Adapter Pattern](./design-patterns/structural/adapter-pattern/): Making an old Fahrenheit sensor library fit an app that expects Celsius.
+- [Decorator Pattern](./design-patterns/structural/decorator-pattern/): Adding milk, sugar and cream to a coffee by wrapping it, layer by layer.
+- [Facade Pattern](./design-patterns/structural/facade-pattern/): One "leave home" button that controls the lights, heating, door lock and alarm.
+- [Proxy Pattern](./design-patterns/structural/proxy-pattern/): A caching stand-in for a slow exchange-rate service.
+- [Composite Pattern](./design-patterns/structural/composite-pattern/): Files and folders, where a folder answers by asking everything inside it.
+
+**Behavioral** — how objects work together and share responsibilities
+- [Command Pattern](./design-patterns/behavioral/command-pattern/): Turning actions into objects, shown with the Mars Rover kata.
+- [Strategy Pattern](./design-patterns/behavioral/strategy-pattern/): Estimating travel time by car, bike or on foot, swapped at runtime.
+- [Observer Pattern](./design-patterns/behavioral/observer-pattern/): A weather station notifying every subscribed display.
+- [State Pattern](./design-patterns/behavioral/state-pattern/): An online order moving from pending to paid, shipped and delivered, with Rust enums.
+- [Iterator Pattern](./design-patterns/behavioral/iterator-pattern/): A playlist you can loop over, and an endless Fibonacci sequence, using Rust's built-in `Iterator` trait.
+- [Template Method Pattern](./design-patterns/behavioral/template-method-pattern/): One report recipe, exported as CSV, Markdown or plain text.
+- [Chain of Responsibility Pattern](./design-patterns/behavioral/chain-of-responsibility-pattern/): Expense approval passed up from team lead to director.
+- [Memento Pattern](./design-patterns/behavioral/memento-pattern/): Undo and redo in a small text editor.
 
 # Generics
 - [Simple example](./generics/generic_storage/): Shows how to use generics in Rust.

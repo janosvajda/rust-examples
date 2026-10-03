@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Raw Pointer Dereference in Rust
 
 This project demonstrates how to safely dereference a raw pointer in Rust.

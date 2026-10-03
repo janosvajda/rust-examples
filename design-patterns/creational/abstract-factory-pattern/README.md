@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Abstract Factory Pattern
 
 This is an example implementation of the Abstract Factory design pattern in Rust. The code demonstrates how to use the Abstract Factory pattern to create and manipulate fruits and vegetables.
