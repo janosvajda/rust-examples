@@ -17,6 +17,10 @@ pub fn run() {
     println!("Robot A: {:?}", robot_a.get_name());
     println!("Robot B: {:?}", robot_b.get_name());
     println!("Robot C: {:?}", robot_c.get_name());
+
+    robot_a.do_work();
+    robot_b.do_work();
+    robot_c.do_work();
 }
 
 #[cfg(test)]

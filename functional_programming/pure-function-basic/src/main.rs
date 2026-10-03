@@ -1,7 +1,6 @@
 // This is a pure function that filters even numbers from a vector and returns a new vector.
-fn filter_even_numbers(input: &Vec<i32>) -> Vec<i32> {
-    let even_numbers: Vec<i32> = input.iter().cloned().filter(|&x| x % 2 == 0).collect();
-    even_numbers
+fn filter_even_numbers(input: &[i32]) -> Vec<i32> {
+    input.iter().copied().filter(|&x| x % 2 == 0).collect()
 }
 
 fn main() {

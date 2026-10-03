@@ -34,13 +34,45 @@ fn main() {
 }
 
 //
+// ---------- macOS aarch64 (Apple Silicon) ----------
+// Uses syscalls: write (4) and exit (1).
+// The syscall number goes in x16, arguments in x0..x2, and `svc #0x80` traps into the kernel.
+//
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn main() {
+    let msg = b"Hello, world!\n";
+    let ptr = msg.as_ptr();
+    let len = msg.len();
+
+    unsafe {
+        // write(1, msg, len)
+        asm!(
+            "mov x16, #4",            // write
+            "mov x0, #1",             // fd = stdout
+            "svc #0x80",
+            in("x1") ptr,             // buf
+            in("x2") len,             // count
+            out("x0") _, out("x16") _,
+        );
+
+        // exit(0)
+        asm!(
+            "mov x16, #1",            // exit
+            "mov x0, #0",             // code = 0
+            "svc #0x80",
+            options(noreturn)
+        );
+    }
+}
+
+//
 // ---------- Windows x86_64 (MSVC/GNU) ----------
 // Calls: GetStdHandle, WriteFile, ExitProcess via inline asm.
 // Microsoft x64 ABI: RCX,RDX,R8,R9 + 32-byte shadow space.
 //
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 #[link(name = "kernel32")]
-extern "system" {
+unsafe extern "system" {
     fn GetStdHandle(nStdHandle: i32) -> *mut core::ffi::c_void;
     fn WriteFile(
         hFile: *mut core::ffi::c_void,
@@ -104,6 +136,7 @@ fn main() {
 // Helpful compile-time message if you're on an unsupported target for this file.
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64"),
     all(target_os = "windows", target_arch = "x86_64")
 )))]
-compile_error!("This example includes inline asm for macOS x86_64 and Windows x86_64. If you're on Apple Silicon (arm64), tell me and I'll add that variant, or build the x86_64 mac target and run via Rosetta.");
+compile_error!("This example only includes inline asm for macOS x86_64, macOS aarch64 (Apple Silicon) and Windows x86_64.");

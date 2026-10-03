@@ -3,6 +3,10 @@
 use anyhow::{bail, Result};
 
 /// Invoke the appropriate system linker to produce a runnable binary.
+// Each platform block below ends with `return Ok(())`. Only one block is compiled
+// on any given OS, so clippy sees that `return` as the last statement and calls it
+// needless. The `return`s keep every block correct on its own, whichever OS it runs on.
+#[allow(clippy::needless_return)]
 pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> {
     #[cfg(target_os = "macos")]
     {

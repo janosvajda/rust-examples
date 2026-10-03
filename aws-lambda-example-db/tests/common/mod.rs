@@ -33,10 +33,10 @@ pub struct TestSetup {
 
 impl Drop for TestSetup {
     fn drop(&mut self) {
-        let _ = env::remove_var("ENVIRONMENT_NAME");
-        let _ = env::remove_var("CREDENTIALS_TABLE_NAME");
-        let _ = env::remove_var("JWT_SECRET");
-        let _ = env::remove_var("REFRESH_TOKEN_TABLE_NAME");
+        env::remove_var("ENVIRONMENT_NAME");
+        env::remove_var("CREDENTIALS_TABLE_NAME");
+        env::remove_var("JWT_SECRET");
+        env::remove_var("REFRESH_TOKEN_TABLE_NAME");
     }
 }
 

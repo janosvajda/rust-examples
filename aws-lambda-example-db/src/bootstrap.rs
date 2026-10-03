@@ -295,7 +295,7 @@ async fn wait_for_active(client: &Client, table: &str) -> Result<(), aws_sdk_dyn
         if resp
             .table
             .and_then(|t| t.table_status)
-            .map_or(false, |status| status == TableStatus::Active)
+            .is_some_and(|status| status == TableStatus::Active)
         {
             return Ok(());
         }

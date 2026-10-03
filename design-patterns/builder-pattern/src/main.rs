@@ -166,6 +166,31 @@ impl SpacecraftDirector {
     }
 }
 
+fn main() {
+    // Build Space Shuttle
+    let mut space_shuttle_builder = SpaceShuttleBuilder::new();
+    let space_shuttle = SpacecraftDirector::construct(&mut space_shuttle_builder);
+    space_shuttle.print_details();
+
+    // Build Battleship
+    let mut battleship_builder = BattleshipBuilder::new();
+    let battleship = SpacecraftDirector::construct(&mut battleship_builder);
+    battleship.print_details();
+
+    // Build Dreadnought
+    let mut dreadnought_builder = DreadnoughtBuilder::new();
+    let dreadnought = SpacecraftDirector::construct(&mut dreadnought_builder);
+    dreadnought.print_details();
+
+    // Customise a builder before building: the setters override the defaults.
+    let mut custom_builder = SpaceShuttleBuilder::new();
+    custom_builder.set_spacecraft_type("Research Shuttle".to_string());
+    custom_builder.set_equipment("Deep space telescope".to_string());
+    custom_builder.set_assembler("Nanorobots".to_string());
+    let custom_shuttle = SpacecraftDirector::construct(&mut custom_builder);
+    custom_shuttle.print_details();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,21 +240,4 @@ mod tests {
         assert_eq!(spacecraft.equipment, "Superior space equipment");
         assert_eq!(spacecraft.assembler, "Nanorobots"); // Note: Assembler is not changed for Dreadnought.
     }
-}
-
-fn main() {
-    // Build Space Shuttle
-    let mut space_shuttle_builder = SpaceShuttleBuilder::new();
-    let space_shuttle = SpacecraftDirector::construct(&mut space_shuttle_builder);
-    space_shuttle.print_details();
-
-    // Build Battleship
-    let mut battleship_builder = BattleshipBuilder::new();
-    let battleship = SpacecraftDirector::construct(&mut battleship_builder);
-    battleship.print_details();
-
-    // Build Dreadnought
-    let mut dreadnought_builder = DreadnoughtBuilder::new();
-    let dreadnought = SpacecraftDirector::construct(&mut dreadnought_builder);
-    dreadnought.print_details();
 }
