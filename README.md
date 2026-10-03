@@ -52,15 +52,34 @@ Three examples are kept out of the workspace build:
 
 Build those from their own directories. They are checked with Clippy in CI as well.
 
+# Ownership and borrowing
+A twelve-lesson course on how Rust manages memory without a garbage collector. Every README explains one idea simply and precisely, and every compiler error it quotes is real. Start with the [course overview](./ownership-and-borrowing/).
+
+<p align="center">
+  <a href="./ownership-and-borrowing/ownership-and-borrowing-comic.png">
+    <img src="./ownership-and-borrowing/ownership-and-borrowing-comic.png" alt="Comic poster summarising all twelve ownership and borrowing lessons" width="720">
+  </a>
+</p>
+
+1. [Ownership and moves](./ownership-and-borrowing/01-ownership-and-moves/): move vs copy vs clone, and when values are dropped.
+2. [References](./ownership-and-borrowing/02-references/): `&` and `&mut`, and methods taking `&self`, `&mut self` or `self`.
+3. [The borrowing rules](./ownership-and-borrowing/03-borrowing-rules/): many readers or one writer, and why.
+4. [Slices](./ownership-and-borrowing/04-slices/): `&str` and `&[T]`, borrowing part of a collection.
+5. [Lifetimes](./ownership-and-borrowing/05-lifetimes/): dangling references and `'a` annotations.
+6. [Borrowing in practice](./ownership-and-borrowing/06-borrowing-in-practice/): struct fields, loops, closures, `split_at_mut`, `mem::take`.
+7. [Interior mutability](./ownership-and-borrowing/07-interior-mutability/): `Cell`, `RefCell` and `Rc<RefCell<T>>`.
+8. [Threads and borrowing](./ownership-and-borrowing/08-threads-and-borrowing/): no data races, `Send` and `Sync`, scoped threads, `Arc` and `Mutex`.
+9. [Borrowing in patterns](./ownership-and-borrowing/09-borrowing-in-patterns/): `match` on references, partial moves, `as_ref`.
+10. [Advanced lifetimes](./ownership-and-borrowing/10-advanced-lifetimes/): several lifetimes, `dyn Trait + 'a`, `impl Trait + use<>`.
+11. [Cow and the borrowing traits](./ownership-and-borrowing/11-cow-and-borrowing-traits/): `Cow`, `Borrow`, `AsRef`, `Deref`.
+12. [Where the borrow checker is too strict](./ownership-and-borrowing/12-borrow-checker-limits/): correct code it rejects, and the workarounds.
+
 # AWS examples
 - [simple-aws-lambda](./aws-lambda-example-hello-world/): Very basic AWS Lambda example in Rust.
 - [aws-lambda-example-db](./aws-lambda-example-db/): Serverless user-management API on AWS Lambda with DynamoDB, login and token refresh flows, and a SAM template.
 
 # Examples without category
 
-- [Borrowing](./borrowing/): Demonstrates borrowing and ownership concepts in Rust.
-- [Borrowing various other example](./borrowing-various-aspects/): Demonstrates borrowing and ownership concepts.
-- [Borrowing Ownership Moves](./borrowing_ownership_moves/): Illustrates the movement of ownership between variables in Rust.
 - [Closures and Anonymous Functions](./closures_anonymous_functions/): Shows the usage of closures and anonymous functions in Rust.
 - [No Std Call Libc Functions](./no_std_call_libc_functions/): Uses libc functions in a `no_std` environment.
 - [Raw Pointers](./raw_pointers/): Demonstrates the usage of raw pointers in Rust.
@@ -75,15 +94,29 @@ Build those from their own directories. They are checked with Clippy in CI as we
 - [Box and Arc](./smart-pointers/box-and-arc/): Shows `Box<T>` for recursive types and trait objects, and `Arc<T>` / `Arc<Mutex<T>>` for sharing data between threads.
 
 # Design patterns
-Design patterns are proven, reusable solutions to problems that come up again and again when designing software. Each example below explains its pattern in plain language with an everyday analogy, shows a small runnable program, and points out what's different when you write it in Rust.
+Design patterns are proven, reusable solutions to problems that come up again and again when designing software. Each example below explains its pattern in plain language with an everyday analogy, shows a small runnable program, and points out what's different when you write it in Rust. See the [design patterns overview](./design-patterns/) for all of them with their comics.
 
 **Creational** — how objects get created
-- [Factory Pattern](./design-patterns/creational/factory-pattern/): One place that decides which kind of robot to build.
-- [Abstract Factory Pattern](./design-patterns/creational/abstract-factory-pattern/): Families of related objects (fruits and vegetables) created through a common interface.
+
+<p align="center">
+  <a href="./design-patterns/creational-patterns-comic.png">
+    <img src="./design-patterns/creational-patterns-comic.png" alt="Comic: the four creational patterns" width="720">
+  </a>
+</p>
+
+- [Factory Pattern](./design-patterns/creational/factory-pattern/): A robot factory: you order by job, and it picks the model.
+- [Abstract Factory Pattern](./design-patterns/creational/abstract-factory-pattern/): Tropical and temperate farms that each make a matching fruit and vegetable.
 - [Builder Pattern](./design-patterns/creational/builder-pattern/): Building complex spacecraft step by step.
 - [Singleton Pattern](./design-patterns/creational/singleton-pattern/): One shared app configuration and a thread-safe global ID counter, using `OnceLock` and atomics.
 
 **Structural** — how objects fit together
+
+<p align="center">
+  <a href="./design-patterns/structural-patterns-comic.png">
+    <img src="./design-patterns/structural-patterns-comic.png" alt="Comic: the five structural patterns" width="720">
+  </a>
+</p>
+
 - [Adapter Pattern](./design-patterns/structural/adapter-pattern/): Making an old Fahrenheit sensor library fit an app that expects Celsius.
 - [Decorator Pattern](./design-patterns/structural/decorator-pattern/): Adding milk, sugar and cream to a coffee by wrapping it, layer by layer.
 - [Facade Pattern](./design-patterns/structural/facade-pattern/): One "leave home" button that controls the lights, heating, door lock and alarm.
@@ -91,6 +124,13 @@ Design patterns are proven, reusable solutions to problems that come up again an
 - [Composite Pattern](./design-patterns/structural/composite-pattern/): Files and folders, where a folder answers by asking everything inside it.
 
 **Behavioral** — how objects work together and share responsibilities
+
+<p align="center">
+  <a href="./design-patterns/behavioral-patterns-comic.png">
+    <img src="./design-patterns/behavioral-patterns-comic.png" alt="Comic: the eight behavioral patterns" width="720">
+  </a>
+</p>
+
 - [Command Pattern](./design-patterns/behavioral/command-pattern/): Turning actions into objects, shown with the Mars Rover kata.
 - [Strategy Pattern](./design-patterns/behavioral/strategy-pattern/): Estimating travel time by car, bike or on foot, swapped at runtime.
 - [Observer Pattern](./design-patterns/behavioral/observer-pattern/): A weather station notifying every subscribed display.
