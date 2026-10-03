@@ -1,37 +1,65 @@
 <img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="96">
 
-# Factory Design Pattern Example
+# Factory Pattern
 
-This example demonstrates the Factory design pattern in Rust. The project is divided into multiple files each representing a separate module:
+## What is it?
 
-- `main.rs`: This is the entry point of our program. It contains the main function and a separate function `run` that carries out the main logic of creating robot instances and displaying their names. Unit tests are also included in this file.
+The **Factory** pattern puts the decision *"which concrete type should I create?"* in one place, so the rest of the program only asks for what it needs and never names the concrete types.
 
-- `robot.rs`: This file contains the definition of the Robot trait, which defines the common behaviors of all robots. It also includes the definitions of RobotA, RobotB, and RobotC structs along with their specific implementations of the Robot trait. 
+Think of ordering a taxi through an app. You say "I need a ride for 6 people", and the company decides whether to send a minivan or two cars. You don't pick the vehicle model, and if the company adds electric cars next year, nothing changes for you.
 
-- `robot_factory.rs`: This file includes the definition of the RobotFactory struct, which has methods to create instances of each type of robot.
+## The parts
 
-Each robot type has different capabilities:
-
-- Robot A (Dumbly): It can move its hands.
-- Robot B (Pumbly): It can move its hands and walk.
-- Robot C (Wumbly): It can move its hands, walk, and speak.
-
-## How to Run
-
-To run the example, execute the following command:
-
-```bash
-$ cargo run
+```text
+  order: "guard"                 ┌─────────────────────┐
+  ─────────────► Job::Guard ───► │ RobotFactory::build │ ──► Box<dyn Robot>
+                                 └──────────┬──────────┘     (the caller only sees "a Robot")
+                                            │ decides
+                         ┌──────────────────┼──────────────────┐
+                         ▼                  ▼                  ▼
+                     HelperBot          GuardBot            ScoutBot
 ```
 
-This will create instances of each robot type and invoke their respective methods to demonstrate their capabilities.
+- **Product** (`Robot` trait): what every robot can do. The caller uses only this.
+- **Concrete products** (`HelperBot`, `GuardBot`, `ScoutBot`): the actual models. The caller never names them.
+- **Factory** (`RobotFactory::build`): the one function that maps an order to a model, and sets it up with the factory's own settings (shift length, scouting range).
 
-## How to Test
+## The example
 
-To run the tests, execute the following command:
+You order a robot by the **job** it should do:
+
+| Order | The factory builds | Set up with |
+|---|---|---|
+| `"help"` | `HelperBot` | nothing extra |
+| `"guard"` | `GuardBot` | the factory's shift length |
+| `"explore"` | `ScoutBot` | the factory's scouting range |
+| `"dance"` | nothing: the order is refused | |
+
+The orders arrive as text, like they would from a user or a config file, and are parsed into a `Job` first. An unknown order becomes an error, not a crash.
+
+Adding a fourth model, say a `CleanerBot`, means adding one enum variant and one `match` arm in `build`. No calling code changes.
+
+## The Rust way
+
+- **The order is an enum** (`Job`). The list of valid orders is explicit, and because `match` must handle every variant, the compiler won't let you add a job and forget to build a robot for it.
+- **The result is a trait object** (`Box<dyn Robot>`): "some type that implements `Robot`, decided at runtime". This is what lets one function return different types.
+- **Parsing with `FromStr`** lets you write `"guard".parse::<Job>()`, the standard Rust way to turn text into a value that can fail.
+
+If the set of products is fixed and you don't need trait objects, a factory can also return an enum (`enum AnyRobot { Helper(HelperBot), … }`). The idea is the same.
+
+## When to use it
+
+- The type to create depends on runtime information: user input, configuration, file contents.
+- Creating an object needs setup the caller shouldn't have to know about.
+- You want to add new types later without touching the code that uses them.
+
+**When not to:** if there's only one type and it's created in one place, call its constructor directly.
+
+## Run it
 
 ```bash
-$ cargo test
+cargo run
+cargo test
 ```
 
-This will run the test cases defined in the code, which validate the behavior of each robot type.
+From the repository root: `cargo run -p factory-pattern`.
