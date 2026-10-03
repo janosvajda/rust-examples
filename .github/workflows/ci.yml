@@ -22,11 +22,15 @@ jobs:
       - run: cargo test --workspace
 
   no-std:
-    name: no_std libc example
+    name: no_std (${{ matrix.lesson }})
+    strategy:
+      fail-fast: false
+      matrix:
+        lesson: [01-calling-the-c-library, 03-custom-allocator]
     runs-on: macos-latest
     defaults:
       run:
-        working-directory: no_std_call_libc_functions
+        working-directory: no-std-and-bare-metal/${{ matrix.lesson }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -35,6 +39,25 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo run
+
+  bare-wasm:
+    name: no_std WebAssembly module
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: no-std-and-bare-metal/05-webassembly-without-an-os
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cargo clippy --release -- -D warnings
+      - run: cargo build --release
+      - run: node run.mjs
 
   asm:
     name: Inline asm (${{ matrix.os }})
