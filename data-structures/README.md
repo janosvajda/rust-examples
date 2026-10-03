@@ -42,6 +42,70 @@ data-structures/
    └─ topological-sort/      dependency order and cycle detection
 ```
 
+## The categories in pictures
+
+One comic per category. Click one to see it full size.
+
+### Part 1: Linear — items in a sequence
+
+Stack, queue, linked list, doubly linked list.
+
+<p align="center">
+  <a href="1-linear-comic.png">
+    <img src="1-linear-comic.png" alt="Comic: Part 1: Linear, items in a sequence" width="100%">
+  </a>
+</p>
+
+### Part 2: Trees — hierarchical data
+
+Binary search tree, AVL tree, trie.
+
+<p align="center">
+  <a href="2-trees-comic.png">
+    <img src="2-trees-comic.png" alt="Comic: Part 2: Trees, hierarchical data" width="100%">
+  </a>
+</p>
+
+### Part 3: Heaps — always know the smallest item
+
+Binary heap.
+
+<p align="center">
+  <a href="3-heaps-comic.png">
+    <img src="3-heaps-comic.png" alt="Comic: Part 3: Heaps, always know the smallest item" width="100%">
+  </a>
+</p>
+
+### Part 4: Hashing — constant-time lookup by key
+
+Hash table, LRU cache, HashMap memory allocation.
+
+<p align="center">
+  <a href="4-hashing-comic.png">
+    <img src="4-hashing-comic.png" alt="Comic: Part 4: Hashing, constant-time lookup by key" width="100%">
+  </a>
+</p>
+
+### Part 5: Sets — membership and grouping
+
+Union-find, Bloom filter.
+
+<p align="center">
+  <a href="5-sets-comic.png">
+    <img src="5-sets-comic.png" alt="Comic: Part 5: Sets, membership and grouping" width="100%">
+  </a>
+</p>
+
+### Part 6: Graphs — nodes connected by edges
+
+Graph, Dijkstra, topological sort.
+
+<p align="center">
+  <a href="6-graphs-comic.png">
+    <img src="6-graphs-comic.png" alt="Comic: Part 6: Graphs, nodes connected by edges" width="100%">
+  </a>
+</p>
+
 ## Suggested learning order
 
 Later examples build on ideas from earlier ones.
