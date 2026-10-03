@@ -13,8 +13,9 @@ mod no_std_specific {
 
         unsafe {
             match res {
-                Some(substring) => printf("Substring found: %s\n\0".as_ptr() as *const c_char, substring.as_ptr() as *const c_char),
-                None => printf("Substring not found!\n\0".as_ptr() as *const c_char),
+                // `c"..."` is a C string literal: Rust adds the terminating nul byte for us.
+                Some(substring) => printf(c"Substring found: %s\n".as_ptr(), substring.as_ptr() as *const c_char),
+                None => printf(c"Substring not found!\n".as_ptr()),
             };
         }
 

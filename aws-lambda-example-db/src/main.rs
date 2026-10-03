@@ -43,9 +43,11 @@ async fn main() -> Result<(), LambdaError> {
     let client = Client::new(&config);
 
     let bootstrap_tables = std::env::var("BOOTSTRAP_DYNAMODB_TABLES")
-        .map(|value| match value.trim().to_ascii_lowercase().as_str() {
-            "1" | "true" | "yes" | "on" => true,
-            _ => false,
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
         })
         .unwrap_or_else(|_| environment.name().eq_ignore_ascii_case("Local"));
 

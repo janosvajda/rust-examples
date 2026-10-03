@@ -4,6 +4,7 @@ This project shows how to print **“Hello, world!”** using **inline assembly*
 It includes working examples for:
 
 - **macOS x86_64** (Darwin syscalls)
+- **macOS aarch64 / Apple Silicon** (Darwin syscalls via `svc #0x80`)
 - **Windows x86_64** (WinAPI calls from asm)
 
 ---
@@ -38,6 +39,11 @@ cargo --version
 
 ## 2. Build & Run
 
+### macOS (Apple Silicon, native)
+```bash
+cargo run
+```
+
 ### macOS (Intel x64)
 ```bash
 rustup target add x86_64-apple-darwin
@@ -59,15 +65,13 @@ Hello, world!
 
 ## 3. Notes for Apple Silicon (M1/M2/M3)
 
-The inline assembly above targets **x86_64 macOS**. On Apple Silicon you can run it via **Rosetta**:
+`cargo run` uses the native **aarch64** variant. To try the **x86_64** variant on Apple Silicon, run it via **Rosetta**:
 
 ```bash
 softwareupdate --install-rosetta --agree-to-license   # once, if needed
 rustup target add x86_64-apple-darwin
 cargo run --target x86_64-apple-darwin
 ```
-
-If you want a **native arm64** inline-asm variant, add an AArch64 block or ask for an example.
 
 ---
 

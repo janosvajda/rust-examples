@@ -153,7 +153,7 @@ mod tests {
 
         let processed_records = data_pipeline(input_data);
 
-        let expected = vec![Record {
+        let expected = [Record {
             timestamp: "2024-09-10 12:00".to_string(),
             sensor_id: "A12".to_string(),
             sensor_reading: 74.3, // Converted from 23.5 Celsius to Fahrenheit

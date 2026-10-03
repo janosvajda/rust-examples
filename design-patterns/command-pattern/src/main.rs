@@ -86,6 +86,29 @@ impl Invoker {
     }
 }
 
+fn main() {
+    let mut rover = Rover {
+        x: 0,
+        y: 0,
+        direction: Direction::North,
+    };
+    let mut invoker = Invoker::new();
+
+    // Add commands to the invoker
+    invoker.add_command(Box::new(MoveForward));
+    invoker.add_command(Box::new(MoveForward));
+    invoker.add_command(Box::new(TurnRight));
+    invoker.add_command(Box::new(MoveForward));
+    invoker.add_command(Box::new(MoveForward));
+    invoker.add_command(Box::new(TurnLeft));
+    invoker.add_command(Box::new(MoveForward));
+
+    // Execute the commands
+    invoker.execute_commands(&mut rover);
+
+    println!("Rover Position: ({}, {}), Direction: {:?}", rover.x, rover.y, rover.direction);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,29 +134,6 @@ mod tests {
         // Execute the commands
         invoker.execute_commands(&mut rover);
 
-        assert_eq!(rover, Rover { x: 2, y: 2, direction: Direction::South });
+        assert_eq!(rover, Rover { x: 2, y: 3, direction: Direction::North });
     }
-}
-
-fn main() {
-    let mut rover = Rover {
-        x: 0,
-        y: 0,
-        direction: Direction::North,
-    };
-    let mut invoker = Invoker::new();
-
-    // Add commands to the invoker
-    invoker.add_command(Box::new(MoveForward));
-    invoker.add_command(Box::new(MoveForward));
-    invoker.add_command(Box::new(TurnRight));
-    invoker.add_command(Box::new(MoveForward));
-    invoker.add_command(Box::new(MoveForward));
-    invoker.add_command(Box::new(TurnLeft));
-    invoker.add_command(Box::new(MoveForward));
-
-    // Execute the commands
-    invoker.execute_commands(&mut rover);
-
-    println!("Rover Position: ({}, {}), Direction: {:?}", rover.x, rover.y, rover.direction);
 }

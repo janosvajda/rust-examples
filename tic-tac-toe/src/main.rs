@@ -127,14 +127,14 @@ fn main() {
                 }
             };
 
-            if position < 1 || position > 9 {
+            if !(1..=9).contains(&position) {
                 println!("Invalid input. Please enter a number from 1 to 9.");
                 continue;
             }
 
             let index = position - 1;
 
-            if let Some(_) = board.cells[index] {
+            if board.cells[index].is_some() {
                 println!("Invalid move. The position is already occupied.");
                 continue;
             } else {
@@ -215,27 +215,27 @@ mod tests {
         board.make_move(1, Player::X);
         board.make_move(2, Player::X);
 
-        assert_eq!(board.check_win(Player::X), true);
-        assert_eq!(board.check_win(Player::O), false);
+        assert!(board.check_win(Player::X));
+        assert!(!board.check_win(Player::O));
 
         let mut board = Board::new();
         board.make_move(0, Player::O);
         board.make_move(3, Player::O);
         board.make_move(6, Player::O);
 
-        assert_eq!(board.check_win(Player::X), false);
-        assert_eq!(board.check_win(Player::O), true);
+        assert!(!board.check_win(Player::X));
+        assert!(board.check_win(Player::O));
     }
 
     #[test]
     fn test_board_is_full() {
         let mut board = Board::new();
-        assert_eq!(board.is_full(), false);
+        assert!(!board.is_full());
 
         for i in 0..9 {
             board.make_move(i, Player::X);
         }
-        assert_eq!(board.is_full(), true);
+        assert!(board.is_full());
     }
     #[test]
     fn test_board_predict_win() {

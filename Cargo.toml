@@ -1,0 +1,56 @@
+[workspace]
+resolver = "2"
+members = [
+    "aws-lambda-example-db",
+    "aws-lambda-example-hello-world",
+    "borrowing",
+    "borrowing-various-aspects",
+    "borrowing_ownership_moves",
+    "closures_anonymous_functions",
+    "data-processing/csv-processing",
+    "data-structures/graphs/dijkstra",
+    "data-structures/graphs/graph",
+    "data-structures/graphs/topological-sort",
+    "data-structures/hashing/hash-map-memory-allocation",
+    "data-structures/hashing/hash-table",
+    "data-structures/hashing/lru-cache",
+    "data-structures/heaps/binary-heap",
+    "data-structures/linear/doubly-linked-list",
+    "data-structures/linear/linked-list",
+    "data-structures/linear/queue",
+    "data-structures/linear/stack",
+    "data-structures/sets/bloom-filter",
+    "data-structures/sets/union-find",
+    "data-structures/trees/avl-tree",
+    "data-structures/trees/binary-search-tree",
+    "data-structures/trees/trie",
+    "design-patterns/abstract-factory-pattern",
+    "design-patterns/builder-pattern",
+    "design-patterns/command-pattern",
+    "design-patterns/factory-pattern",
+    "functional_programming/function-composition",
+    "functional_programming/higher-order-functions",
+    "functional_programming/immutability",
+    "functional_programming/pure-function-basic",
+    "generics/generic_storage",
+    "math/bmr-calculator",
+    "math/fibonacci",
+    "network/basic-http-server",
+    "raw_pointers",
+    "smart-pointers/box-and-arc",
+    "streams/sensor_stream",
+    "test-minifb",
+    "threads",
+    "tic-tac-toe",
+]
+
+# These are built on their own, from their own directories:
+# - asm/hello_asm: platform-specific inline assembly
+# - mini: needs LLVM 16 installed
+# - no_std_call_libc_functions: needs its own `panic = "abort"` profile,
+#   which Cargo ignores for workspace members
+exclude = [
+    "asm/hello_asm",
+    "mini",
+    "no_std_call_libc_functions",
+]

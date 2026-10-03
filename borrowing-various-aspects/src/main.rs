@@ -23,7 +23,7 @@ fn main() {
     let _pages_ref = &my_book.pages;
 
     // Slices
-    let data = vec![1, 2, 3, 4, 5];
+    let data = [1, 2, 3, 4, 5];
     let slice = &data[1..4];
     println!("Slice: {:?}", slice);
 
@@ -36,8 +36,8 @@ fn main() {
 
 // Dangling References
 fn create_dangling_reference() -> i32 {
-    let value = 42;
-    value
+    
+    42
 }
 
 // Borrowing Across Function Calls
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_slices() {
-        let data = vec![1, 2, 3, 4, 5];
+        let data = [1, 2, 3, 4, 5];
         let slice = &data[1..4];
         assert_eq!(slice, &[2, 3, 4]);
     }
