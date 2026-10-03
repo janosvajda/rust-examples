@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Union-find (disjoint set union)
 
 Tracks which items belong to the same group, with nearly constant-time `union` and `find` thanks to union by size and path compression. The demo uses it in Kruskal's algorithm to find the cheapest network that connects every office.

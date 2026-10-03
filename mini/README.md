@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # 🧠 Mini — A Tiny LLVM-Based Programming Language (in Rust)
 
 **Mini** is a small, educational compiler and programming language written in **Rust**.  

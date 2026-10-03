@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # User Profile Memory Allocation Test in Rust by hash map
 
 This Rust program is designed to test memory allocation and deallocation performance by creating a large number of user profile objects. Each `UserProfile` object contains fields like `name`, `age`, `email`, `hobbies`, and `attributes` to simulate a meaningful data structure. The program measures the time required to allocate and deallocate memory for a configurable number of objects.

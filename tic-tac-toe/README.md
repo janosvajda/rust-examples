@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Tic-Tac-Toe Game
 
 This is a simple command-line implementation of the Tic-Tac-Toe game in Rust. I created it for fun.

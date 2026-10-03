@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Rust Borrowing Example
 
 This Rust example demonstrates various aspects of borrowing in Rust, including mutable and immutable references, borrowing across function calls, borrowing struct fields, using slices, and borrowing with iterators.

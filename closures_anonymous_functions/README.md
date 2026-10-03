@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Rust Closures (Anonymous Functions) Example
 
 This example shows how to define and call closures in Rust.

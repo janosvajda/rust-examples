@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # AVL tree
 
 A binary search tree that rebalances itself with rotations after every insert and remove, so it stays O(log n) whatever order the values arrive in. The demo draws the tree as rotations happen and compares its height with the plain BST.

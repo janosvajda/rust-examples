@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Hash table
 
 A key-value map built from scratch with separate chaining. Shows hashing keys into buckets, handling collisions, the load factor, and rehashing when the table grows.

@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Basic Rust HTTP Server
 
 A simple example of a basic HTTP server written in Rust. Demonstrates handling GET requests with a specific parameter and responding accordingly. The example does not use any external library.

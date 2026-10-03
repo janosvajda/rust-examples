@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Builder Pattern
 
 The Builder pattern is a creational design pattern that separates the construction of a complex object from its representation, allowing the same construction process to create different representations of the object. This pattern is particularly useful when dealing with complex objects that have multiple variations and configurations, as it provides a flexible and organized way to build such objects step-by-step.

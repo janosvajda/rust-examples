@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Functional Programming and Immutability
 
 Functional programming is a programming paradigm that emphasizes the use of pure functions, immutability, and functional methods to build programs. One of the core principles of functional programming is immutability, which means that once data is assigned to a variable, it cannot be changed. Instead of modifying data in place, functional programming relies on creating new data structures with the desired changes.

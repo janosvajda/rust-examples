@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Topological sort
 
 Orders tasks so each comes after everything it depends on, like Cargo's build order. Uses Kahn's algorithm, and finds the actual cycle with a three-colour depth-first search when no order exists.

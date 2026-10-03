@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Multi-Threaded Hello World
 
 This is a simple Rust program that demonstrates multi-threading using threads from the `std::thread` module. The program prints messages concurrently from multiple threads to showcase parallel execution.

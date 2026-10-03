@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Hello Assembly in Rust
 
 This project shows how to print **“Hello, world!”** using **inline assembly** (`asm!`) inside Rust.

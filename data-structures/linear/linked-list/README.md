@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Singly linked list
 
 A **linked list** stores each element in its own *node*, and every node links to the next one. This crate implements a singly linked list with push and pop at the front, in-place reversal and a borrowing iterator. For speed, its nodes live in one `Vec` (an *arena*) instead of being allocated one by one.

@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Function Composition in Rust
 
 Function composition is a powerful concept in functional programming where you combine multiple functions to create a new function. In Rust, you can achieve function composition using higher-order functions, custom macros, or by chaining function calls.

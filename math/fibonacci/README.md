@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Fibonacci Calculation example
 
 This code calculates Fibonacci numbers using both imperative and declarative paradigms.

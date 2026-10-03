@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Binary search tree
 
 A tree where everything on the left of a node is smaller and everything on the right is bigger. Covers insert, search, min/max, in-order traversal, the three cases of removal, and why unbalanced trees are slow.

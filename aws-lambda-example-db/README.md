@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # aws-lambda-example-db
 
 `aws-lambda-example-db` is a fully Rust, serverless user-management API designed

@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Doubly linked list
 
 A list where every node links to both its neighbours, so you can add and remove at either end in O(1) and walk it in both directions. Built with `Rc`, `RefCell` and `Weak`, and shows how a `Weak` back-pointer prevents a memory leak.

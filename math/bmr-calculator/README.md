@@ -1,3 +1,5 @@
+<img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Calorie Calculator
 
 The Calorie Calculator is a simple Rust console application that helps you estimate your Basal Metabolic Rate (BMR) and Total Daily Energy Expenditure (TDEE). It takes your weight, height, age, and activity level as inputs and calculates the calories your body needs for maintaining its current weight.

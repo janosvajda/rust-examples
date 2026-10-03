@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Introduction
 
 aws-lambda-example-hello-world is a very basic Rust project that implements an AWS Lambda function in Rust.

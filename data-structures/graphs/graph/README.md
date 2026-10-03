@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Graph with BFS and DFS
 
 An undirected graph stored as an adjacency list. Covers breadth-first search, depth-first search (iterative and recursive), shortest paths by number of edges, and connected components.

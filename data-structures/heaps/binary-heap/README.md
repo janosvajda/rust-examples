@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Binary heap (min-heap)
 
 A complete binary tree stored in a `Vec`, where every parent is smaller than its children. Used as a priority queue, and to sort values with heap sort.

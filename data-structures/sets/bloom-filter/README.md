@@ -1,3 +1,5 @@
+<img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # Bloom filter
 
 A probabilistic set: a few bits per item, never a false negative, and a false positive rate you choose. The demo stores 100,000 usernames in 117 KB and measures the real false positive rate.

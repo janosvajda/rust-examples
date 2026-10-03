@@ -1,3 +1,5 @@
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+
 # no_std Rust Application
 
 This project demonstrates a `no_std` Rust application that leverages the `libc` crate for interactions with the C standard library. The main functionality of the application is to search for a specified substring within a given string and print whether or not the substring was found.
