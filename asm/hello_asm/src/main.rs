@@ -109,7 +109,9 @@ fn main() {
         asm!(
             "mov rcx, {h}",
             "mov rdx, {buf}",
-            "mov r8,  {len}",
+            // nNumberOfBytesToWrite is a 32-bit DWORD: use the 32-bit register
+            // names. Writing r8d also clears the upper half of r8.
+            "mov r8d, {len:e}",
             "mov r9,  {pwr}",
             "sub rsp, 32",        // shadow space
             "call {WriteFile}",
