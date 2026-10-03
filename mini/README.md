@@ -1,4 +1,4 @@
-<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="48">
+<img src="../rust-exampleslogo.png" alt="Rust Examples logo" width="96">
 
 # 🧠 Mini — A Tiny LLVM-Based Programming Language (in Rust)
 
