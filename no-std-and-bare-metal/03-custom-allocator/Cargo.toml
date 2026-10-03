@@ -1,0 +1,20 @@
+[package]
+name = "no-std-custom-allocator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+libc = { version = "0.2", default-features = false }
+
+# no_std programs can't unwind a panic (that needs std), so panics must abort.
+# Cargo ignores profiles set in workspace members, which is why this crate is
+# excluded from the repository's workspace.
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

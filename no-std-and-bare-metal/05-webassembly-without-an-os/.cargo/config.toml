@@ -1,0 +1,4 @@
+# Always build this crate for WebAssembly, with no operating system:
+# `cargo build` here means `cargo build --target wasm32-unknown-unknown`.
+[build]
+target = "wasm32-unknown-unknown"

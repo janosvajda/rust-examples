@@ -1,0 +1,11 @@
+[package]
+name = "async-channels-and-shared-state"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+# Lets tests pause the clock: sleeps finish instantly and timing is exact.
+tokio = { version = "1", features = ["full", "test-util"] }

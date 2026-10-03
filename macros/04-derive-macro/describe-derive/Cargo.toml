@@ -1,0 +1,14 @@
+[package]
+name = "describe-derive"
+version = "0.1.0"
+edition = "2024"
+
+# This crate is a procedural macro: the compiler loads it as a plugin and
+# runs it while compiling crates that use `#[derive(Describe)]`.
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2"         # parses Rust source code into a syntax tree
+quote = "1"       # turns Rust-like templates back into code
+proc-macro2 = "1" # the token types syn and quote work with

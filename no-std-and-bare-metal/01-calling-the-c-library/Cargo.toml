@@ -1,8 +1,8 @@
 [package]
-name = "no_std_call_libc_functions"
+name = "no-std-calling-libc"
 authors = ["janosvajda <vajdajanos@gmail.com>"]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 libc = { version = "0.2", default-features = false }

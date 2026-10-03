@@ -1,0 +1,8 @@
+[package]
+name = "thiserror-and-anyhow"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2"
+anyhow = "1"

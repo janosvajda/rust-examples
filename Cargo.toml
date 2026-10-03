@@ -1,9 +1,24 @@
 [workspace]
 resolver = "2"
 members = [
+    "async-await/01-what-is-async",
+    "async-await/02-running-concurrently",
+    "async-await/03-select-and-timeouts",
+    "async-await/04-channels-and-shared-state",
+    "async-await/05-async-pitfalls",
     "aws-lambda-example-db",
     "aws-lambda-example-hello-world",
+    "closures-and-iterators/01-closures",
+    "closures-and-iterators/02-fn-traits",
+    "closures-and-iterators/03-storing-and-returning-closures",
+    "closures-and-iterators/04-iterator-toolbox",
+    "closures-and-iterators/05-writing-iterators",
     "closures_anonymous_functions",
+    "concurrency/01-threads",
+    "concurrency/02-message-passing",
+    "concurrency/03-locks-and-condvars",
+    "concurrency/04-atomics",
+    "concurrency/05-data-parallelism",
     "data-processing/csv-processing",
     "data-structures/graphs/dijkstra",
     "data-structures/graphs/graph",
@@ -38,14 +53,26 @@ members = [
     "design-patterns/structural/decorator-pattern",
     "design-patterns/structural/facade-pattern",
     "design-patterns/structural/proxy-pattern",
+    "error-handling/01-panic-vs-result",
+    "error-handling/02-the-question-mark",
+    "error-handling/03-custom-error-types",
+    "error-handling/04-thiserror-and-anyhow",
+    "error-handling/05-error-handling-patterns",
     "functional_programming/function-composition",
     "functional_programming/higher-order-functions",
     "functional_programming/immutability",
     "functional_programming/pure-function-basic",
     "generics/generic_storage",
+    "macros/01-macro-rules-basics",
+    "macros/02-repetition",
+    "macros/03-generating-code",
+    "macros/04-derive-macro/demo",
+    "macros/04-derive-macro/describe-derive",
     "math/bmr-calculator",
     "math/fibonacci",
     "network/basic-http-server",
+    "no-std-and-bare-metal/02-core-only-library",
+    "no-std-and-bare-metal/04-memory-mapped-registers",
     "ownership-and-borrowing/01-ownership-and-moves",
     "ownership-and-borrowing/02-references",
     "ownership-and-borrowing/03-borrowing-rules",
@@ -64,15 +91,26 @@ members = [
     "test-minifb",
     "threads",
     "tic-tac-toe",
+    "traits-and-generics/01-traits",
+    "traits-and-generics/02-generics",
+    "traits-and-generics/03-trait-objects",
+    "traits-and-generics/04-associated-types",
+    "traits-and-generics/05-standard-traits",
+    "traits-and-generics/06-advanced-traits",
 ]
 
 # These are built on their own, from their own directories:
 # - asm/hello_asm: platform-specific inline assembly
 # - mini: needs LLVM 16 installed
-# - no_std_call_libc_functions: needs its own `panic = "abort"` profile,
-#   which Cargo ignores for workspace members
+# - no-std-and-bare-metal/01-calling-the-c-library and 03-custom-allocator:
+#   no_std programs that need their own `panic = "abort"` profile, which Cargo
+#   ignores for workspace members
+# - no-std-and-bare-metal/05-webassembly-without-an-os: builds only for the
+#   wasm32-unknown-unknown target
 exclude = [
     "asm/hello_asm",
     "mini",
-    "no_std_call_libc_functions",
+    "no-std-and-bare-metal/01-calling-the-c-library",
+    "no-std-and-bare-metal/03-custom-allocator",
+    "no-std-and-bare-metal/05-webassembly-without-an-os",
 ]

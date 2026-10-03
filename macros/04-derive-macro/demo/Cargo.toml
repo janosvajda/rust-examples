@@ -1,0 +1,7 @@
+[package]
+name = "derive-macro-demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+describe-derive = { path = "../describe-derive" }
