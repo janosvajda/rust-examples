@@ -25,6 +25,13 @@ async fn fetch_price(item: &str) -> Result<u32, String> {
     }
 }
 
+/// Runs the same async operation for two inputs at once. `impl AsyncFn(&str) -> T`
+/// accepts an async closure. Because an `AsyncFn` is called through `&self`,
+/// it can be called twice and both calls can run concurrently.
+async fn compare<T>(a: &str, b: &str, fetch: impl AsyncFn(&str) -> T) -> (T, T) {
+    tokio::join!(fetch(a), fetch(b))
+}
+
 fn ms(start: Instant) -> u128 {
     start.elapsed().as_millis()
 }
@@ -73,6 +80,17 @@ async fn main() {
     //                   which is owned by the current function
     let task = tokio::spawn(async move { format!("hello, {name}") }); // move ownership in
     println!("    {}", task.await.unwrap());
+
+    println!("\n6. Async closures: pass async work to a function");
+    let note = String::from("checked just now");
+    let start = Instant::now();
+    // The async closure borrows `note` from here, and its argument `city` too.
+    let (rome, budapest) = compare("Rome", "Budapest", async |city| {
+        format!("{} ({note})", fetch_weather(city).await)
+    })
+    .await;
+    println!("    {rome} | {budapest}");
+    println!("    took {} ms: both calls ran at the same time", ms(start));
 }
 
 #[cfg(test)]
@@ -103,6 +121,15 @@ mod tests {
             order.push(result.unwrap());
         }
         assert_eq!(order, ["Rome: sunny", "Lisbon: sunny", "Amsterdam: sunny"]);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn async_closure_runs_twice_concurrently() {
+        let suffix = String::from("!");
+        let start = Instant::now();
+        let results = compare("ab", "abcde", async |city| fetch_weather(city).await + &suffix).await;
+        assert_eq!(results, (String::from("ab: sunny!"), String::from("abcde: sunny!")));
+        assert_eq!(start.elapsed(), Duration::from_millis(500)); // the slower one, not the sum
     }
 
     #[tokio::test]

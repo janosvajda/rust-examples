@@ -3,6 +3,7 @@
 // The rules from lesson 3 never change, but real code meets them in a few
 // typical situations. Each section shows one, and the usual way to handle it.
 
+use std::collections::HashMap;
 use std::mem;
 
 #[derive(Debug)]
@@ -32,6 +33,18 @@ fn take_items(order: &mut Order) -> Vec<String> {
     mem::take(&mut order.items)
 }
 
+/// Move money between two accounts. Two `&mut` into the same HashMap at once
+/// would be refused by the borrow checker; `get_disjoint_mut` checks that the
+/// keys are different and then hands out both. (Same keys would panic.)
+fn transfer(balances: &mut HashMap<&str, u32>, from: &str, to: &str, amount: u32) -> Result<(), String> {
+    let [Some(source), Some(target)] = balances.get_disjoint_mut([from, to]) else {
+        return Err(format!("unknown account: `{from}` or `{to}`"));
+    };
+    *source = source.checked_sub(amount).ok_or(format!("`{from}` can't pay {amount}"))?;
+    *target += amount;
+    Ok(())
+}
+
 fn main() {
     println!("1. Different fields of a struct can be borrowed separately");
     let mut book = Book { title: String::from("Dune"), pages: 412 };
@@ -52,7 +65,7 @@ fn main() {
     // A method's signature (`&self`) says it may read ANY field, so the
     // compiler can't let it run while one field is mutably borrowed.
 
-    println!("\n3. Two mutable halves of one slice: split_at_mut");
+    println!("\n3. Two mutable parts of one collection: split_at_mut, get_disjoint_mut");
     let mut temperatures = [18, 21, 19, 25, 30, 28];
     let (morning, afternoon) = temperatures.split_at_mut(3);
     // `&mut temperatures[..3]` and `&mut temperatures[3..]` at the same time
@@ -60,6 +73,19 @@ fn main() {
     // `split_at_mut` guarantees the two halves don't overlap.
     morning[0] += afternoon[0];
     println!("    {temperatures:?}");
+
+    // get_disjoint_mut: mutable access to several positions at once, wherever they are.
+    let mut scores = [10, 20, 30, 40];
+    if let Ok([first, last]) = scores.get_disjoint_mut([0, 3]) {
+        mem::swap(first, last);
+    }
+    println!("    swapped first and last: {scores:?}");
+    println!("    same index twice:       {:?}", scores.get_disjoint_mut([1, 1]).map(|_| ()));
+
+    let mut balances = HashMap::from([("ana", 100), ("bob", 50)]);
+    println!("    transfer 30 ana → bob:  {:?}", transfer(&mut balances, "ana", "bob", 30));
+    println!("    balances: ana {}, bob {}", balances["ana"], balances["bob"]);
+    println!("    transfer 30 ana → zoe:  {:?}", transfer(&mut balances, "ana", "zoe", 30));
 
     println!("\n4. Iterating: borrow, borrow mutably, or take ownership");
     let mut names = vec![String::from("ana"), String::from("bob")];
@@ -122,6 +148,25 @@ mod tests {
         left[0] = 10;
         right[1] = 40;
         assert_eq!(data, [10, 2, 3, 40]);
+    }
+
+    #[test]
+    fn get_disjoint_mut_checks_the_indexes() {
+        let mut data = [1, 2, 3];
+        let [a, c] = data.get_disjoint_mut([0, 2]).expect("different, in-bounds indexes");
+        mem::swap(a, c);
+        assert_eq!(data, [3, 2, 1]);
+        assert!(data.get_disjoint_mut([1, 1]).is_err()); // the same index twice
+        assert!(data.get_disjoint_mut([0, 9]).is_err()); // out of bounds
+    }
+
+    #[test]
+    fn transfer_between_two_accounts() {
+        let mut balances = HashMap::from([("ana", 100), ("bob", 50)]);
+        assert_eq!(transfer(&mut balances, "ana", "bob", 30), Ok(()));
+        assert_eq!((balances["ana"], balances["bob"]), (70, 80));
+        assert!(transfer(&mut balances, "ana", "bob", 500).is_err()); // not enough money
+        assert!(transfer(&mut balances, "ana", "zoe", 1).is_err()); // no such account
     }
 
     #[test]

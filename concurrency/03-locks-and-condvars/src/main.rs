@@ -6,8 +6,12 @@
 //   RwLock<T>     many readers OR one writer
 //   Condvar       sleep until another thread says "something changed"
 //   Barrier       wait until N threads have all reached the same point
+//   File::lock    a lock on a file, shared with other PROGRAMS, not only threads
 
 use std::collections::VecDeque;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Write};
+use std::path::Path;
 use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -142,6 +146,51 @@ fn barrier_demo() -> Vec<String> {
     Arc::try_unwrap(log).unwrap().into_inner().unwrap()
 }
 
+// ---- 6. File locks: coordinating with other programs --------------------------------
+//
+// A Mutex only works inside one program. A file lock is managed by the
+// operating system, so it also works between separate programs (or several
+// copies of the same program) using the same file.
+
+/// Append one line to a shared log file. The exclusive lock makes sure no
+/// other writer, in this program or another one, writes at the same moment.
+fn append_line(path: &Path, line: &str) -> io::Result<()> {
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    file.lock()?; // waits until no one else holds a lock on the file
+    writeln!(file, "{line}")?;
+    Ok(()) // closing the file (dropping it) releases the lock
+}
+
+fn file_lock_demo() -> io::Result<(usize, String)> {
+    let path = std::env::temp_dir().join("rust-examples-shared.log");
+    File::create(&path)?; // start empty
+
+    // Every thread opens the file itself, just like separate programs would.
+    let writers: Vec<_> = (0..4)
+        .map(|id| {
+            let path = path.clone();
+            thread::spawn(move || {
+                for n in 0..25 {
+                    append_line(&path, &format!("writer {id}, line {n}")).expect("can write");
+                }
+            })
+        })
+        .collect();
+    for writer in writers {
+        writer.join().expect("writer finished");
+    }
+    let lines = std::fs::read_to_string(&path)?.lines().count();
+
+    // try_lock doesn't wait: it says right away whether someone else holds the lock.
+    let holder = OpenOptions::new().append(true).open(&path)?;
+    holder.lock()?;
+    let other = OpenOptions::new().append(true).open(&path)?;
+    let attempt = format!("{:?}", other.try_lock());
+    drop(holder);
+    std::fs::remove_file(&path)?;
+    Ok((lines, attempt))
+}
+
 fn main() {
     println!("1. Mutex");
     println!("    8 threads × 10,000 increments = {}", count_with_mutex(8, 10_000));
@@ -161,6 +210,15 @@ fn main() {
     println!("\n5. Barrier: all threads finish phase 1 before any starts phase 2");
     for line in barrier_demo() {
         println!("    {line}");
+    }
+
+    println!("\n6. File locks: shared with other programs");
+    match file_lock_demo() {
+        Ok((lines, attempt)) => {
+            println!("    4 writers × 25 lines → {lines} complete lines in the log");
+            println!("    try_lock while another handle holds the lock: {attempt}");
+        }
+        Err(error) => println!("    file locks unavailable here: {error}"),
     }
 }
 
@@ -198,5 +256,18 @@ mod tests {
         let last_phase_one = log.iter().rposition(|l| l.starts_with("phase 1")).unwrap();
         let first_phase_two = log.iter().position(|l| l.starts_with("phase 2")).unwrap();
         assert!(last_phase_one < first_phase_two);
+    }
+
+    #[test]
+    fn a_file_lock_blocks_other_handles_until_released() {
+        let path = std::env::temp_dir().join("rust-examples-lock-test.txt");
+        let first = OpenOptions::new().create(true).append(true).open(&path).unwrap();
+        let second = OpenOptions::new().append(true).open(&path).unwrap();
+        first.lock().unwrap();
+        assert!(second.try_lock().is_err()); // someone else holds it
+        first.unlock().unwrap();
+        assert!(second.try_lock().is_ok()); // free again
+        drop((first, second));
+        std::fs::remove_file(&path).unwrap();
     }
 }

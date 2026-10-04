@@ -51,11 +51,16 @@ Each `?` hands the error one level up. The function that finally *handles* it, w
 |---|---|---|
 | `Option<T>` | `Result<T, E>` | `.ok_or(error)?` or `.ok_or_else(\|\| error)?` |
 | `Result<T, E1>` | `Result<T, E2>` | `.map_err(\|e\| convert(e))?` |
+| a `bool` condition | `Result<(), E>` | `condition.ok_or(error)?` |
 
 ```rust
 let (key, value) = line.split_once('=').ok_or(format!("missing '=' in \"{line}\""))?;
+let has_name = !key.trim().is_empty();
+has_name.ok_or(format!("missing name before '=' in \"{line}\""))?;
 let number = value.parse::<u32>().map_err(|e| format!("bad number for {key}: {e}"))?;
 ```
+
+The `bool` version reads like a sentence: "it has a name, **or** it's this error". `true.ok_or(e)` is `Ok(())`, and `false.ok_or(e)` is `Err(e)`, so `?` either continues or returns the error. It's a compact replacement for `if key.trim().is_empty() { return Err(…); }`.
 
 ## `?` on `Option`
 

@@ -18,7 +18,7 @@ Most Rust programs rely on the standard library, which relies on an operating sy
 
 | # | Lesson | What it shows | Runs on |
 |---|---|---|---|
-| 1 | [Calling the C library](01-calling-the-c-library/) | `no_std` + `no_main`, safe wrappers around C functions, C strings, callbacks; a binary 6× smaller than `std`'s hello world | macOS / Linux, via libc |
+| 1 | [Calling the C library](01-calling-the-c-library/) | `no_std` + `no_main`, safe wrappers around C functions, C strings, callbacks, a variadic function written in Rust; a binary 6× smaller than `std`'s hello world | macOS / Linux, via libc |
 | 2 | [A core-only library](02-core-only-library/) | const-generic collections, a ring buffer, CRC-32 computed at compile time, parsing binary packets, formatting without a heap | anywhere |
 | 3 | [A custom allocator](03-custom-allocator/) | `no_std` + `alloc`: writing a bump allocator, then using `Vec`, `String` and `format!` again | macOS / Linux |
 | 4 | [Memory-mapped registers](04-memory-mapped-registers/) | how firmware controls hardware: volatile access, `#[repr(C)]` layouts, bit fields, a UART driver | anywhere (simulated hardware) |

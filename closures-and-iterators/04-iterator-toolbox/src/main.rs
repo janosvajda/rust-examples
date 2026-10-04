@@ -59,6 +59,9 @@ fn main() {
     let batches: Vec<_> = [1, 2, 3, 4, 5].chunks(2).map(|c| c.to_vec()).collect();
     println!("    zip: {paired:?}");
     println!("    day-to-day change (windows): {changes:?}; batches (chunks): {batches:?}");
+    // array_windows: the same windows, as fixed-size arrays you can destructure
+    let rising: Vec<bool> = visitors.array_windows().map(|[before, after]| after > before).collect();
+    println!("    visitors went up (array_windows): {rising:?}");
 
     println!("\n4. Cutting the stream: take, skip, take_while, skip_while, step_by");
     let evens: Vec<u32> = (0..).step_by(2).take(5).collect(); // an endless range, cut short
@@ -104,6 +107,15 @@ fn main() {
         let next = tokens.peek().copied().unwrap_or("(end)");
         println!("    token {token:<2} followed by {next}");
     }
+
+    println!("\n9. Taking items out of a collection: retain, extract_if");
+    let mut queue = vec!["urgent: server down", "lunch?", "urgent: invoice", "newsletter"];
+    // extract_if removes the matching items AND gives them to you, in one pass
+    let urgent: Vec<&str> = queue.extract_if(.., |message| message.starts_with("urgent")).collect();
+    println!("    handled first: {urgent:?}");
+    println!("    still queued:  {queue:?}");
+    queue.retain(|message| *message != "newsletter"); // retain keeps matches and drops the rest
+    println!("    after retain:  {queue:?}");
 }
 
 #[cfg(test)]
@@ -158,5 +170,23 @@ mod tests {
         assert_eq!(changes, [3, 5]);
         let pairs: Vec<(char, i32)> = "ab".chars().zip(1..).collect();
         assert_eq!(pairs, [('a', 1), ('b', 2)]);
+    }
+
+    #[test]
+    fn array_windows_destructures_each_window() {
+        let sums: Vec<i32> = [1, 2, 3, 4].array_windows().map(|[a, b, c]| a + b + c).collect();
+        assert_eq!(sums, [6, 9]);
+    }
+
+    #[test]
+    fn extract_if_moves_matches_out() {
+        let mut numbers = vec![1, 2, 3, 4, 5, 6];
+        let even: Vec<i32> = numbers.extract_if(.., |n| *n % 2 == 0).collect();
+        assert_eq!(even, [2, 4, 6]);
+        assert_eq!(numbers, [1, 3, 5]);
+        // only look at part of the Vec: the range limits where it searches
+        let mut more = vec![2, 4, 6, 8];
+        let first_two: Vec<i32> = more.extract_if(..2, |_| true).collect();
+        assert_eq!((first_two, more), (vec![2, 4], vec![6, 8]));
     }
 }

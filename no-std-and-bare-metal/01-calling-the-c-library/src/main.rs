@@ -130,6 +130,25 @@ pub fn env_var_length(name: &CStr) -> Option<usize> {
     }
 }
 
+// ---- 7. A variadic function written in Rust ----------------------------------
+
+/// The C signature is `int sum_ints(int count, ...)`: `count` says how many
+/// numbers follow. Like `printf`, nothing checks what the caller passes, so
+/// the function is `unsafe` to call: `count` must match the number of `int`s
+/// that follow. `#[unsafe(no_mangle)]` keeps the name, so C code can call it too.
+///
+/// # Safety
+/// The caller must pass exactly `count` further arguments, each a C `int`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sum_ints(count: c_int, mut numbers: ...) -> c_int {
+    let mut total = 0;
+    for _ in 0..count {
+        // SAFETY: the caller promised `count` more `int` arguments.
+        total += unsafe { numbers.next_arg::<c_int>() };
+    }
+    total
+}
+
 // ============================================================================
 // The program itself: only compiled for the real no_std build
 // ============================================================================
@@ -189,6 +208,9 @@ mod program {
                 None => libc::printf(c"6. getenv: HOME is not set\n".as_ptr()),
             };
             libc::printf(c"   getpid: this process is %d, started with %d argument(s)\n".as_ptr(), libc::getpid(), argc);
+
+            // 7. A variadic function written in Rust, called like a C one
+            libc::printf(c"7. variadic Rust function: sum_ints(4, 10, 20, 30, 40) = %d\n".as_ptr(), sum_ints(4, 10, 20, 30, 40));
         }
         0 // the process exit code
     }
@@ -256,5 +278,15 @@ mod tests {
         // PATH is set in practically every environment cargo runs in.
         assert!(env_var_length(c"PATH").is_some());
         assert_eq!(env_var_length(c"RUST_EXAMPLES_SURELY_NOT_SET"), None);
+    }
+
+    #[test]
+    fn a_rust_variadic_function_reads_its_arguments() {
+        // SAFETY: each call passes exactly `count` further ints.
+        unsafe {
+            assert_eq!(sum_ints(3, 1, 2, 3), 6);
+            assert_eq!(sum_ints(0), 0);
+            assert_eq!(sum_ints(2, -5, 5), 0);
+        }
     }
 }

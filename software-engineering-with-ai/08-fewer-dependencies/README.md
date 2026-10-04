@@ -53,6 +53,8 @@ Some crates were essential years ago, and the standard library has since caught 
 | `lazy_static` or `once_cell` for a global computed once | `std::sync::LazyLock` and `OnceLock` |
 | `atty` to check for a terminal | `std::io::IsTerminal` |
 | `num_cpus` to count processor cores | `std::thread::available_parallelism` |
+| `cfg-if` to choose code per platform | `cfg_select!` (see the [asm example](../../asm/hello_asm/)) |
+| `fs2` or `fs4` for file locks | `File::lock`, `File::try_lock` (see [concurrency lesson 3](../../concurrency/03-locks-and-condvars/)) |
 | `thiserror` for one or two error types | implement `Display` and `Error` yourself (see the [error handling course](../../error-handling/03-custom-error-types/)) |
 
 `thiserror` is still a fine crate, and [lesson 4 of the error handling course](../../error-handling/04-thiserror-and-anyhow/) shows when it pays off. The point is to **choose**, not to add it out of habit.

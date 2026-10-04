@@ -78,6 +78,23 @@ if let Some(&last) = items.last() {
 }
 ```
 
+**The other direction: add an item, then keep changing it.** A common pattern is to push something and then fill it in:
+
+```rust
+tasks.push(title.to_string());
+let new_task = tasks.last_mut().unwrap();   // find it again…
+new_task.push_str(" (urgent)");
+```
+
+It works, but it looks the item up again, and the `unwrap` only *assumes* that the push worked. `push_mut` adds the item and hands back a `&mut` to it in one step:
+
+```rust
+let new_task = tasks.push_mut(title.to_string());
+new_task.push_str(" (urgent)");
+```
+
+As long as `new_task` is in use, it borrows `tasks` mutably, so you can't change `tasks` in any other way. That's the same rule as above, now working for you. `VecDeque` has `push_front_mut` and `push_back_mut`, and `Vec` also has `insert_mut`.
+
 ## 4. Data that points at itself: graphs and cycles
 
 A graph where nodes refer to each other, especially in cycles (A → B → C → A), can't be built from plain `&` references. Every node would borrow the others, so nothing could ever be changed or freed.

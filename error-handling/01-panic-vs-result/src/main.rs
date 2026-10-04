@@ -47,6 +47,16 @@ fn apply_discount(price_cents: u32, percent: u32) -> u32 {
     price_cents - price_cents * percent / 100
 }
 
+// ---- Overflow: decide what happens when a number gets too big ----------------
+
+/// Seats left after a booking. Booking more seats than are free is a bug in
+/// the caller, so `strict_sub` panics, in debug AND release builds. A plain
+/// `-` panics only in debug builds; in a release build it silently wraps
+/// around to a huge number of seats.
+fn seats_left(free: u8, booked: u8) -> u8 {
+    free.strict_sub(booked)
+}
+
 fn main() {
     println!("1. Handling a Result with match");
     for input in ["8080", "eighty", "70000"] {
@@ -93,6 +103,14 @@ fn main() {
     //   discount must be 0..=100, got 150
     println!("    (apply_discount(1000, 150) would panic: see the tests)");
 
+    println!("\n7. Overflow: choose what should happen");
+    let big: u8 = 250;
+    println!("    250 + 10 as u8, checked_add:    {:?}", big.checked_add(10)); // None: it doesn't fit
+    println!("    250 + 10 as u8, saturating_add: {}", big.saturating_add(10)); // 255: stop at the maximum
+    println!("    250 + 10 as u8, wrapping_add:   {}", big.wrapping_add(10)); // 4: wrap around on purpose
+    println!("    seats_left(5, 3) = {}", seats_left(5, 3)); // strict_sub: panics if it would overflow
+    println!("    (seats_left(5, 8) would panic: see the tests)");
+
     // Ignoring a Result gives a compiler warning:
     // divide(1, 0);
     //   warning: unused `Result` that must be used
@@ -122,6 +140,20 @@ mod tests {
     #[should_panic(expected = "called `Result::unwrap()` on an `Err` value")]
     fn unwrap_on_err_panics() {
         parse_port("4x3").unwrap();
+    }
+
+    #[test]
+    fn overflow_methods() {
+        assert_eq!(250u8.checked_add(10), None);
+        assert_eq!(250u8.saturating_add(10), 255);
+        assert_eq!(250u8.wrapping_add(10), 4);
+        assert_eq!(seats_left(5, 3), 2);
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn strict_arithmetic_panics_in_every_build() {
+        seats_left(5, 8);
     }
 
     #[test]

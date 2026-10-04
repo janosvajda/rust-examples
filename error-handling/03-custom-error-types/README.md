@@ -79,6 +79,35 @@ fn start_server(path: &str) -> Result<ServerConfig, AppError> {
 
 This is the usual structure in a larger program: each part has its own error enum, and a top-level error wraps them all.
 
+## Testing which error you got
+
+An error enum makes tests precise: you can check not just "it failed", but **how** it failed. `assert_eq!` doesn't fit well, because you often care about the variant and a few fields, not every detail. `assert_matches!` checks a value against a **pattern**, the same patterns as in `match`:
+
+```rust
+use std::assert_matches;
+
+assert_matches!(load_config("workers=2"), Err(ConfigError::Missing { key }) if key == "port");
+assert_matches!(load_config("port=80\nworkers=99"), Err(ConfigError::OutOfRange { value: 99, max: 64, .. }));
+```
+
+`..` ignores the fields you don't care about, and `if …` adds a condition, just like a match guard.
+
+Its real strength shows when a test fails. Writing `assert!(matches!(…))` tells you only that it didn't match:
+
+```text
+assertion failed: matches!(load(), Err(ConfigError::Missing { .. }))
+```
+
+`assert_matches!` also shows **what it got instead**:
+
+```text
+assertion `left matches right` failed
+  left: Err(OutOfRange { key: "workers", value: 99, max: 64 })
+ right: Err(ConfigError::Missing { .. })
+```
+
+For that, the type needs `Debug`, which every error type should have anyway.
+
 ## That's a lot of code
 
 Two `Display` implementations, two `Error` implementations and two `From` implementations, about 60 lines of boilerplate for two small enums. Lesson 4 shows how the `thiserror` crate writes all of it for you from a few attributes, with exactly the same result.

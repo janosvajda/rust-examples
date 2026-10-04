@@ -13,7 +13,7 @@ Every compiler error and warning quoted in these READMEs is the real output of R
 | 1 | [Closures](01-closures/) | syntax, capturing (borrow, mutable borrow, `move`), unique closure types, function pointers |
 | 2 | [`Fn`, `FnMut` and `FnOnce`](02-fn-traits/) | which closure implements which trait, and which to ask for in a function |
 | 3 | [Storing and returning closures](03-storing-and-returning-closures/) | `impl Fn`, `Box<dyn Fn>`, closures in struct fields, callbacks, memoisation |
-| 4 | [The iterator toolbox](04-iterator-toolbox/) | laziness, the most useful adapters and consumers, `collect` into anything |
+| 4 | [The iterator toolbox](04-iterator-toolbox/) | laziness, the most useful adapters and consumers, `collect` into anything, `array_windows`, `retain` vs `extract_if` |
 | 5 | [Writing your own iterators](05-writing-iterators/) | `from_fn`, `successors`, `impl Iterator`, `IntoIterator`, your own adapters |
 
 ## The errors you'll meet

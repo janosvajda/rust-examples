@@ -16,11 +16,11 @@ Every compiler error, warning and panic message quoted in these READMEs is the r
 
 | # | Lesson | You'll learn |
 |---|---|---|
-| 1 | [panic vs Result](01-panic-vs-result/) | bugs vs expected failures, `Result` and `Option`, `unwrap` / `expect` and safe fallbacks |
+| 1 | [panic vs Result](01-panic-vs-result/) | bugs vs expected failures, `Result` and `Option`, `unwrap` / `expect` and safe fallbacks, overflow: `checked_*`, `saturating_*`, `wrapping_*`, `strict_*` |
 | 2 | [The `?` operator](02-the-question-mark/) | what `?` expands to, errors travelling up, `ok_or` and `map_err`, `Box<dyn Error>`, `main` returning `Result` |
-| 3 | [Custom error types](03-custom-error-types/) | error enums, `Display`, the `Error` trait, `source()` chains, `From` so `?` converts |
+| 3 | [Custom error types](03-custom-error-types/) | error enums, `Display`, the `Error` trait, `source()` chains, `From` so `?` converts, testing with `assert_matches!` |
 | 4 | [thiserror and anyhow](04-thiserror-and-anyhow/) | the same with no boilerplate; library vs application errors; `context`; printing chains |
-| 5 | [Everyday patterns](05-error-handling-patterns/) | combinators, many results at once, `let … else`, fallbacks, retrying |
+| 5 | [Everyday patterns](05-error-handling-patterns/) | combinators, many results at once, `let … else`, let chains, `if let` guards, fallbacks, retrying |
 
 ## The core ideas on one page
 

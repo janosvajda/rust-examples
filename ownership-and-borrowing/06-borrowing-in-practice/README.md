@@ -29,7 +29,7 @@ error[E0502]: cannot borrow `book` as immutable because it is also borrowed as m
 
 Why the difference? The compiler only looks at a method's **signature**. `fn pages(&self)` says "I may read any field", including `title`, which is mutably borrowed. **Fix:** finish using the field borrow first, or read the field directly (`book.pages`) instead of calling a method.
 
-## 3. Two mutable parts of one array or `Vec`: `split_at_mut`
+## 3. Two mutable parts of one collection: `split_at_mut` and `get_disjoint_mut`
 
 ```rust
 let (morning, afternoon) = temperatures.split_at_mut(3);
@@ -37,6 +37,32 @@ morning[0] += afternoon[0];    // ✓ both halves mutable at once
 ```
 
 Writing `&mut temperatures[..3]` and `&mut temperatures[3..]` at the same time doesn't compile, even though the ranges don't overlap. The compiler doesn't reason about index ranges; it just sees two mutable borrows of `temperatures`. `split_at_mut` is a standard-library function that *guarantees* the halves don't overlap, so it can safely give you both.
+
+When the parts aren't neat halves, ask for exactly the positions you need with `get_disjoint_mut`:
+
+```rust
+let mut scores = [10, 20, 30, 40];
+if let Ok([first, last]) = scores.get_disjoint_mut([0, 3]) {
+    mem::swap(first, last);                     // two &mut into one array at once
+}
+```
+
+It checks at runtime that the indexes are different and in bounds. The same index twice gives `Err(OverlappingIndices)`, and an index past the end gives `Err(IndexOutOfBounds)`, so two `&mut` to the same element can never exist.
+
+`HashMap` has the same method, which solves a classic problem: changing two entries of one map at once.
+
+```rust
+fn transfer(balances: &mut HashMap<&str, u32>, from: &str, to: &str, amount: u32) -> Result<(), String> {
+    let [Some(source), Some(target)] = balances.get_disjoint_mut([from, to]) else {
+        return Err(format!("unknown account: `{from}` or `{to}`"));
+    };
+    *source = source.checked_sub(amount).ok_or(format!("`{from}` can't pay {amount}"))?;
+    *target += amount;
+    Ok(())
+}
+```
+
+`balances.get_mut(from)` and `balances.get_mut(to)` together wouldn't compile: two mutable borrows of `balances`. For a map, a missing key gives `None` in that position. The same key twice is a bug, so it panics.
 
 ## 4. Three ways to loop over a collection
 
