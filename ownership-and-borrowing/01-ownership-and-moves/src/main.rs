@@ -1,9 +1,12 @@
 // Lesson 1: ownership and moves.
 //
 // The three ownership rules:
-//   1. Every value has exactly one owner (a variable, a field, a collection...).
-//   2. Ownership can be moved to a new owner. The old owner can't be used after that.
-//   3. When the owner goes out of scope, the value is dropped (its memory is freed).
+//   1. Ordinary owned values belong to a variable, field or collection.
+//      Rc/Arc handles can share ownership of heap data (later lessons).
+//   2. Moving a non-Copy value transfers ownership. Its old location cannot
+//      be read until reinitialised; Copy values are duplicated instead.
+//   3. Leaving the owner's scope normally drops the value. Cleanup depends
+//      on the type; overwriting a value or calling drop can drop it earlier.
 
 /// A type that announces when it's dropped, so we can watch rule 3 happen.
 struct Noisy(&'static str);
@@ -17,7 +20,7 @@ impl Drop for Noisy {
 /// Takes ownership of `text`. When this function ends, `text` is dropped.
 fn consume(text: String) -> usize {
     text.len()
-} // `text` goes out of scope here and its memory is freed
+} // `text` goes out of scope here and releases its heap buffer
 
 /// Takes ownership, then gives it back to the caller by returning it.
 fn shout(mut text: String) -> String {
@@ -34,12 +37,12 @@ fn main() {
     //   move occurs because `a` has type `String`, which does not implement the `Copy` trait
     println!("    b = {b}");
 
-    println!("\n2. A copy: simple values are duplicated instead");
+    println!("\n2. A copy: i32 implements Copy, so its value is duplicated");
     let x = 5;
     let y = x; // i32 implements `Copy`, so `x` is copied, not moved
     println!("    x = {x}, y = {y} (both still usable)");
 
-    println!("\n3. A clone: an explicit, full copy");
+    println!("\n3. A String clone: an explicit copy of the text");
     let original = String::from("data");
     let duplicate = original.clone(); // copies the text on the heap too
     println!("    original = {original}, duplicate = {duplicate}");
@@ -55,7 +58,7 @@ fn main() {
     let greeting = shout(String::from("hi")); // ownership comes back to us
     println!("    greeting = {greeting}");
 
-    println!("\n6. Drop happens at the end of the owner's scope, in reverse order");
+    println!("\n6. Local variables drop in reverse declaration order when their scope ends");
     {
         let _first = Noisy("first");
         let _second = Noisy("second");
@@ -65,7 +68,10 @@ fn main() {
     println!("\n7. Moving a value into a collection");
     let item = Noisy("item in a Vec");
     let items = vec![item]; // `item` now belongs to the Vec
-    println!("    the Vec owns {} item; dropping the Vec drops it too:", items.len());
+    println!(
+        "    the Vec owns {} item; dropping the Vec drops it too:",
+        items.len()
+    );
     drop(items); // `drop` just takes ownership and lets it go out of scope
     println!("    done");
 }
@@ -99,8 +105,8 @@ mod tests {
 
     #[test]
     fn a_move_does_not_copy_the_heap_data() {
-        // A move copies only the String's small header (pointer, capacity,
-        // length). The text itself stays where it is on the heap.
+        // A move transfers the String's header (pointer, capacity, length).
+        // It does not copy the heap text; physical header copies can be optimised away.
         let a = String::from("same heap memory");
         let address_before = a.as_ptr();
         let b = a;

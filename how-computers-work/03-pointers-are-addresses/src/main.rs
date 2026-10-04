@@ -1,8 +1,9 @@
 // Lesson 3: pointers are addresses.
 //
-// A pointer is nothing more than an address: a number saying which mailbox a
-// value starts in. A Rust reference (&T) is a pointer with guarantees: it's
-// never null, never dangling, and always points to the right type.
+// A pointer tells code where to find a value: it holds the address of the
+// value's first byte. A Rust reference (&T) is a pointer with guarantees:
+// it's never null, the value it points to stays valid while the reference is
+// used, and it always points to a value of the right type.
 
 /// The address inside a reference, as a plain number.
 fn address_of<T>(value: &T) -> usize {
@@ -11,9 +12,11 @@ fn address_of<T>(value: &T) -> usize {
 
 /// Finds `numbers[index]` the way the processor does: start + index × size.
 /// Returns the address it computed, and the address Rust's indexing used.
+/// Like indexing itself, this panics if the index is outside the slice.
 fn where_is(numbers: &[u32], index: usize) -> (usize, usize) {
-    let computed = address_of(&numbers[0]) + index * size_of::<u32>();
-    (computed, address_of(&numbers[index]))
+    let actual = address_of(&numbers[index]); // check before doing the arithmetic
+    let computed = numbers.as_ptr() as usize + index * size_of::<u32>();
+    (computed, actual)
 }
 
 fn main() {
@@ -23,7 +26,10 @@ fn main() {
     println!("    score lives at       {:#x}", address_of(&score));
     println!("    the reference holds  {:#x}", address_of(pointer));
     println!("    following it gives   {}", *pointer);
-    println!("    the reference itself is {} bytes: just the address", size_of::<&u32>());
+    println!(
+        "    the reference itself is {} bytes: just the address",
+        size_of::<&u32>()
+    );
 
     println!("\n2. Indexing is arithmetic: start + index × size");
     let numbers = [10u32, 20, 30, 40];
@@ -34,22 +40,30 @@ fn main() {
 
     println!("\n3. A pointer to a pointer: an address of an address");
     let reference_to_reference: &&u32 = &pointer;
-    println!("    the outer reference holds {:#x}, where the inner one is stored", address_of(reference_to_reference));
+    println!(
+        "    the outer reference holds {:#x}, where the inner one is stored",
+        address_of(reference_to_reference)
+    );
     println!("    following both gives {}", **reference_to_reference);
 
-    println!("\n4. A wrong address: Rust checks every index");
-    let index = std::hint::black_box(10); // a value the compiler can't see in advance
+    println!("\n4. An index that doesn't exist");
+    let index = std::hint::black_box(10); // a best-effort hint to hide the constant
     match numbers.get(index) {
         Some(n) => println!("    numbers[{index}] = {n}"),
-        None => println!("    numbers.get({index}) = None: there is no mailbox {index} in this array"),
+        None => {
+            println!("    numbers.get({index}) = None: there is no mailbox {index} in this array")
+        }
     }
-    println!("    (numbers[{index}] would stop the program: index out of bounds)");
+    println!("    (numbers[{index}] would panic: index out of bounds)");
 
-    println!("\n5. \"Maybe no address\" is an Option, and costs nothing");
-    let found: Option<&u32> = numbers.iter().find(|&&n| n > 25);
-    let missing: Option<&u32> = numbers.iter().find(|&&n| n > 99);
-    println!("    found {found:?}, missing {missing:?}");
-    println!("    Option<&u32> is {} bytes, like &u32: None is stored as address 0", size_of::<Option<&u32>>());
+    println!("\n5. \"Maybe a reference\" is an Option, and takes no extra space");
+    let found: Option<&u32> = numbers.get(2);
+    let missing: Option<&u32> = numbers.get(10);
+    println!("    numbers.get(2) = {found:?}, numbers.get(10) = {missing:?}");
+    println!(
+        "    Option<&u32> is {} bytes, the same as &u32: None is stored as address 0",
+        size_of::<Option<&u32>>()
+    );
 }
 
 #[cfg(test)]
@@ -75,7 +89,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "index out of bounds: the len is 4 but the index is 10")]
-    fn a_wrong_index_stops_the_program_instead_of_reading_other_memory() {
+    fn a_wrong_index_panics_instead_of_reading_other_memory() {
         let numbers = [10u32, 20, 30, 40];
         let _ = numbers[std::hint::black_box(10)];
     }

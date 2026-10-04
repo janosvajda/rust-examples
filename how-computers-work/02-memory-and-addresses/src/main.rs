@@ -1,9 +1,9 @@
 // Lesson 2: memory and addresses.
 //
-// Memory is one long row of bytes, and every byte has a number: its address.
+// In the memory model this course uses, every byte has a number: its address.
 // A value bigger than a byte takes several neighbouring bytes. This lesson
-// looks at real addresses, at the order of the bytes, and at the gaps the
-// computer leaves between values (alignment).
+// looks at real addresses, at the order of the bytes, and at the rules for
+// where a value may start (alignment), which can leave gaps in a struct.
 
 use std::mem::{align_of, offset_of, size_of};
 
@@ -24,7 +24,7 @@ struct RustOrder {
 }
 
 fn main() {
-    println!("1. Every value has an address: the number of its first byte");
+    println!("1. The addresses of three local values (the number of each one's first byte)");
     let a: u8 = 1;
     let b: u32 = 2;
     let c: u64 = 3;
@@ -44,9 +44,16 @@ fn main() {
     let value: u32 = 0x1234_5678;
     let in_memory = value.to_ne_bytes(); // the bytes exactly as they lie in memory
     println!("    0x12345678 in memory: {:02x?}", in_memory);
-    println!("    this computer is {}-endian", if cfg!(target_endian = "little") { "little" } else { "big" });
+    println!(
+        "    this computer is {}-endian",
+        if cfg!(target_endian = "little") {
+            "little"
+        } else {
+            "big"
+        }
+    );
 
-    println!("\n4. Alignment: a u32 lives at an address divisible by 4");
+    println!("\n4. Alignment on this computer: where each type may start");
     for (name, size, align) in [
         ("u8", size_of::<u8>(), align_of::<u8>()),
         ("u16", size_of::<u16>(), align_of::<u16>()),
@@ -55,7 +62,11 @@ fn main() {
     ] {
         println!("    {name:<4} size {size}, must start at a multiple of {align}");
     }
-    println!("    b's address modulo 4 = {}", &b as *const u32 as usize % 4);
+    let alignment = align_of::<u32>();
+    println!(
+        "    b's address modulo {alignment} = {}",
+        &b as *const u32 as usize % alignment
+    );
 
     println!("\n5. Gaps: the same three fields, two layouts");
     println!(
@@ -73,7 +84,18 @@ fn main() {
         offset_of!(RustOrder, other)
     );
     // Use the fields, so the compiler doesn't warn that they're never read.
-    let (x, y) = (InCOrder { small: 1, big: 2, other: 3 }, RustOrder { small: 1, big: 2, other: 3 });
+    let (x, y) = (
+        InCOrder {
+            small: 1,
+            big: 2,
+            other: 3,
+        },
+        RustOrder {
+            small: 1,
+            big: 2,
+            other: 3,
+        },
+    );
     let _ = (x.small, x.big, x.other, y.small, y.big, y.other);
 }
 
@@ -102,11 +124,45 @@ mod tests {
     }
 
     #[test]
-    fn c_layout_has_gaps_rust_layout_avoids_them() {
-        assert_eq!(size_of::<InCOrder>(), 12); // 1 + 3 gap + 4 + 1 + 3 gap
-        assert_eq!(offset_of!(InCOrder, big), 4);
-        // Rust's default layout is unspecified: the compiler may order fields as it
-        // likes (today it picks 8 bytes). Only "no worse than C's order" is a fair test.
-        assert!(size_of::<RustOrder>() <= size_of::<InCOrder>());
+    fn layouts_obey_their_documented_rules() {
+        // repr(C) keeps field order, adding padding for this target's alignment.
+        let big_offset = size_of::<u8>().next_multiple_of(align_of::<u32>());
+        let other_offset = big_offset + size_of::<u32>();
+        let alignment = align_of::<u8>().max(align_of::<u32>());
+        let c_size = (other_offset + size_of::<u8>()).next_multiple_of(alignment);
+        assert_eq!(offset_of!(InCOrder, small), 0);
+        assert_eq!(offset_of!(InCOrder, big), big_offset);
+        assert_eq!(offset_of!(InCOrder, other), other_offset);
+        assert_eq!(align_of::<InCOrder>(), alignment);
+        assert_eq!(size_of::<InCOrder>(), c_size);
+
+        // Default Rust layout guarantees aligned, non-overlapping fields, not
+        // a particular order or a size smaller than repr(C).
+        let fields = [
+            (
+                offset_of!(RustOrder, small),
+                size_of::<u8>(),
+                align_of::<u8>(),
+            ),
+            (
+                offset_of!(RustOrder, big),
+                size_of::<u32>(),
+                align_of::<u32>(),
+            ),
+            (
+                offset_of!(RustOrder, other),
+                size_of::<u8>(),
+                align_of::<u8>(),
+            ),
+        ];
+        for (i, &(start, size, field_alignment)) in fields.iter().enumerate() {
+            assert_eq!(start % field_alignment, 0);
+            assert!(start + size <= size_of::<RustOrder>());
+            for &(other_start, other_size, _) in &fields[i + 1..] {
+                assert!(start + size <= other_start || other_start + other_size <= start);
+            }
+        }
+        assert!(align_of::<RustOrder>() >= alignment);
+        assert_eq!(size_of::<RustOrder>() % align_of::<RustOrder>(), 0);
     }
 }

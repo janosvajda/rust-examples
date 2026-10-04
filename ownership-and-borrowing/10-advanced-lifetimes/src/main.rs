@@ -1,7 +1,8 @@
 // Lesson 10: advanced lifetimes.
 //
 // Lesson 5 covered the basics. This lesson covers the situations where the
-// default rules give the wrong answer, and how to say what you really mean.
+// default rules tie lifetimes together too tightly for your implementation,
+// and how to describe the relationships more precisely.
 
 use std::fmt::Display;
 
@@ -45,7 +46,10 @@ struct Found<'key, 'data> {
     value: &'data str,
 }
 
-fn find<'key, 'data>(key: &'key str, table: &'data [(String, String)]) -> Option<Found<'key, 'data>> {
+fn find<'key, 'data>(
+    key: &'key str,
+    table: &'data [(String, String)],
+) -> Option<Found<'key, 'data>> {
     table
         .iter()
         .find(|(k, _)| k == key)
@@ -54,8 +58,9 @@ fn find<'key, 'data>(key: &'key str, table: &'data [(String, String)]) -> Option
 
 // ---- 3. Trait objects borrow too: `dyn Trait + 'a` ------------------------------
 
-/// `Box<dyn Fn(&str) -> String>` means `Box<dyn Fn(&str) -> String + 'static>`
-/// by default: the closure may not borrow anything temporary. This closure
+/// In this return signature, Box<dyn Fn(&str) -> String> defaults to
+/// Box<dyn Fn(&str) -> String + 'static>, excluding shorter stored borrows.
+/// Local expression contexts can infer a different object lifetime. This closure
 /// borrows `prefix`, so we say the box only lives as long as `prefix`:
 ///     without `+ 'a`: error: lifetime may not live long enough
 fn make_labeler<'a>(prefix: &'a str) -> Box<dyn Fn(&str) -> String + 'a> {
@@ -69,9 +74,9 @@ struct Counter {
 }
 
 impl Counter {
-    /// In Rust 2024 a returned `impl Trait` is assumed to borrow EVERY
-    /// reference parameter, including `&self`. This iterator only copies
-    /// `step`, so `+ use<>` says "I borrow nothing". Without it, changing
+    /// Rust 2024 implicitly captures all in-scope generic parameters,
+    /// including input lifetimes. use<> excludes those captures here;
+    /// the iterator still owns its copied step. Without it, changing
     /// the counter while the iterator exists would fail:
     ///     error[E0506]: cannot assign to `counter.step` because it is borrowed
     fn multiples(&self, count: u32) -> impl Iterator<Item = u32> + use<> {
@@ -79,9 +84,9 @@ impl Counter {
         (0..count).map(move |i| i * step)
     }
 
-    /// This one really does borrow `items`, so the default (borrow
-    /// everything) is right and nothing extra needs to be written.
-    fn labelled<'a>(&self, items: &'a [&'a str]) -> impl Iterator<Item = String> {
+    /// This iterator borrows items, so retain 'a while excluding self's
+    /// lifetime. Capture lists describe generics, not closure data fields.
+    fn labelled<'a>(&self, items: &'a [&'a str]) -> impl Iterator<Item = String> + use<'a> {
         items.iter().map(|item| format!("<{item}>"))
     }
 }
@@ -139,17 +144,28 @@ fn main() {
     let mut counter = Counter { step: 2 };
     let multiples = counter.multiples(4);
     counter.step = 5; // allowed: `multiples` doesn't borrow `counter`
-    println!("    {:?} (step is now {})", multiples.collect::<Vec<_>>(), counter.step);
+    println!(
+        "    {:?} (step is now {})",
+        multiples.collect::<Vec<_>>(),
+        counter.step
+    );
     let words = ["a", "b"];
     println!("    {:?}", counter.labelled(&words).collect::<Vec<_>>());
 
     println!("\n5. T: 'a");
     let price = 9.99;
-    println!("    {}", Labelled { label: "price", value: &price }.show());
+    println!(
+        "    {}",
+        Labelled {
+            label: "price",
+            value: &price
+        }
+        .show()
+    );
 
     println!("\n6. Closures over references of any lifetime");
     let words = vec![String::from("borrow"), String::from("checker")];
-    println!("    total letters: {}", total_by(&words, |w| w.len()));
+    println!("    total UTF-8 bytes: {}", total_by(&words, |w| w.len()));
 }
 
 #[cfg(test)]
@@ -188,6 +204,16 @@ mod tests {
         counter.step = 100; // allowed while `it` still exists
         assert_eq!(it.collect::<Vec<_>>(), vec![0, 3, 6]); // uses the old step
         assert_eq!(counter.step, 100);
+    }
+
+    #[test]
+    fn labelled_iterator_outlives_its_counter() {
+        let words = ["a", "b"];
+        let labels = {
+            let counter = Counter { step: 1 };
+            counter.labelled(&words)
+        }; // counter is gone; labels borrows only words
+        assert_eq!(labels.collect::<Vec<_>>(), ["<a>", "<b>"]);
     }
 
     #[test]

@@ -2,15 +2,19 @@
   <img src="rust-exampleslogo.png" alt="Rust Examples logo" width="320">
 </p>
 
-# Rust Practice Hub
+# Things I Learned About Rust
 
-A place to learn Rust: step-by-step **lessons** for people who want to learn the language, and standalone **examples** to look things up in.
+A place where I learned Rust, step by step. Hopefully, it can help others along the way too.
 
 ## Why?
 
-I've been a software developer for more than 25 years, in many different industries. I've used Rust since its very first public appearance, and I still keep learning every single day. I started this repository in 2023 as a collection of Rust examples, for the sheer fun of exploring Rust and learning more about this excellent programming language.
+I've been a software developer for 25+ years across many industries, and I've been using Rust since its early days. I'm still learning something new every day — which is probably why Rust keeps things interesting.
 
-It has since grown into something more. Today I write it for people who **want to learn Rust**: to share good practices, and to help junior developers get past the parts of Rust that feel hard at first, like ownership, borrowing, lifetimes and error handling. That's why you'll find two kinds of content here.
+I started this repository in 2023 as a collection of examples while exploring and learning Rust, mostly for my own amusement.
+
+It's not perfect. Some examples may be outdated, imprecise, or simply wrong — much like their author from time to time. If you spot something that needs fixing, please let me know. Contributions, corrections, and friendly pointers are always welcome!
+
+Since then, this repository has grown into something more. Today, I write it for people who want to learn Rust: to share good practices and help junior developers get through the parts that can feel intimidating at first — ownership, borrowing, lifetimes, error handling, and the occasional “why is the compiler angry with me?” moment.
 
 ## Lessons and examples
 
@@ -274,9 +278,6 @@ Design patterns are proven, reusable solutions to problems that come up again an
 - [Template Method Pattern](./design-patterns/behavioral/template-method-pattern/): One report recipe, exported as CSV, Markdown or plain text.
 - [Chain of Responsibility Pattern](./design-patterns/behavioral/chain-of-responsibility-pattern/): Expense approval passed up from team lead to director.
 - [Memento Pattern](./design-patterns/behavioral/memento-pattern/): Undo and redo in a small text editor.
-
-# Generics
-- [Simple example](./generics/generic_storage/): Shows how to use generics in Rust. For the full picture, see the [Traits and generics course](./traits-and-generics/).
 
 # Math examples
 - [Basic Calorie Calculator](./math/bmr-calculator/): It shows how math operators can be used in Rust.

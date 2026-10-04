@@ -24,7 +24,10 @@ impl Book {
 
     /// `&self`: borrows the book to read it. The most common kind of method.
     fn summary(&self) -> String {
-        format!("\"{}\" by {}, {} pages", self.title, self.author, self.pages)
+        format!(
+            "\"{}\" by {}, {} pages",
+            self.title, self.author, self.pages
+        )
     }
 
     /// `&mut self`: borrows the book to change it.
@@ -39,7 +42,8 @@ impl Book {
     }
 }
 
-/// Borrows a String to read it. The caller keeps ownership.
+/// Borrows a String to count the listed ASCII vowel letters. The caller
+/// keeps ownership; this is not a language-aware vowel classifier.
 // Clippy suggests `&str` here, which is better. Lesson 4 explains why; this
 // lesson keeps `&String` so the type matches the value being borrowed.
 #[allow(clippy::ptr_arg)]
@@ -47,8 +51,8 @@ fn count_vowels(text: &String) -> usize {
     text.chars().filter(|c| "aeiouAEIOU".contains(*c)).count()
 }
 
-/// Borrows a number mutably to change it. `*` follows the reference to the
-/// value it points to (called dereferencing).
+/// Borrows a number mutably to change it. `*` follows the reference to its
+/// pointee (dereferencing). This demo uses values whose double fits in i32.
 fn double(number: &mut i32) {
     *number *= 2;
 }
@@ -61,16 +65,18 @@ fn main() {
 
     println!("\n2. Borrow to change: &mut");
     let mut score = 21;
-    double(&mut score); // the variable must be `mut` to lend it mutably
+    double(&mut score); // this directly owned local needs `mut` to lend it mutably
     println!("    score = {score}");
     // let fixed = 1;
     // double(&mut fixed);
     // error[E0596]: cannot borrow `fixed` as mutable, as it is not declared as mutable
 
-    println!("\n3. A shared reference can't be used to change anything");
+    println!("\n3. A shared reference cannot directly change an ordinary String");
     // fn rename(name: &String) { name.push_str("!"); }
     // error[E0596]: cannot borrow `*name` as mutable, as it is behind a `&` reference
-    println!("    (see the comment in the code: `&` means read-only)");
+    println!(
+        "    (String cannot be directly mutated through &String; see lesson 7 for interior mutability)"
+    );
 
     println!("\n4. Methods borrow too: &self, &mut self, self");
     let mut book = Book::new("1984", "George Orwell", 328);

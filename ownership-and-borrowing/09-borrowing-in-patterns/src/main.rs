@@ -1,8 +1,8 @@
 // Lesson 9: borrowing in patterns.
 //
 // `match`, `if let`, `let` destructuring and closure parameters can all
-// either MOVE values out or BORROW them. Which one happens depends on what
-// you match on, and getting it wrong is a common source of surprising errors.
+// MOVE, COPY, BORROW or IGNORE parts. The pattern and matched type together
+// decide what happens; a wildcard need not move the matched value.
 
 #[derive(Debug)]
 struct Book {
@@ -23,7 +23,7 @@ fn display_name(user: &User) -> &str {
 }
 
 fn main() {
-    println!("1. Matching on a value moves out of it");
+    println!("1. Binding a non-Copy String by value moves it out");
     let nickname: Option<String> = Some(String::from("Ferris"));
     match nickname {
         Some(name) => println!("    moved the String out: {name}"),
@@ -37,7 +37,7 @@ fn main() {
     match &nickname {
         // Matching `&Option<String>` against `Some(name)` makes `name` a
         // `&String` automatically ("match ergonomics").
-        Some(name) => println!("    borrowed: {name} ({} letters)", name.len()),
+        Some(name) => println!("    borrowed: {name} ({} UTF-8 bytes)", name.len()),
         None => println!("    no nickname"),
     }
     println!("    and `nickname` is still usable: {nickname:?}");
@@ -50,9 +50,15 @@ fn main() {
     println!("    {maybe_list:?}");
 
     println!("\n4. The same with Option's helper methods");
-    let user = User { name: String::from("Grace"), nickname: None };
+    let user = User {
+        name: String::from("Grace"),
+        nickname: None,
+    };
     let length = user.nickname.as_ref().map(|n| n.len()); // Option<&String>: no move
-    println!("    nickname length: {length:?}, display name: {}", display_name(&user));
+    println!(
+        "    nickname length: {length:?}, display name: {}",
+        display_name(&user)
+    );
     let mut counter: Option<u32> = Some(1);
     if let Some(n) = counter.as_mut() {
         *n += 1;
@@ -65,14 +71,20 @@ fn main() {
     println!("    key = {key}, value = {value}, pair still whole: {pair:?}");
 
     println!("\n6. Moving one field out of a struct: a partial move");
-    let book = Book { title: String::from("Dune"), pages: 412 };
+    let book = Book {
+        title: String::from("Dune"),
+        pages: 412,
+    };
     let title = book.title; // moves only `title` out
-    println!("    took \"{title}\", the other fields still work: {} pages", book.pages);
+    println!(
+        "    took \"{title}\", the other fields still work: {} pages",
+        book.pages
+    );
     // println!("{book:?}");
     // error[E0382]: borrow of partially moved value: `book`
     // The struct as a whole is no longer complete.
 
-    println!("\n7. You can't move out of a Vec by index, or out of a reference");
+    println!("\n7. You can't move non-Copy values out by index or through a reference");
     let names = vec![String::from("Ana"), String::from("Bob")];
     // let first = names[0];
     // error[E0507]: cannot move out of index of `Vec<String>`
@@ -91,7 +103,11 @@ fn main() {
     println!("\n8. Patterns in closure parameters and for loops");
     let numbers = [3, 8, 2];
     // `iter()` gives `&i32`; the pattern `&n` copies the number out.
-    let big: Vec<i32> = numbers.iter().filter(|&&n| n > 2).map(|&n| n * 10).collect();
+    let big: Vec<i32> = numbers
+        .iter()
+        .filter(|&&n| n > 2)
+        .map(|&n| n * 10)
+        .collect();
     for (index, &n) in numbers.iter().enumerate() {
         print!("    [{index}]={n}");
     }
@@ -124,15 +140,24 @@ mod tests {
 
     #[test]
     fn display_name_prefers_the_nickname() {
-        let with = User { name: String::from("Grace"), nickname: Some(String::from("G")) };
-        let without = User { name: String::from("Grace"), nickname: None };
+        let with = User {
+            name: String::from("Grace"),
+            nickname: Some(String::from("G")),
+        };
+        let without = User {
+            name: String::from("Grace"),
+            nickname: None,
+        };
         assert_eq!(display_name(&with), "G");
         assert_eq!(display_name(&without), "Grace");
     }
 
     #[test]
     fn partial_move_leaves_other_fields_usable() {
-        let book = Book { title: String::from("T"), pages: 7 };
+        let book = Book {
+            title: String::from("T"),
+            pages: 7,
+        };
         let title = book.title;
         assert_eq!(title, "T");
         assert_eq!(book.pages, 7);

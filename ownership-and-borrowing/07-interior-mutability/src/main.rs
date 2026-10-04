@@ -1,13 +1,13 @@
 // Lesson 7: interior mutability.
 //
-// Normally you can only change a value through `&mut`. Interior mutability
-// lets you change it through a shared `&` reference, safely, by moving the
-// "one writer OR many readers" check from compile time to run time.
-//
-//   Cell<T>     for small Copy values: you swap whole values in and out,
-//               never hand out references to the inside. No runtime check needed.
-//   RefCell<T>  for any value: hands out borrows, and counts them at runtime.
-//               Breaking the rule panics instead of failing to compile.
+// Interior mutability provides controlled changes through shared references.
+//   Cell<T>     moves or replaces whole values; get() additionally requires Copy.
+//               Through &Cell it avoids ordinary borrows of the contents;
+//               get_mut() can give &mut T through exclusive &mut Cell access.
+//               No runtime borrow counter is needed.
+//   RefCell<T>  hands out guards and counts inner borrows at runtime.
+//               Conflicting borrow() or borrow_mut() panics; try_ methods
+//               return an error. Guards hold borrows until dropped.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -22,6 +22,8 @@ struct Document {
 
 impl Document {
     fn read(&self) -> &str {
+        // Small demo counter; this assumes fewer than u32::MAX previous reads.
+        // Choose an explicit overflow policy for larger counters.
         self.views.set(self.views.get() + 1); // changes through `&self`
         &self.text
     }
@@ -54,19 +56,32 @@ struct Account {
 
 fn main() {
     println!("1. Cell: change a small value through a shared reference");
-    let doc = Document { text: String::from("Rust book"), views: Cell::new(0) };
+    let doc = Document {
+        text: String::from("Rust book"),
+        views: Cell::new(0),
+    };
     let shared = &doc; // only a shared reference
     shared.read();
     shared.read();
-    println!("    \"{}\" has been read {} times", shared.read(), doc.views.get());
+    println!(
+        "    \"{}\" has been read {} times",
+        shared.read(),
+        doc.views.get()
+    );
 
     println!("\n2. RefCell: borrow rules checked while the program runs");
-    let logger = Logger { lines: RefCell::new(Vec::new()) };
+    let logger = Logger {
+        lines: RefCell::new(Vec::new()),
+    };
     let a = &logger;
     let b = &logger; // two shared references, both can log
     a.log("started");
     b.log("loaded config");
-    println!("    {} lines logged: {:?}", logger.count(), logger.lines.borrow());
+    println!(
+        "    {} lines logged: {:?}",
+        logger.count(),
+        logger.lines.borrow()
+    );
 
     println!("\n3. Breaking the rule at runtime: try_borrow_mut");
     let cell = RefCell::new(5);
@@ -75,7 +90,14 @@ fn main() {
         println!("    reading {}", *reader);
         // cell.borrow_mut() here would panic: "RefCell already borrowed"
         let attempt = cell.try_borrow_mut(); // …so a mutable one is refused
-        println!("    try_borrow_mut while reading: {}", if attempt.is_err() { "refused" } else { "allowed" });
+        println!(
+            "    try_borrow_mut while reading: {}",
+            if attempt.is_err() {
+                "refused"
+            } else {
+                "allowed"
+            }
+        );
     } // `reader` dropped: the shared borrow ends
     *cell.borrow_mut() += 1;
     println!("    after the reader is gone: {}", cell.borrow());
@@ -99,7 +121,10 @@ mod tests {
 
     #[test]
     fn cell_changes_through_shared_reference() {
-        let doc = Document { text: String::from("x"), views: Cell::new(0) };
+        let doc = Document {
+            text: String::from("x"),
+            views: Cell::new(0),
+        };
         let r = &doc;
         r.read();
         r.read();

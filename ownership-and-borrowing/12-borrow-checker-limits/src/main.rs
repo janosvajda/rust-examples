@@ -1,8 +1,8 @@
 // Lesson 12: where the borrow checker is too strict.
 //
-// The borrow checker never accepts unsafe code, but it does reject some code
-// that would actually be fine. This lesson shows the common cases and the
-// standard way to write each one so it compiles.
+// The borrow checker rejects some correct borrowing arrangements because
+// its analysis is conservative. Other rejections enforce necessary rules.
+// Rust accepts unsafe blocks; compilation does not prove them sound.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -21,16 +21,16 @@ use std::ops::Range;
 // error[E0502]: cannot borrow `*map` as mutable because it is also borrowed as immutable
 //
 // Because the borrow is *returned* on one path, the current checker treats
-// it as lasting for the rest of the function on every path. A future checker
-// (called Polonius) is designed to accept this.
+// it as lasting for the rest of the function on every path. The Polonius
+// borrow-checking work adds more precise analysis for cases like this.
 
 /// Workaround: the entry API does the lookup and the insert as one operation,
-/// so there's only ever one borrow and one path for the checker to follow.
+/// under one mutable borrow rather than returning a borrow from an earlier get.
 fn get_or_insert(map: &mut HashMap<u32, String>, key: u32) -> &String {
     map.entry(key).or_insert_with(|| format!("item {key}"))
 }
 
-// ---- 2. A struct can't hold a reference into its own field --------------------
+// ---- 2. An owned parser needs to preserve its internal relationships ---------
 //
 // struct Parser {
 //     text: String,
@@ -38,10 +38,14 @@ fn get_or_insert(map: &mut HashMap<u32, String>, key: u32) -> &String {
 // }
 // error[E0106]: missing lifetime specifier
 //
-// There's no lifetime to write: `text` moves whenever the Parser moves, so a
-// reference into it could never be guaranteed valid. Workaround: store
-// POSITIONS instead of references, and turn them into slices when needed.
+// A lifetime parameter alone does not tie a reference to the sibling text
+// field. Moving String keeps its heap text in place, but dropping, replacing
+// or editing it may invalidate a stored view. Local self-borrows are possible
+// when conflicting access is restricted (see README). For this owned parser,
+// store POSITIONS and create a slice only while self is borrowed.
 
+/// Splits on ASCII spaces only, retaining empty segments. Its methods do not
+/// edit the original text, so the stored UTF-8 byte range remains valid.
 struct Parser {
     text: String,
     current_word: Range<usize>, // byte positions inside `text`
@@ -65,7 +69,9 @@ impl Parser {
         if start > self.text.len() {
             return false;
         }
-        let end = self.text[start..].find(' ').map_or(self.text.len(), |i| start + i);
+        let end = self.text[start..]
+            .find(' ')
+            .map_or(self.text.len(), |i| start + i);
         self.current_word = start..end;
         true
     }
@@ -86,17 +92,17 @@ fn duplicate_last(items: &mut Vec<i32>) {
 }
 
 /// The other direction: add an item, then keep changing it. `push_mut` adds the
-/// item and returns a `&mut` to it, so there's no `last_mut().unwrap()` to find
-/// it again, and no way to accidentally change the wrong item.
+/// item and returns a `&mut` to it, so callers can edit the newly added item
+/// directly, without a separate `last_mut().unwrap()` call.
 fn add_task<'a>(tasks: &'a mut Vec<String>, title: &str) -> &'a mut String {
     tasks.push_mut(title.to_string())
 }
 
 // ---- 4. Data that points at itself: use indices (an arena) --------------------
 //
-// A graph where nodes reference each other can't be built from plain `&`
-// references: each node would borrow the others, and nothing could ever be
-// changed. Store the nodes in a Vec and link them by index instead.
+// Reference-based graphs are possible. For an owned, mutable graph, storing
+// nodes in a Vec and links as indices avoids references into the graph itself.
+// This demo never removes or reorders nodes, so existing indices stay valid.
 
 struct Graph {
     names: Vec<&'static str>,
@@ -131,7 +137,10 @@ fn main() {
     println!("\n2. Self-reference: store positions, not references");
     let mut parser = Parser::new("borrow checker limits");
     loop {
-        println!("    word: {}", parser.current_word());
+        println!(
+            "    segment between ASCII spaces: {}",
+            parser.current_word()
+        );
         if !parser.next_word() {
             break;
         }
@@ -147,8 +156,15 @@ fn main() {
     println!("    {tasks:?}");
 
     println!("\n4. Cycles: indices instead of references");
-    let mut graph = Graph { names: vec![], edges: vec![] };
-    let (a, b, c) = (graph.add("Budapest"), graph.add("Vienna"), graph.add("Prague"));
+    let mut graph = Graph {
+        names: vec![],
+        edges: vec![],
+    };
+    let (a, b, c) = (
+        graph.add("Budapest"),
+        graph.add("Vienna"),
+        graph.add("Prague"),
+    );
     graph.connect(a, b);
     graph.connect(b, c);
     graph.connect(c, a); // a cycle
@@ -204,7 +220,10 @@ mod tests {
 
     #[test]
     fn graph_with_a_cycle() {
-        let mut g = Graph { names: vec![], edges: vec![] };
+        let mut g = Graph {
+            names: vec![],
+            edges: vec![],
+        };
         let x = g.add("x");
         let y = g.add("y");
         g.connect(x, y);

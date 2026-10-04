@@ -4,7 +4,9 @@
 
 ## The idea in one sentence
 
-The rules from lesson 3 never change, but in real code you meet them in a handful of typical situations. Each one has a standard solution.
+Real programs lend fields, collection elements and captured variables. These examples show how to keep the borrowed regions and their required lifetimes clear.
+
+If two friends decorate different halves of a cake, each can work on their own half. Borrowing separate fields or using `split_at_mut` is Rust's way of making that separation explicit.
 
 ## 1. Struct fields can be borrowed separately
 
@@ -43,7 +45,7 @@ When the parts aren't neat halves, ask for exactly the positions you need with `
 ```rust
 let mut scores = [10, 20, 30, 40];
 if let Ok([first, last]) = scores.get_disjoint_mut([0, 3]) {
-    mem::swap(first, last);                     // two &mut into one array at once
+    std::mem::swap(first, last);                // two &mut into one array at once
 }
 ```
 
@@ -52,27 +54,38 @@ It checks at runtime that the indexes are different and in bounds. The same inde
 `HashMap` has the same method, which solves a classic problem: changing two entries of one map at once.
 
 ```rust
+use std::collections::HashMap;
+
 fn transfer(balances: &mut HashMap<&str, u32>, from: &str, to: &str, amount: u32) -> Result<(), String> {
+    if from == to {
+        return Err(String::from("choose two different accounts"));
+    }
     let [Some(source), Some(target)] = balances.get_disjoint_mut([from, to]) else {
         return Err(format!("unknown account: `{from}` or `{to}`"));
     };
-    *source = source.checked_sub(amount).ok_or(format!("`{from}` can't pay {amount}"))?;
-    *target += amount;
+    let new_source = source.checked_sub(amount)
+        .ok_or_else(|| format!("`{from}` can't pay {amount}"))?;
+    let new_target = target.checked_add(amount)
+        .ok_or_else(|| format!("`{to}` can't hold another {amount}"))?;
+    *source = new_source;
+    *target = new_target;
     Ok(())
 }
 ```
 
-`balances.get_mut(from)` and `balances.get_mut(to)` together wouldn't compile: two mutable borrows of `balances`. For a map, a missing key gives `None` in that position. The same key twice is a bug, so it panics.
+Two simultaneous `balances.get_mut(...)` calls would conflict: both borrow the map mutably. `HashMap::get_disjoint_mut` safely obtains the separate entries together. It returns `None` for missing keys and panics for overlapping entries; our wrapper rejects equal account names before calling it.
+
+The arithmetic checks matter too. Both new balances are calculated **before either account changes**. If Ana cannot pay, Bob's balance would overflow, or an account is missing, the function returns `Err` with balances unchanged. For example, sending one coin to Bob when he already has `u32::MAX` coins must fail safely.
 
 ## 4. Three ways to loop over a collection
 
 | Loop | Same as | Each item is | Afterwards |
 |---|---|---|---|
-| `for x in &v` | `v.iter()` | `&T`: read it | `v` unchanged and usable |
-| `for x in &mut v` | `v.iter_mut()` | `&mut T`: change it in place | `v` changed and usable |
-| `for x in v` | `v.into_iter()` | `T`: owned, moved out | `v` is gone (moved) |
+| `for x in &v` | `v.iter()` | `&T`: shared access | the `Vec` remains usable; ordinary elements are read-only |
+| `for x in &mut v` | `v.iter_mut()` | `&mut T`: may change it in place | `v` remains usable |
+| `for x in v` | `v.into_iter()` | `T`: owned, moved out | a non-`Copy` `Vec` has moved |
 
-While a loop over `&v` runs, `v` is borrowed, so you can't push to it inside the loop (lesson 3).
+This table describes a `Vec<T>`. Other collection types can behave differently; an array of `Copy` elements can itself be copied. Elements with interior mutability can also change through shared access (lesson 7). While an iterator still needs its borrow of the `Vec`, you cannot push to that vector.
 
 ## 5. Closures borrow what they use
 
@@ -82,9 +95,10 @@ A closure captures the variables it uses in the **least powerful way that works*
 |---|---|---|
 | only reads the variable | `&` shared borrow | `\|\| println!("{count}")` |
 | changes the variable | `&mut` mutable borrow | `\|\| count += 1` |
-| is marked `move` | taking ownership | `move \|\| greeting.to_uppercase()` |
+| moves a non-`Copy` value out | taking ownership, even without `move` | `\|\| drop(greeting)` |
+| is marked `move` | by value: moves or copies | `move \|\| greeting.to_uppercase()` |
 
-The borrow lasts as long as **the closure** is used:
+A captured borrow must stay valid for every use that requires it. This can include dropping captured values. In the simple closure below, later calling `increment` keeps the mutable borrow active:
 
 ```rust
 let mut increment = || count += 1;   // mutable borrow of `count` starts
@@ -96,7 +110,7 @@ increment();
 error[E0502]: cannot borrow `count` as immutable because it is also borrowed as mutable
 ```
 
-Use `move` when the closure must outlive the current scope, for example when it's returned from a function or sent to another thread.
+Use `move` to capture by value when a closure must own its local data, for example when returning it or passing it to an unscoped thread. Capturing an existing reference by value still captures a reference: `move` does not extend the lifetime of the data it points to.
 
 ## 6. Taking a value out from behind a `&mut`: `mem::take`
 
@@ -122,5 +136,7 @@ You only *borrowed* the order. Its owner still expects a valid `Vec` in that fie
 cargo run
 cargo test
 ```
+
+Library details: [slice disjoint borrows](https://doc.rust-lang.org/std/primitive.slice.html#method.get_disjoint_mut) and [HashMap disjoint entries](https://doc.rust-lang.org/std/collections/struct.HashMap.html#method.get_disjoint_mut).
 
 Previous: [Lesson 5: Lifetimes](../05-lifetimes/) · Next: [Lesson 7: Interior mutability](../07-interior-mutability/)

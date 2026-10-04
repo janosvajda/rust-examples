@@ -4,14 +4,16 @@
 
 ## The idea in one sentence
 
-`match`, `if let`, `let` destructuring and closure parameters can either **move** values out or **borrow** them, and **what you match on decides which**.
+Patterns can **move, copy, borrow or ignore** parts of a value. Both the pattern and the matched type determine which happens.
 
-## Match on a value: it moves
+Opening a parcel can mean taking a book out, inspecting it in place or ignoring it. Patterns make the same distinction.
+
+## Binding a non-`Copy` field by value moves it
 
 ```rust
 let nickname: Option<String> = Some(String::from("Ferris"));
 match nickname {
-    Some(name) => …,     // `name` is a String, moved out of `nickname`
+    Some(name) => println!("{name}"), // `name` is a String, moved out
     None => {}
 }
 println!("{nickname:?}");  // ✗
@@ -21,19 +23,28 @@ println!("{nickname:?}");  // ✗
 error[E0382]: borrow of partially moved value: `nickname`
 ```
 
-The `String` inside the `Option` has moved into `name`. *Partially moved* means part of the value was taken out, so the whole can't be used any more.
+This example **does not compile** because the `String` moves into `name`, then we try to print the whole `Option`. *Partially moved* means a field was taken out; the whole value cannot be used while that field is missing.
+
+Merely writing `match value` does not force a move:
+
+```rust
+let text = String::from("Ferris");
+match text { _ => {} } // ignores the String without moving it
+println!("{text}");   // still usable
+```
 
 ## Match on a reference: it borrows
 
 ```rust
+let nickname = Some(String::from("Ferris"));
 match &nickname {
-    Some(name) => …,     // `name` is a &String
+    Some(name) => println!("{name}"), // `name` is a &String
     None => {}
 }
 println!("{nickname:?}");  // ✓ still ours
 ```
 
-When you match a **reference** against a pattern that isn't a reference (`Some(name)`), Rust makes every binding inside a reference too. This is called **match ergonomics**:
+For `Some(name)`, matching a reference to the `Option` changes the default binding mode so `name` borrows the inner value automatically. This is **match ergonomics**. Explicit reference patterns and nested reference types can affect the binding mode; this table describes the particular `Some(name)` pattern:
 
 | You match on | `Some(name)` gives `name: …` |
 |---|---|
@@ -42,6 +53,7 @@ When you match a **reference** against a pattern that isn't a reference (`Some(n
 | `&mut Option<String>` | `&mut String` (borrowed, can change it) |
 
 ```rust
+let mut maybe_list = Some(vec![1, 2]);
 if let Some(list) = &mut maybe_list {
     list.push(3);        // changes the Vec inside the Option
 }
@@ -57,6 +69,7 @@ if let Some(list) = &mut maybe_list {
 | `.take()` | `&mut Option<T>` | `Option<T>` | move the value out, leaving `None` |
 
 ```rust
+struct User { name: String, nickname: Option<String> }
 fn display_name(user: &User) -> &str {
     user.nickname.as_deref().unwrap_or(&user.name)
 }
@@ -64,7 +77,7 @@ fn display_name(user: &User) -> &str {
 
 ## `ref` and `ref mut`
 
-Before match ergonomics existed, you asked for a borrow inside a pattern with `ref`. It's still useful when you match on a value but want to borrow **part** of it:
+`ref` explicitly borrows a binding's matched value; `ref mut` requests a mutable borrow. This remains useful when matching a value and borrowing **part** of it:
 
 ```rust
 let pair = (String::from("key"), 42);
@@ -72,9 +85,16 @@ let (ref key, value) = pair;   // borrow the String, copy the number
 println!("{pair:?}");          // ✓ pair is still whole
 ```
 
+In Rust 2024, explicit `ref` or `ref mut` must appear where the default binding mode is by value. Use `Some(name)` when matching `&nickname`; adding `ref` there is unnecessary and rejected in this edition.
+
 ## Partial moves out of structs
 
+This example **does not compile** at the last line:
+
 ```rust
+#[derive(Debug)]
+struct Book { title: String, pages: u32 }
+let book = Book { title: String::from("Dune"), pages: 412 };
 let title = book.title;        // moves only this field out
 println!("{}", book.pages);    // ✓ the other fields are still fine
 println!("{book:?}");          // ✗ the struct as a whole is incomplete
@@ -94,13 +114,14 @@ Rust tracks moves **per field**. You can keep using the fields that weren't move
 error[E0507]: cannot move out of index of `Vec<String>`
 ```
 
-Moving `names[0]` out would leave a hole in the middle of the `Vec`. Choose instead:
+Moving a non-`Copy` `String` from `names[0]` by indexing would leave a hole. Reading an `i32` this way copies it instead. For a `Vec<String>`, choose:
+
 - `&names[0]` to borrow it;
 - `names[0].clone()` to copy it;
 - `names.remove(0)` or `names.swap_remove(0)` to really take it out;
 - `std::mem::take(&mut names[0])` to take it and leave an empty `String` behind.
 
-**Anything behind a reference:**
+**A non-`Copy` value behind a reference, without a replacement:**
 
 ```text
 error[E0507]: cannot move out of `*shared` which is behind a shared reference
@@ -111,12 +132,25 @@ Calling `.unwrap()` on a `&Option<String>` would move the `String` out of a valu
 ## Patterns in closures and loops
 
 ```rust
-numbers.iter().filter(|&&n| n > 2)   // filter gives `&&i32`; `&&n` copies the number out
-numbers.iter().map(|&n| n * 10)      // map gives `&i32`; `&n` copies it out
-for (index, &n) in numbers.iter().enumerate() { … }
+let numbers = [1, 3, 4];
+let big: Vec<i32> = numbers.iter().filter(|&&n| n > 2).copied().collect();
+let tens: Vec<i32> = numbers.iter().map(|&n| n * 10).collect();
+for (index, &n) in numbers.iter().enumerate() { println!("{index}: {n}"); }
+assert_eq!(big, [3, 4]);
+assert_eq!(tens, [10, 30, 40]);
 ```
 
-A `&` in a **pattern** does the opposite of `&` in an expression: it *removes* a layer of reference. It only works for `Copy` types, because it copies the value out.
+`filter` passes `&&i32` to its predicate, while `map` passes `&i32`. A `&` in a **pattern** matches and removes a reference layer; the plain `n` binding then copies the `i32`.
+
+The reference pattern itself is not limited to `Copy` types. Its inner binding may borrow:
+
+```rust
+let owned = String::from("Ferris");
+let shared = &owned;
+let &ref name = shared; // matches the & layer, then borrows the String
+assert_eq!(name, "Ferris");
+println!("{owned}");    // no String was moved out
+```
 
 ## Run it
 
@@ -124,5 +158,7 @@ A `&` in a **pattern** does the opposite of `&` in an expression: it *removes* a
 cargo run
 cargo test
 ```
+
+Precise rules: [patterns and binding modes](https://doc.rust-lang.org/reference/patterns.html).
 
 Previous: [Lesson 8: Threads and borrowing](../08-threads-and-borrowing/) · Next: [Lesson 10: Advanced lifetimes](../10-advanced-lifetimes/)

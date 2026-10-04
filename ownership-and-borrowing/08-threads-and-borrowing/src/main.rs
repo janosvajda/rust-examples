@@ -1,8 +1,8 @@
 // Lesson 8: threads and borrowing.
 //
-// The borrowing rules are what make Rust's threads safe: "many readers or
-// one writer" is exactly the rule that prevents data races. Two marker
-// traits extend it across threads:
+// Borrowing, thread-safety traits and synchronisation APIs prevent data races
+// in safe Rust. Locks and atomics provide coordinated shared mutation.
+// Two marker traits describe permissions across threads:
 //   Send  a value of this type can be MOVED to another thread.
 //   Sync  a value of this type can be SHARED (&T) between threads.
 // The compiler checks both automatically.
@@ -11,20 +11,24 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
 fn main() {
-    println!("1. thread::spawn can't borrow local variables…");
+    println!("1. thread::spawn cannot hold a borrow of these short-lived locals…");
     let names = [String::from("Ana"), String::from("Bob")];
     // let handle = thread::spawn(|| println!("{names:?}"));
     // error[E0373]: closure may outlive the current function, but it borrows `names`,
     //               which is owned by the current function
     // The new thread could keep running after `names` is dropped.
     let handle = thread::spawn(move || names.len()); // fix 1: move ownership into the thread
-    println!("    the thread took ownership and counted {} names", handle.join().unwrap());
+    println!(
+        "    the thread took ownership and counted {} names",
+        handle.join().unwrap()
+    );
 
     println!("\n2. …but scoped threads can");
     let scores = vec![70, 85, 90, 100];
     let (sum, max) = thread::scope(|s| {
-        // Every thread started inside the scope is joined before `scope`
-        // returns, so they can safely borrow `scores`, even several at once.
+        // Threads started through this scope's s.spawn are joined before
+        // scope returns, so they can borrow scores, even several at once.
+        // An ordinary thread::spawn here would still be unscoped.
         let sum = s.spawn(|| scores.iter().sum::<i32>());
         let max = s.spawn(|| scores.iter().max().copied());
         (sum.join().unwrap(), max.join().unwrap())
@@ -33,11 +37,14 @@ fn main() {
 
     println!("\n3. Scoped threads follow the borrowing rules: one writer per value");
     let mut data = vec![1, 2, 3, 4, 5, 6];
+    // let mut total = 0; // uncomment with the two s.spawn calls below
     thread::scope(|s| {
         // `chunks_mut` splits the Vec into separate mutable slices, so each
         // thread gets its own part. Two threads writing to the SAME value
         // would be rejected:
-        //   error[E0499]: cannot borrow `total` as mutable more than once at a time
+        // s.spawn(|| total += 1);
+        // s.spawn(|| total += 1);
+        // error[E0499]: cannot borrow `total` as mutable more than once at a time
         for chunk in data.chunks_mut(2) {
             s.spawn(move || {
                 for x in chunk {
@@ -49,6 +56,7 @@ fn main() {
     println!("    data = {data:?}");
 
     println!("\n4. Shared ownership across threads: Arc instead of Rc");
+    // use std::rc::Rc;
     // let shared = Rc::new(5);
     // thread::spawn(move || println!("{shared}"));
     // error[E0277]: `Rc<i32>` cannot be sent between threads safely
@@ -66,7 +74,9 @@ fn main() {
     }
 
     println!("\n5. Shared mutation across threads: Mutex instead of RefCell");
+    // use std::cell::RefCell;
     // let shared = Arc::new(RefCell::new(0));
+    // thread::spawn(move || *shared.borrow_mut() += 1);
     // error[E0277]: `RefCell<i32>` cannot be shared between threads safely
     // RefCell's borrow counter isn't thread-safe. A Mutex makes other
     // threads WAIT for their turn instead.
@@ -76,7 +86,7 @@ fn main() {
             let counter = Arc::clone(&counter);
             thread::spawn(move || {
                 for _ in 0..1000 {
-                    // `lock()` is the thread-safe `borrow_mut()`. The lock is
+                    // lock() waits for coordinated exclusive access. The lock is
                     // released when the guard is dropped, at the end of the line.
                     *counter.lock().unwrap() += 1;
                 }
@@ -86,7 +96,10 @@ fn main() {
     for handle in handles {
         handle.join().unwrap();
     }
-    println!("    8 threads × 1000 increments = {}", *counter.lock().unwrap());
+    println!(
+        "    8 threads × 1000 increments = {}",
+        *counter.lock().unwrap()
+    );
 
     println!("\n6. RwLock: many readers OR one writer, across threads");
     let settings = RwLock::new(String::from("dark mode"));
@@ -108,7 +121,10 @@ mod tests {
         let words = ["a", "bb", "ccc"];
         let total = thread::scope(|s| {
             let lengths: Vec<_> = words.iter().map(|w| s.spawn(move || w.len())).collect();
-            lengths.into_iter().map(|h| h.join().unwrap()).sum::<usize>()
+            lengths
+                .into_iter()
+                .map(|h| h.join().unwrap())
+                .sum::<usize>()
         });
         assert_eq!(total, 6);
         assert_eq!(words.len(), 3); // still ours
