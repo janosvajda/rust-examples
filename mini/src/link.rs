@@ -60,8 +60,8 @@ pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> 
 
     #[cfg(target_os = "linux")]
     {
-        // Prefer gcc when available for convenience; otherwise fall back to ld/ld.lld.
-        if which::which("gcc").is_ok() {
+        // Prefer gcc when available for convenience; otherwise fall back to plain `ld`.
+        if std::process::Command::new("gcc").arg("--version").output().is_ok() {
             let status = std::process::Command::new("gcc")
                 .args([obj.to_str().unwrap(), "-o", out_exe.to_str().unwrap(), "-lc"])
                 .status()?;
@@ -69,10 +69,7 @@ pub fn link_exe(obj: &std::path::Path, out_exe: &std::path::Path) -> Result<()> 
                 bail!("gcc link failed");
             }
         } else {
-            let linker = which::which("ld.lld")
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| "ld".into());
-            let status = std::process::Command::new(&linker)
+            let status = std::process::Command::new("ld")
                 .args([obj.to_str().unwrap(), "-o", out_exe.to_str().unwrap(), "-lc"])
                 .status()?;
             if !status.success() {

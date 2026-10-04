@@ -1,0 +1,23 @@
+// Decimals are exact: 0.1 + 0.2 is really 0.3
+let a = 0.1;
+let b = 0.2;
+let sum = a + b;
+print sum;
+
+// A shopping example with decimals
+let price = 19.99;
+let count = 3.0;
+let total = price * count;
+print total;
+
+// Comparisons give a boolean: true or false
+let age = 20;
+let adult = age >= 18;
+print adult;
+
+// and, or, not combine booleans
+let has_ticket = true;
+let can_enter = adult and has_ticket;
+print can_enter;
+let too_expensive = not (total < 100.0);
+print too_expensive;

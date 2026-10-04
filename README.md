@@ -46,7 +46,7 @@ To work on a single example, run Cargo inside its directory or pass `-p <package
 
 A few examples are kept out of the workspace build:
 
-- [Mini](./mini/) needs LLVM 16 installed (see its README).
+- [Mini](./mini/) needs any LLVM 16 or newer installed (see its README).
 - [Hello asm](./asm/hello_asm/) contains platform-specific inline assembly.
 - Lessons 1 and 3 of the [no_std course](./no-std-and-bare-metal/) need their own `panic = "abort"` build profile, which Cargo ignores for workspace members, and lesson 5 builds only for WebAssembly.
 

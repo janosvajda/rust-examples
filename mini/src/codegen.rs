@@ -1,198 +1,315 @@
-//! LLVM IR generation for Mini programs using Inkwell.
+//! LLVM IR generation for Mini programs.
+//!
+//! The output is LLVM IR as plain text, the same thing you'd find in a `.ll` file.
+//! For `let x = 2 + 3; print x;` it looks like this:
+//!
+//! ```text
+//! define i32 @main() {
+//! entry:
+//!   %t0 = add i32 2, 3
+//!   %x.0 = alloca i32
+//!   store i32 %t0, ptr %x.0
+//!   %t1 = load i32, ptr %x.0
+//!   call i32 (ptr, ...) @printf(ptr @.fmt_int, i32 %t1)
+//!   ret i32 0
+//! }
+//! ```
+//!
+//! The installed LLVM then turns this text into machine code (see `llvm.rs`).
 
-use anyhow::{anyhow, Result};
-use inkwell::{
-    builder::Builder,
-    context::Context as LlvmContext,
-    module::Linkage,
-    targets::{CodeModel, FileType, InitializationConfig, RelocMode, TargetMachine, TargetTriple},
-    values::{FunctionValue, IntValue, PointerValue},
-    AddressSpace, OptimizationLevel,
-};
+use anyhow::{anyhow, bail, Result};
 use std::collections::HashMap;
 
-use crate::ast::{Expr, Program, Stmt};
+use crate::ast::{BinOp, Expr, Program, Stmt, UnaryOp};
 
-/// Representation of a Mini variable during codegen.
-#[derive(Clone, Copy)]
-enum Var<'ctx> {
-    Int { alloca: inkwell::values::PointerValue<'ctx> }, // i32*
-    Str { alloca: inkwell::values::PointerValue<'ctx> }, // i8*
+/// Decimal `*`, `/` and printing, written in LLVM IR. Added only to programs that use decimals.
+const RUNTIME: &str = include_str!("runtime.ll");
+
+/// The type of a Mini value.
+#[derive(Clone, Copy, PartialEq)]
+enum Kind {
+    Int,  // whole number
+    Dec,  // decimal, counted in millionths
+    Bool, // true or false
+    Str,  // text
 }
 
-/// Generates LLVM IR, keeps track of intrinsics, and records local bindings.
-pub struct Codegen<'ctx> {
-    ctx: &'ctx LlvmContext,
-    builder: Builder<'ctx>,
-    module: inkwell::module::Module<'ctx>,
-    printf: FunctionValue<'ctx>,
-    fmt_int: PointerValue<'ctx>,
-    fmt_str: PointerValue<'ctx>,
-    vars: HashMap<String, Var<'ctx>>,
-}
-
-impl<'ctx> Codegen<'ctx> {
-    /// Create a new code generator configured for the supplied target triple.
-    pub fn new(ctx: &'ctx LlvmContext, triple: &TargetTriple) -> Self {
-        let module = ctx.create_module("mini");
-        module.set_triple(triple);
-        let builder = ctx.create_builder();
-
-        // declare i32 @printf(i8*, ...)
-        let i32_t = ctx.i32_type();
-        let i8ptr_t = ctx.i8_type().ptr_type(AddressSpace::default());
-        let printf_ty = i32_t.fn_type(&[i8ptr_t.into()], true);
-        let printf = module.add_function("printf", printf_ty, Some(Linkage::External));
-
-        // Tiny init fn for global strings; terminate it to keep module valid
-        let void_t = ctx.void_type();
-        let init_fn = module.add_function("__mini_init", void_t.fn_type(&[], false), None);
-        let init_bb = ctx.append_basic_block(init_fn, "entry");
-        builder.position_at_end(init_bb);
-        let fmt_int = builder.build_global_string_ptr("%d\n", ".fmt_int").unwrap().as_pointer_value();
-        let fmt_str = builder.build_global_string_ptr("%s\n", ".fmt_str").unwrap().as_pointer_value();
-        builder.build_return(None).unwrap();
-
-        Self { ctx, builder, module, printf, fmt_int, fmt_str, vars: HashMap::new() }
+impl Kind {
+    /// The LLVM type that holds a value of this kind.
+    fn llvm_type(self) -> &'static str {
+        match self {
+            Kind::Int => "i32",
+            Kind::Dec => "i64",
+            Kind::Bool => "i1", // a single bit: 1 is true, 0 is false
+            Kind::Str => "ptr", // the address of the text
+        }
     }
 
-    /// Walk the AST, build the `main` function, and populate the module.
-    pub fn emit_program(&mut self, program: &Program) -> Result<()> {
-        let i32_t = self.ctx.i32_type();
-        let i8_t = self.ctx.i8_type();
-        let i8ptr_t = i8_t.ptr_type(AddressSpace::default());
+    /// How the kind is named in error messages.
+    fn name(self) -> &'static str {
+        match self {
+            Kind::Int => "number",
+            Kind::Dec => "decimal",
+            Kind::Bool => "boolean",
+            Kind::Str => "string",
+        }
+    }
+}
 
-        let main_fn = self.module.add_function("main", i32_t.fn_type(&[], false), None);
-        let entry = self.ctx.append_basic_block(main_fn, "entry");
-        self.builder.position_at_end(entry);
+/// A Mini variable: its kind, and the name of the stack slot (`alloca`) that holds it.
+struct Var {
+    kind: Kind,
+    slot: String,
+}
 
-        for stmt in &program.stmts {
-            match stmt {
-                Stmt::Let { name, expr } => {
-                    match infer_expr_kind(expr) {
-                        ExprKind::Int => {
-                            let v = self.gen_expr_int(expr)?;
-                            let alloca = self.builder.build_alloca(i32_t, name).unwrap();
-                            self.builder.build_store(alloca, v).unwrap();
-                            self.vars.insert(name.clone(), Var::Int { alloca });
-                        }
-                        ExprKind::Str => {
-                            let s = expect_string_literal(expr)?;
-                            let gptr = self.builder
-                                .build_global_string_ptr(&s, &format!(".str{}", self.vars.len()))
-                                .unwrap()
-                                .as_pointer_value();
-                            let alloca = self.builder.build_alloca(i8ptr_t, name).unwrap();
-                            self.builder.build_store(alloca, gptr).unwrap();
-                            self.vars.insert(name.clone(), Var::Str { alloca });
-                        }
-                    }
-                }
-                Stmt::Print { name } => {
-                    match *self.vars.get(name).ok_or_else(|| anyhow!(format!("undefined variable `{}`", name)))? {
-                        Var::Int { alloca } => {
-                            let v = self.builder.build_load(i32_t, alloca, "ival").unwrap();
-                            self.builder.build_call(self.printf, &[self.fmt_int.into(), v.into()], "").unwrap();
-                        }
-                        Var::Str { alloca } => {
-                            let v = self.builder.build_load(i8ptr_t, alloca, "sval").unwrap();
-                            self.builder.build_call(self.printf, &[self.fmt_str.into(), v.into()], "").unwrap();
-                        }
+/// Turn a parsed Mini program into LLVM IR text.
+pub fn generate(program: &Program) -> Result<String> {
+    let mut cg = Codegen::default();
+    for stmt in &program.stmts {
+        cg.statement(stmt)?;
+    }
+    Ok(cg.finish())
+}
+
+#[derive(Default)]
+struct Codegen {
+    globals: String,     // string constants, written above `main`
+    body: String,        // the instructions inside `main`
+    next_tmp: usize,     // numbers the temporaries: %t0, %t1, …
+    next_id: usize,      // numbers string constants and variable slots
+    uses_decimals: bool, // whether to add the decimal runtime
+    vars: HashMap<String, Var>,
+}
+
+impl Codegen {
+    fn statement(&mut self, stmt: &Stmt) -> Result<()> {
+        match stmt {
+            Stmt::Let { name, expr } => {
+                // Work out the value first: `let x = x + 1` reads the old `x`.
+                let (kind, value) = self.expr(expr)?;
+                let ty = kind.llvm_type();
+                let slot = format!("%{name}.{}", self.fresh_id());
+                self.emit(format!("{slot} = alloca {ty}"));
+                self.emit(format!("store {ty} {value}, ptr {slot}"));
+                self.vars.insert(name.clone(), Var { kind, slot });
+            }
+            Stmt::Print { name } => {
+                let (kind, value) = self.load(name)?;
+                match kind {
+                    Kind::Int => self.emit(format!("call i32 (ptr, ...) @printf(ptr @.fmt_int, i32 {value})")),
+                    Kind::Str => self.emit(format!("call i32 (ptr, ...) @printf(ptr @.fmt_str, ptr {value})")),
+                    Kind::Dec => self.emit(format!("call void @mini_print_dec(i64 {value})")),
+                    Kind::Bool => {
+                        // choose the text "true" or "false", then print it
+                        let text = self.tmp();
+                        self.emit(format!("{text} = select i1 {value}, ptr @.true, ptr @.false"));
+                        self.emit(format!("call i32 (ptr, ...) @printf(ptr @.fmt_str, ptr {text})"));
                     }
                 }
             }
         }
-
-        self.builder.build_return(Some(&i32_t.const_zero())).unwrap();
         Ok(())
     }
 
-    /// Generate an integer value for the given expression, enforcing type checks.
-    ///
-    /// Expressions are evaluated eagerly; every branch either returns a concrete
-    /// `i32` value or fails with a semantic error (e.g. using a string in math).
-    fn gen_expr_int(&mut self, expr: &Expr) -> Result<IntValue<'ctx>> {
-        let i32_t = self.ctx.i32_type();
-
-        Ok(match expr {
-            // literal integers map directly to LLVM constants
-            Expr::Int(v) => i32_t.const_int(*v as i64 as u64, true),
-            Expr::Var(name) => {
-                match *self.vars.get(name).ok_or_else(|| anyhow!(format!("undefined variable `{}`", name)))? {
-                    // load previously stored integer variable
-                    Var::Int { alloca } => self.builder.build_load(i32_t, alloca, "loadi").unwrap().into_int_value(),
-                    // prohibit mixing string bindings inside arithmetic expressions
-                    Var::Str { .. } => anyhow::bail!("type error: `{}` is a string, expected integer", name),
+    /// Generate an expression. Returns its kind and the operand that holds the result:
+    /// a constant like `42` or `true`, a global like `@.str.0`, or a temporary like `%t3`.
+    fn expr(&mut self, expr: &Expr) -> Result<(Kind, String)> {
+        match expr {
+            Expr::Int(v) => Ok((Kind::Int, v.to_string())),
+            Expr::Dec(v) => {
+                self.uses_decimals = true;
+                Ok((Kind::Dec, v.to_string()))
+            }
+            Expr::Bool(b) => Ok((Kind::Bool, b.to_string())), // LLVM writes i1 constants as true/false
+            Expr::Str(text) => Ok((Kind::Str, self.string_constant(text))),
+            Expr::Var(name) => self.load(name),
+            Expr::Unary(op, e) => {
+                let (kind, value) = self.expr(e)?;
+                let result = self.tmp();
+                match (op, kind) {
+                    // LLVM has no "negate" instruction: -x is 0 - x
+                    (UnaryOp::Neg, Kind::Int | Kind::Dec) => {
+                        self.emit(format!("{result} = sub {} 0, {value}", kind.llvm_type()))
+                    }
+                    // flipping a bit: true xor true is false, false xor true is true
+                    (UnaryOp::Not, Kind::Bool) => self.emit(format!("{result} = xor i1 {value}, true")),
+                    (UnaryOp::Neg, _) => bail!("type error: cannot negate a {}", kind.name()),
+                    (UnaryOp::Not, _) => bail!("type error: `not` needs a boolean, found a {}", kind.name()),
                 }
+                Ok((kind, result))
             }
-            Expr::UnaryNeg(e) => {
-                // recursively evaluate RHS and negate
-                let v = self.gen_expr_int(e)?;
-                self.builder.build_int_neg(v, "neg").unwrap()
+            Expr::Binary(op, a, b) => {
+                // Evaluate both sides first (left to right), then combine them.
+                let (left_kind, left) = self.expr(a)?;
+                let (right_kind, right) = self.expr(b)?;
+                if left_kind != right_kind {
+                    bail!(
+                        "type error: cannot use `{}` on a {} and a {}",
+                        op.symbol(),
+                        left_kind.name(),
+                        right_kind.name()
+                    );
+                }
+                self.binary(*op, left_kind, &left, &right)
             }
-            Expr::Add(a, b) => {
-                // evaluate operands left-to-right and build the arithmetic instruction
-                let l = self.gen_expr_int(a)?;
-                let r = self.gen_expr_int(b)?;
-                self.builder.build_int_add(l, r, "add").unwrap()
-            }
-            Expr::Sub(a, b) => {
-                let l = self.gen_expr_int(a)?;
-                let r = self.gen_expr_int(b)?;
-                self.builder.build_int_sub(l, r, "sub").unwrap()
-            }
-            Expr::Mul(a, b) => {
-                let l = self.gen_expr_int(a)?;
-                let r = self.gen_expr_int(b)?;
-                self.builder.build_int_mul(l, r, "mul").unwrap()
-            }
-            Expr::Div(a, b) => {
-                let l = self.gen_expr_int(a)?;
-                let r = self.gen_expr_int(b)?;
-                self.builder.build_int_signed_div(l, r, "div").unwrap()
-            }
-            Expr::Str(_) => anyhow::bail!("type error: string literal not allowed in integer expression"),
-        })
+        }
     }
 
-    /// Verify the module and write out an object file using the host target machine.
-    pub fn write_object(&self, triple: &TargetTriple, out_obj: &std::path::Path) -> Result<()> {
-        self.module.verify().map_err(|e| anyhow!(e.to_string()))?;
-        inkwell::targets::Target::initialize_all(&InitializationConfig::default());
-        let target = inkwell::targets::Target::from_triple(triple).map_err(|e| anyhow!(e.to_string()))?;
-        let tm = target
-            .create_target_machine(
-                triple,
-                "generic",
-                "",
-                OptimizationLevel::None,
-                RelocMode::Default,
-                CodeModel::Default,
-            )
-            .ok_or_else(|| anyhow!("create target machine failed"))?;
-        tm.write_to_file(&self.module, FileType::Object, out_obj)
-            .map_err(|e| anyhow!(e.to_string()))
+    /// Combine two values of the same kind with an operator.
+    fn binary(&mut self, op: BinOp, kind: Kind, left: &str, right: &str) -> Result<(Kind, String)> {
+        use BinOp::*;
+        let ty = kind.llvm_type();
+        let result = self.tmp();
+        let result_kind = match (op, kind) {
+            // whole numbers: one machine instruction each
+            (Add | Sub | Mul | Div, Kind::Int) => {
+                let instr = match op { Add => "add", Sub => "sub", Mul => "mul", _ => "sdiv" }; // sdiv: signed division
+                self.emit(format!("{result} = {instr} i32 {left}, {right}"));
+                Kind::Int
+            }
+            // decimals: + and - work directly on the millionths; * and / need rescaling (runtime.ll)
+            (Add | Sub, Kind::Dec) => {
+                let instr = if op == Add { "add" } else { "sub" };
+                self.emit(format!("{result} = {instr} i64 {left}, {right}"));
+                Kind::Dec
+            }
+            (Mul | Div, Kind::Dec) => {
+                let helper = if op == Mul { "mini_dec_mul" } else { "mini_dec_div" };
+                self.emit(format!("{result} = call i64 @{helper}(i64 {left}, i64 {right})"));
+                Kind::Dec
+            }
+            // comparisons give a boolean; `icmp` compares integers, `s` means signed
+            (Eq | Ne, Kind::Int | Kind::Dec | Kind::Bool) | (Lt | Le | Gt | Ge, Kind::Int | Kind::Dec) => {
+                let cond = match op { Eq => "eq", Ne => "ne", Lt => "slt", Le => "sle", Gt => "sgt", _ => "sge" };
+                self.emit(format!("{result} = icmp {cond} {ty} {left}, {right}"));
+                Kind::Bool
+            }
+            // logic on single bits
+            (And | Or, Kind::Bool) => {
+                let instr = if op == And { "and" } else { "or" };
+                self.emit(format!("{result} = {instr} i1 {left}, {right}"));
+                Kind::Bool
+            }
+            _ => bail!("type error: cannot use `{}` on {}s", op.symbol(), kind.name()),
+        };
+        Ok((result_kind, result))
+    }
+
+    /// Load a variable's current value from its stack slot.
+    fn load(&mut self, name: &str) -> Result<(Kind, String)> {
+        let var = self.vars.get(name).ok_or_else(|| anyhow!("undefined variable `{name}`"))?;
+        let (kind, slot) = (var.kind, var.slot.clone());
+        let value = self.tmp();
+        self.emit(format!("{value} = load {}, ptr {slot}", kind.llvm_type()));
+        Ok((kind, value))
+    }
+
+    /// Add a constant, zero-terminated string and return its global name, like `@.str.0`.
+    fn string_constant(&mut self, text: &str) -> String {
+        let name = format!("@.str.{}", self.fresh_id());
+        self.globals.push_str(&global_string(&name, text));
+        name
+    }
+
+    fn tmp(&mut self) -> String {
+        self.next_tmp += 1;
+        format!("%t{}", self.next_tmp - 1)
+    }
+
+    fn fresh_id(&mut self) -> usize {
+        self.next_id += 1;
+        self.next_id - 1
+    }
+
+    fn emit(&mut self, instruction: String) {
+        self.body.push_str("  ");
+        self.body.push_str(&instruction);
+        self.body.push('\n');
+    }
+
+    /// Put the pieces together into one complete LLVM module.
+    fn finish(self) -> String {
+        format!(
+            "; Mini program, compiled to LLVM IR\n\n\
+             {}{}{}{}{}\n\
+             declare i32 @printf(ptr, ...)\n\n\
+             define i32 @main() {{\n\
+             entry:\n\
+             {}  ret i32 0\n\
+             }}\n{}",
+            global_string("@.fmt_int", "%d\n"),
+            global_string("@.fmt_str", "%s\n"),
+            global_string("@.true", "true"),
+            global_string("@.false", "false"),
+            self.globals,
+            self.body,
+            if self.uses_decimals { format!("\n{RUNTIME}") } else { String::new() },
+        )
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ExprKind { Int, Str }
-
-fn infer_expr_kind(e: &Expr) -> ExprKind {
-    match e {
-        Expr::Str(_) => ExprKind::Str,
-        _ => ExprKind::Int, // everything else is int-typed in this phase
+/// A global string constant: `@name = private unnamed_addr constant [N x i8] c"…\00"`.
+/// Quotes, backslashes and non-printable bytes are written as `\XX` hex escapes.
+fn global_string(name: &str, text: &str) -> String {
+    let mut escaped = String::new();
+    for byte in text.bytes() {
+        if byte == b' ' || (byte.is_ascii_graphic() && byte != b'"' && byte != b'\\') {
+            escaped.push(byte as char);
+        } else {
+            escaped.push_str(&format!("\\{byte:02X}"));
+        }
     }
+    let len = text.len() + 1; // +1 for the terminating zero byte that C's printf needs
+    format!("{name} = private unnamed_addr constant [{len} x i8] c\"{escaped}\\00\"\n")
 }
 
-fn expect_string_literal(e: &Expr) -> Result<String> {
-    match e {
-        Expr::Str(s) => Ok(s.clone()),
-        _ => anyhow::bail!("expected string literal"),
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::Parser;
 
-/// Grab the default target triple for the build machine.
-pub fn host_triple() -> TargetTriple {
-    TargetMachine::get_default_triple()
+    fn ir(src: &str) -> String {
+        generate(&Parser::parse(src).unwrap()).unwrap()
+    }
+
+    fn type_error(src: &str) -> String {
+        generate(&Parser::parse(src).unwrap()).unwrap_err().to_string()
+    }
+
+    #[test]
+    fn arithmetic_becomes_instructions() {
+        let ir = ir("let x = 2 + 3 * 4;\nprint x;");
+        assert!(ir.contains("%t0 = mul i32 3, 4"));
+        assert!(ir.contains("%t1 = add i32 2, %t0"));
+        assert!(ir.contains("@printf(ptr @.fmt_int"));
+        assert!(!ir.contains("mini_dec_mul"), "no decimals, so no decimal runtime");
+    }
+
+    #[test]
+    fn decimals_and_booleans() {
+        let ir = ir("let price = 2.5 * 3.0;\nlet cheap = price < 10.0 and not false;\nprint cheap;");
+        assert!(ir.contains("call i64 @mini_dec_mul(i64 2500000, i64 3000000)"));
+        assert!(ir.contains("icmp slt i64"));
+        assert!(ir.contains("xor i1 false, true"));
+        assert!(ir.contains("define private i64 @mini_dec_mul"), "the decimal runtime is included");
+    }
+
+    #[test]
+    fn strings_are_escaped_and_zero_terminated() {
+        assert_eq!(
+            global_string("@s", "hi \"x\"\n"),
+            "@s = private unnamed_addr constant [8 x i8] c\"hi \\22x\\22\\0A\\00\"\n"
+        );
+    }
+
+    #[test]
+    fn errors_are_reported() {
+        assert!(type_error("print y;").contains("undefined variable `y`"));
+        assert!(type_error("let s = \"a\";\nlet n = s * 2;").contains("cannot use `*` on a string and a number"));
+        assert!(type_error("let n = 1 + 2.5;").contains("cannot use `+` on a number and a decimal"));
+        assert!(type_error("let b = true + true;").contains("cannot use `+` on booleans"));
+        assert!(type_error("let b = 1 and 2;").contains("cannot use `and` on numbers"));
+        assert!(type_error("let b = true < false;").contains("cannot use `<` on booleans"));
+        assert!(type_error("let b = not 1;").contains("`not` needs a boolean, found a number"));
+    }
 }

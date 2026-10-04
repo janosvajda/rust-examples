@@ -78,7 +78,7 @@ jobs:
       - run: cargo run
 
   mini:
-    name: Mini (LLVM 16)
+    name: Mini (any LLVM 16+)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -88,12 +88,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "16"
+      # Mini runs the installed LLVM's `llc`, so the distribution's LLVM is enough.
+      - run: sudo apt-get update && sudo apt-get install -y llvm
+      - run: llc --version
       - run: cargo clippy --all-targets -- -D warnings
-        env:
-          LLVM_SYS_160_PREFIX: ${{ env.LLVM_PATH }}
-      - run: cargo build
-        env:
-          LLVM_SYS_160_PREFIX: ${{ env.LLVM_PATH }}
+      - run: cargo test
+      - run: |
+          for example in examples/*.mini; do
+            cargo run -q -- "$example" "/tmp/$(basename "$example" .mini)"
+            "/tmp/$(basename "$example" .mini)"
+          done
