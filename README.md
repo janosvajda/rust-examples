@@ -22,22 +22,36 @@ It has since grown into something more. Today I write it for people who **want t
 | good for | learning a subject properly | a quick reference, or a starting point for your own code |
 
 **The courses**, with lessons:
-- [Ownership and borrowing](./ownership-and-borrowing/), [Error handling](./error-handling/), [Traits and generics](./traits-and-generics/), [Closures and iterators](./closures-and-iterators/)
+- [How computers work](./how-computers-work/), [Ownership and borrowing](./ownership-and-borrowing/), [Pointers and memory](./pointers-and-memory/), [Error handling](./error-handling/), [Traits and generics](./traits-and-generics/), [Closures and iterators](./closures-and-iterators/)
 - [Async / await](./async-await/), [Concurrency with threads](./concurrency/), [Macros](./macros/), [no_std and bare-metal Rust](./no-std-and-bare-metal/)
 - [Data processing](./data-processing/), [Software engineering with AI](./software-engineering-with-ai/)
 
 **The examples:**
 - [Design patterns](./design-patterns/) and [data structures](./data-structures/): organised by category, each one standalone;
+- [Games and graphics](./games-and-graphics/): small, playable programs;
+- [AWS examples](./aws-examples/): Rust on AWS Lambda, with DynamoDB;
 - the smaller examples further down this page;
 - [Mini](./mini/), a tiny programming language, which is a project of its own.
 
 Every lesson and example is checked in CI: it builds, its tests pass, and Clippy has no warnings. Compiler errors quoted in the lessons are the real output of the compiler.
 
-If you find any issues or have ideas for improvement, I'd be happy to receive contributions and feedback.
+## The official Rust documentation
+
+This repository adds to the official documentation; it doesn't replace it. The official docs are excellent, free, and always up to date. Start at **[doc.rust-lang.org](https://doc.rust-lang.org/)**, where you'll find:
+
+| Resource | What it's for |
+|---|---|
+| [The Rust Programming Language](https://doc.rust-lang.org/book/) ("the Book") | the official guide, from the first program to advanced topics; the best place to start |
+| [Rust by Example](https://doc.rust-lang.org/rust-by-example/) | the language explained through short, runnable examples |
+| [The standard library](https://doc.rust-lang.org/std/) | every type, trait and function in `std`, with examples |
+| [The Rust Reference](https://doc.rust-lang.org/reference/) | the precise rules of the language, for when you need the exact details |
+| [Rustlings](https://github.com/rust-lang/rustlings) | small exercises to practise, from the Rust team |
+
+A good way to use both: read a chapter of the Book, then the matching course here for more examples, real compiler errors and good practices.
 
 ## How to Contribute
 
-Contributions are welcome! If you have a Rust example, a lesson idea, a bug fix or an improvement, feel free to submit a pull request. Let's build a collection that helps people learn Rust, together.
+Contributions and feedback are welcome! If you find an issue, or have a Rust example, a lesson idea, a bug fix or an improvement, feel free to submit a pull request. Let's build a collection that helps people learn Rust, together.
 
 ## Building and testing
 
@@ -66,10 +80,22 @@ To work on a single example, run Cargo inside its directory or pass `-p <package
 A few examples are kept out of the workspace build:
 
 - [Mini](./mini/) needs any LLVM 16 or newer installed (see its README).
-- [Hello asm](./asm/hello_asm/) contains platform-specific inline assembly.
 - Lessons 1 and 3 of the [no_std course](./no-std-and-bare-metal/) need their own `panic = "abort"` build profile, which Cargo ignores for workspace members, and lesson 5 builds only for WebAssembly.
 
 Build those from their own directories. They are checked with Clippy in CI as well.
+
+# How computers work: from bits to the kernel
+A nine-lesson course on what really happens inside a computer, explained twice in every lesson: once with a picture simple enough for children, once precisely, with Rust code you can run. With a bit of history in every lesson, and measurements instead of guesses. Start with the [course overview](./how-computers-work/).
+
+1. [Bits and bytes](./how-computers-work/01-bits-and-bytes/): binary, bytes, text and colours as numbers.
+2. [Memory and addresses](./how-computers-work/02-memory-and-addresses/): numbered mailboxes, endianness, alignment.
+3. [Pointers are addresses](./how-computers-work/03-pointers-are-addresses/): what a pointer really is, and what goes wrong.
+4. [A tiny CPU](./how-computers-work/04-a-tiny-cpu/): a working 8-bit processor in Rust, step by step.
+5. [Real machine code](./how-computers-work/05-real-machine-code/): x86-64 and ARM, a function written in assembly, its bytes in memory.
+6. [The cache](./how-computers-work/06-the-cache/): measured: why reading order makes code 10× faster or slower.
+7. [Virtual memory](./how-computers-work/07-virtual-memory/): pages, randomised addresses, and the operating system stopping bad accesses.
+8. [User space and kernel space](./how-computers-work/08-user-space-and-kernel-space/): system calls by hand in assembly, and what they cost.
+9. [Why Rust](./how-computers-work/09-why-rust/): C's power and memory bugs, and Rust's checks at the same speed.
 
 # Ownership and borrowing
 A twelve-lesson course on how Rust manages memory without a garbage collector. Every README explains one idea simply and precisely, and every compiler error it quotes is real. Start with the [course overview](./ownership-and-borrowing/).
@@ -92,6 +118,16 @@ A twelve-lesson course on how Rust manages memory without a garbage collector. E
 10. [Advanced lifetimes](./ownership-and-borrowing/10-advanced-lifetimes/): several lifetimes, `dyn Trait + 'a`, `impl Trait + use<>`.
 11. [Cow and the borrowing traits](./ownership-and-borrowing/11-cow-and-borrowing-traits/): `Cow`, `Borrow`, `AsRef`, `Deref`.
 12. [Where the borrow checker is too strict](./ownership-and-borrowing/12-borrow-checker-limits/): correct code it rejects, and the workarounds, including `push_mut`.
+
+# Pointers and memory
+A six-lesson course on where values live and who frees them: the stack and the heap, `Box`, `Rc` and `Weak` (and the reference cycles that leak), `Arc`, writing your own smart pointer with `Deref` and `Drop`, and raw pointers with sound `unsafe` code. Start with the [course overview](./pointers-and-memory/).
+
+1. [The stack and the heap](./pointers-and-memory/01-stack-and-heap/): `size_of`, what a move really copies, why big data goes on the heap.
+2. [Box](./pointers-and-memory/02-box/): recursive types, trait objects, big values.
+3. [Rc and Weak](./pointers-and-memory/03-rc-and-weak/): shared ownership, a cycle that leaks, and the fix.
+4. [Arc](./pointers-and-memory/04-arc/): shared ownership across threads.
+5. [Your own smart pointer](./pointers-and-memory/05-your-own-smart-pointer/): `Deref`, `Drop`, and RAII.
+6. [Raw pointers and unsafe](./pointers-and-memory/06-raw-pointers-and-unsafe/): `// SAFETY:` comments, Miri, and a homemade `Rc`.
 
 # Error handling
 A five-lesson course on how Rust handles failure without exceptions, from `panic!` to production-quality error types. Start with the [course overview](./error-handling/).
@@ -182,23 +218,15 @@ A ten-lesson course on writing software when AI can write much of the code: what
 9. [Reviewing AI-written code](./software-engineering-with-ai/09-reviewing-ai-code/): a checklist for code you didn't write.
 10. [The shadow side](./software-engineering-with-ai/10-the-shadow-side/): fading skills, the learning paradox, and why the basics matter more with AI, not less.
 
+# Games and graphics
+Small, playable examples. Start with the [overview](./games-and-graphics/).
+- [Tic-tac-toe](./games-and-graphics/tic-tac-toe/): the classic game in the terminal, with an unbeatable computer player (minimax).
+- [Bouncing face](./games-and-graphics/bouncing-face/): a face that follows your mouse in a window, with fireworks; how pixel graphics and the game loop work.
+
 # AWS examples
-- [simple-aws-lambda](./aws-lambda-example-hello-world/): Very basic AWS Lambda example in Rust.
-- [aws-lambda-example-db](./aws-lambda-example-db/): Serverless user-management API on AWS Lambda with DynamoDB, login and token refresh flows, and a SAM template.
-
-# Examples without category
-
-- [Closures and Anonymous Functions](./closures_anonymous_functions/): Shows the usage of closures and anonymous functions in Rust. For much more, see the [Closures and iterators course](./closures-and-iterators/).
-- [Raw Pointers](./raw_pointers/): Demonstrates the usage of raw pointers in Rust.
-- [Threads](./threads/): Shows how to use threads for concurrent execution. For much more, see the [Concurrency course](./concurrency/).
-- [Tic Tac Toe console game](./tic-tac-toe/): Simple Tic Tac Toe game in Rust.
-- [Test minifb - Human Face mouse follower](./test-minifb/): Abstract human face follow the mouse movment in a window.
-
-# Assembly
-- [Hello asm](./asm/hello_asm/): Prints "Hello, world!" using inline assembly (`asm!`) on macOS x86_64, macOS Apple Silicon and Windows x86_64, plus a naked function written entirely in assembly, chosen per platform with `cfg_select!`.
-
-# Smart pointers
-- [Box and Arc](./smart-pointers/box-and-arc/): Shows `Box<T>` for recursive types and trait objects, and `Arc<T>` / `Arc<Mutex<T>>` for sharing data between threads.
+Rust on AWS Lambda, reviewed and modernised. Start with the [overview](./aws-examples/).
+- [Hello world](./aws-examples/aws-lambda/hello-world/): the smallest useful Lambda function, what serverless means, and a real XSS fix.
+- [User API with DynamoDB](./aws-examples/aws-lambda/user-api-dynamodb/): registration, login, JWT and refresh tokens on Lambda and DynamoDB, with integration tests against DynamoDB Local and a security review.
 
 # Design patterns
 Design patterns are proven, reusable solutions to problems that come up again and again when designing software. Each example below explains its pattern in plain language with an everyday analogy, shows a small runnable program, and points out what's different when you write it in Rust. See the [design patterns overview](./design-patterns/) for all of them with their comics.
