@@ -7,7 +7,7 @@
 
 cfg_select! {
     target_arch = "aarch64" => {
-        /// AArch64 (Apple Silicon, most phones): arguments arrive in x0 and x1,
+        /// AArch64 (Apple Silicon, many phones): arguments arrive in x0 and x1,
         /// the result goes in x0.
         #[unsafe(naked)]
         extern "C" fn add_numbers(a: u64, b: u64) -> u64 {
@@ -60,12 +60,19 @@ cfg_select! {
     }
 }
 
-/// Reads the first bytes of a function's machine code.
-fn machine_code_of(function: extern "C" fn(u64, u64) -> u64, length: usize) -> Vec<u8> {
+/// Copies instruction bytes on targets where function pointers can be used
+/// to read code memory. This is a platform-specific experiment.
+///
+/// # Safety
+/// The caller must ensure that converting this function pointer to a data
+/// pointer is valid on the target and that the pointer and length satisfy
+/// std::slice::from_raw_parts: initialized, readable bytes within one
+/// allocation, unchanged during the copy. The length must not exceed
+/// isize::MAX or make the address calculation wrap.
+unsafe fn machine_code_of(function: extern "C" fn(u64, u64) -> u64, length: usize) -> Vec<u8> {
     let start = function as *const u8;
-    // SAFETY: a function's code is in memory that may be read (it's mapped
-    // readable and executable), and `length` is the exact size of the function
-    // written above, so we never read past its end.
+    // SAFETY: the caller must uphold the pointer, readable-region, length and
+    // immutability requirements documented above.
     unsafe { std::slice::from_raw_parts(start, length) }.to_vec()
 }
 
@@ -77,10 +84,20 @@ fn main() {
     println!("    add_numbers(40, 2) = {}", add_numbers(40, 2));
 
     println!("\n2. The function is bytes in memory: here they are");
-    let bytes = machine_code_of(add_numbers, EXPECTED.len());
+    // SAFETY: on the demonstrated desktop targets, this naked function's
+    // instruction bytes are readable and remain unchanged. EXPECTED.len()
+    // is exactly the length of the complete assembly body written above.
+    let bytes = unsafe { machine_code_of(add_numbers, EXPECTED.len()) };
     let hex: Vec<String> = bytes.iter().map(|b| format!("{b:02x}")).collect();
     println!("    at {:p}: {}", add_numbers as *const u8, hex.join(" "));
-    println!("    the processor manual's encoding: {}", if bytes == EXPECTED { "matches exactly" } else { "DIFFERS" });
+    println!(
+        "    the processor manual's encoding: {}",
+        if bytes == EXPECTED {
+            "matches exactly"
+        } else {
+            "DIFFERS"
+        }
+    );
 
     println!("\n3. Code, constants, the stack and the heap: different parts of memory");
     let local = 0u64;
@@ -103,6 +120,11 @@ mod tests {
 
     #[test]
     fn the_bytes_in_memory_are_the_manuals_encoding() {
-        assert_eq!(machine_code_of(add_numbers, EXPECTED.len()), EXPECTED);
+        // SAFETY: the same known function, byte length and readable code
+        // mapping as the demonstration in main.
+        assert_eq!(
+            unsafe { machine_code_of(add_numbers, EXPECTED.len()) },
+            EXPECTED
+        );
     }
 }

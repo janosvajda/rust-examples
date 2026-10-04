@@ -15,21 +15,24 @@ use std::time::Instant;
 // server sends the same bytes back. In 2014, OpenSSL (written in C) trusted
 // the CLAIMED length:
 //
-//     memcpy(response, request_payload, claimed_length);   // C: no check
+//     memcpy(response, request_payload, claimed_length);   // C, simplified: no check
 //
-// A client could send 1 byte and claim 64,000: the server then copied 64 KB
-// of whatever memory followed, which could contain passwords and private
+// A client could send a tiny payload and claim about 64 KiB: the server copied
+// whatever memory followed, which could contain passwords and private
 // keys, and sent it back. The same mistake in Rust:
 
 /// Echoes `claimed_length` bytes of the payload back, or refuses.
 fn heartbeat(payload: &[u8], claimed_length: usize) -> Result<&[u8], String> {
     // `get` checks the range: asking for more than exists gives None, not
-    // whatever lies beyond. (`&payload[..claimed_length]` would stop the
-    // program instead of reading other memory.)
-    payload.get(..claimed_length).ok_or(format!(
-        "refused: claimed {claimed_length} bytes, but only {} were sent",
-        payload.len()
-    ))
+    // whatever lies beyond. (`&payload[..claimed_length]` would panic rather
+    // than read outside the slice; an unwinding panic can be caught.)
+    // The closure builds an error message only if the requested range is absent.
+    payload.get(..claimed_length).ok_or_else(|| {
+        format!(
+            "refused: claimed {claimed_length} bytes, but only {} were sent",
+            payload.len()
+        )
+    })
 }
 
 // ---- 2. Safety that the compiler checks ---------------------------------------------------------
@@ -51,15 +54,15 @@ fn heartbeat(payload: &[u8], claimed_length: usize) -> Result<&[u8], String> {
 //     fn get() -> &'static str { let text = String::from("hi"); &text }
 //     error[E0515]: cannot return reference to local variable `text`
 
-// ---- 3. ...at C speed ---------------------------------------------------------------------------
+// ---- 3. Comparing safe and unchecked Rust -------------------------------------------------------
 
-/// The idiomatic way: an iterator. No index, so nothing to check.
+/// The idiomatic way: an iterator tracks the slice's end, without explicit indexing.
 fn sum_iterator(numbers: &[u64]) -> u64 {
     numbers.iter().sum()
 }
 
 /// C-style indexing: every `numbers[i]` is checked, unless the compiler can
-/// prove `i < len`, which it can here, so the checks disappear.
+/// prove `i < len`. With this loop it usually can, and removes the checks.
 #[allow(clippy::needless_range_loop)] // written this way on purpose, to compare
 fn sum_indexed(numbers: &[u64]) -> u64 {
     let mut total = 0;
@@ -69,7 +72,7 @@ fn sum_indexed(numbers: &[u64]) -> u64 {
     total
 }
 
-/// No checks at all, like C: `unsafe` promises the compiler every index is valid.
+/// No bounds checks for these accesses: the unsafe caller must prove each index valid.
 fn sum_unchecked(numbers: &[u64]) -> u64 {
     let mut total = 0;
     for i in 0..numbers.len() {
@@ -93,8 +96,14 @@ fn best_of_five(f: impl Fn() -> u64) -> (u64, f64) {
 fn main() {
     println!("1. A heartbeat, in Rust");
     let payload = b"hi";
-    println!("    honest client (2 bytes, claims 2):    {:?}", heartbeat(payload, 2).map(String::from_utf8_lossy));
-    println!("    attacker (2 bytes, claims 64000):     {:?}", heartbeat(payload, 64_000));
+    println!(
+        "    honest client (2 bytes, claims 2):    {:?}",
+        heartbeat(payload, 2).map(String::from_utf8_lossy)
+    );
+    println!(
+        "    attacker (2 bytes, claims 64000):     {:?}",
+        heartbeat(payload, 64_000)
+    );
 
     println!("\n2. The classic C memory bugs don't compile: see the comments in the code");
 
@@ -106,7 +115,7 @@ fn main() {
     let (c, unchecked) = best_of_five(|| sum_unchecked(&numbers));
     assert!(a == b && b == c);
     println!("    iterator (safe, idiomatic):      {iterator:6.2} ms");
-    println!("    indexing (safe, checked):        {indexed:6.2} ms");
+    println!("    indexing (safe, numbers[i]):     {indexed:6.2} ms");
     println!("    get_unchecked (unsafe, like C):  {unchecked:6.2} ms");
     println!("    the same answer every time: {a}");
 }
@@ -119,17 +128,19 @@ mod tests {
     fn an_honest_heartbeat_is_echoed() {
         assert_eq!(heartbeat(b"hello", 5), Ok(&b"hello"[..]));
         assert_eq!(heartbeat(b"hello", 2), Ok(&b"he"[..]));
+        assert_eq!(heartbeat(b"", 0), Ok(&b""[..]));
     }
 
     #[test]
     fn a_lying_length_is_refused_not_leaked() {
         assert!(heartbeat(b"hi", 64_000).is_err());
         assert!(heartbeat(b"", 1).is_err());
+        assert!(heartbeat(b"hi", usize::MAX).is_err());
     }
 
     #[test]
     #[should_panic(expected = "range end index 64000 out of range for slice of length 2")]
-    fn plain_slicing_stops_the_program_instead_of_reading_other_memory() {
+    fn plain_slicing_panics_instead_of_reading_other_memory() {
         let payload: &[u8] = black_box(b"hi");
         let _ = &payload[..black_box(64_000)];
     }

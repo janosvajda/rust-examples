@@ -4,98 +4,204 @@
 
 ## The idea in one sentence
 
-Main memory is about **fifty times slower** than the processor's own small, fast memories, the **caches**, so the same program can run ten times faster or slower depending only on the **order** in which it reads memory.
+A CPU keeps copies of useful data in small, fast **caches**, so the order in which a program visits memory can change its running time dramatically.
 
 ## Imagine…
 
-Imagine the cook from [lesson 4](../04-a-tiny-cpu/) again. Most ingredients are kept in a big **warehouse** down the road: everything fits there, but each trip takes ages. So the cook keeps the ingredients they're using right now on a small **shelf** next to the stove, and a bigger **cupboard** in the kitchen.
+Ferris's kitchen has a **shelf by the stove**, a **cupboard**, and a **warehouse down the road**.
 
-When the cook fetches flour from the warehouse, they don't bring one spoonful: they bring the whole bag, because the next spoonful will probably be needed soon. If the recipe uses ingredients in the order they're stored, almost everything comes from the shelf. If it jumps all over the warehouse, nearly every step is another long trip.
+Ingredients on the shelf are quick to reach. The warehouse holds much more, but a trip takes longer. When Ferris fetches flour, he brings a whole bag, hoping the next spoonful will be needed soon.
 
-The warehouse is **main memory**. The shelf and the cupboard are the **caches**. The bag is a **cache line**.
+| Kitchen picture | Computer idea |
+|---|---|
+| Shelf | The small, very fast **L1** (level 1) cache |
+| Cupboard | A larger, slightly slower cache, **L2** (level 2) |
+| Warehouse | Main memory, usually DRAM |
+| Bag | A **cache line**, a block of neighbouring bytes |
 
-## Precisely: measured
+For these examples, the processor manages caching while the program uses ordinary memory accesses. It doesn't ask for a particular cache level.
 
-All numbers below were measured by `cargo run --release` on an Apple M2 Mac. On your computer they'll differ, but the pattern won't. The cache sizes are the ones macOS reports (`sysctl hw.l1dcachesize hw.l2cachesize`). The M2's two kinds of core have different cache sizes.
+At a particular cache level, finding the data is a **cache hit**; not finding it is a **cache miss**. An L1 miss can still be an L2 hit! A miss needs a request further along the memory hierarchy; the processor may do other work while it waits.
 
-### How long does one read take?
+## First, know what we're measuring
 
-The program makes a random chain through a table: each entry says which entry to read next. Each read's address depends on the previous read, so the processor can't start early or guess ahead. This **pointer chasing** measures the true time of one read:
+Run this lesson with **`cargo run --release`**. A debug build ([lesson 1](../01-bits-and-bytes/)) adds so many extra checks that it mostly measures itself. The results below come from one run on an Apple M2 Mac. They are observations, not promises: your numbers will differ.
 
-```text
-  16 KB of data:    2 ns per read     ← fits in the L1 cache (this Mac reports 64 KB)
-   1 MB of data:    5.5 ns per read   ← fits in the L2 cache (this Mac reports 4 MB)
- 256 MB of data:  105 ns per read     ← mostly in main memory
-```
+A **nanosecond**, or ns, is one billionth of a second. A **millisecond**, or ms, is one thousandth of a second. Times this small change with the compiler's choices, other running programs, the processor's current speed, which core runs the program, and what happens to be in the caches already.
 
-| Where the data is | Time per read | In the kitchen |
-|---|---|---|
-| **L1 cache**: tiny, inside each core | ~2 ns | the shelf by the stove |
-| **L2 cache**: bigger, shared by several cores | ~5.5 ns | the cupboard |
-| **main memory** (DRAM) | ~105 ns | the warehouse |
+The sizes are powers of two: **KiB** is 1,024 bytes and **MiB** is 1,048,576 bytes ([lesson 2](../02-memory-and-addresses/) explains the difference from KB and MB).
 
-In 105 ns, a processor running at 3.5 GHz could have done about 370 steps of work. A read from main memory is like waiting a whole minute for an answer you could have had in a second.
+## A treasure trail through memory
 
-### Cache lines: memory comes in blocks
-
-The cache never fetches a single byte from memory. It always fetches a whole **cache line**: 128 bytes on this Mac (`sysctl hw.cachelinesize`), and 64 bytes on most Intel and AMD processors. So reading one `u32` also brings the next 31 into the cache, for free.
-
-The processor also notices patterns. When it sees reads going forward through memory, it **prefetches**: it fetches the next lines before they're even asked for.
-
-### In order vs random order
-
-Both versions add up the same 16 million numbers (64 MB):
+The program builds a table where each entry tells it which entry to visit next:
 
 ```text
-in order:          3–6 ms
-random order:     ~60 ms     (10–18× slower, the same numbers)
+slot 0 says 7 → slot 7 says 3 → slot 3 says 12 → …
 ```
 
-In order, every cache line brings 32 useful numbers, and the prefetcher stays ahead. In random order, almost every number costs a trip to main memory.
+The next read's address depends on the value returned by the current read. That limits how much work can overlap. Hardware may still guess or prefetch, and a needed line may already be cached. This pattern, called **pointer chasing**, estimates the average time per dependent read, including the loop's work. The visiting order is random, so the reads jump all over the table.
 
-### Row by row vs column by column
+```text
+1. The time of one memory read, depending on how much memory is in use
+     16 KiB of data:    2.2 ns per read
+      1 MiB of data:    5.3 ns per read
+    256 MiB of data:  101.2 ns per read
+```
 
-A 4096 × 4096 grid is stored **row after row**: Rust, C and most languages do it this way. Adding it up row by row reads memory in order. Column by column jumps 4096 × 4 = 16 KB between reads:
+The program does exactly the same work each time; only the table size changes. On the tested Mac, macOS reports an L1 data cache of 128 KiB and an L2 cache of 16 MiB for the fast cores:
+
+| Table size | Time per read | Likely explanation, not a measured cache-hit count |
+|---|---:|---|
+| 16 KiB | about 2 ns | Small enough to fit on the shelf (L1). |
+| 1 MiB | about 5 ns | Too big for that L1, but small enough for the cupboard (L2). |
+| 256 MiB | about 100 ns | Much bigger than those caches, so random visits often need main memory. |
+
+Each time also includes the loop's own work, and translating addresses ([lesson 7](../07-virtual-memory/)). The program doesn't count where each read came from, so these numbers show the pattern, not exact cache speeds.
+
+For perspective, at 3.5 GHz ([lesson 4](../04-a-tiny-cpu/) explains clock cycles), 100 ns is about **350 clock cycles**: time the processor spends mostly waiting.
+
+## A cache line brings neighbours
+
+For ordinary cacheable memory, a missed load normally brings in a **whole cache line** containing the requested byte.
+
+Memory is divided into lines of equal size, each starting at a multiple of the line size (**aligned**, as in [lesson 2](../02-memory-and-addresses/)). The tested Mac uses **128-byte** lines, so one line holds **32 `u32` values**. A miss brings in the whole line that contains the requested value: its neighbours on both sides, not necessarily the 31 values *after* it.
+
+```text
+one line: [0][1][2] … [20] … [31]
+                       ↑
+reading element 20 brings in this whole line, including earlier neighbours
+```
+
+If that line stays in the cache, later reads of its neighbours can be hits. Many Intel and AMD processors use 64-byte lines instead; the sizes depend on the processor. Each core usually has its own L1 cache, while bigger caches may be shared between cores. The M2 has two kinds of cores, fast and energy-saving, with different cache sizes.
+
+A processor may also **prefetch**: when it notices a pattern, such as reading line after line in order, it fetches the next lines before they're asked for. Like Ferris noticing he's baking a whole batch, and bringing the next bag before the first one is empty. See [Intel's optimisation manual](https://www.intel.com/content/dam/doc/manual/64-ia-32-architectures-optimization-manual.pdf) for one processor family's cache and prefetch mechanisms.
+
+## Same numbers, different visiting order
+
+The next experiment adds up **16,777,216 `u32` values**, occupying **64 MiB**, much bigger than the caches. First in order, then in a random order:
+
+```text
+2. Reading 64 MiB: in order, or in random order
+    in order:         5.8 ms
+    random order:    55.0 ms   (9× slower, the same numbers)
+```
+
+In order, each line brought in serves 32 values, and prefetching fetches the next lines early. Random visits usually reuse nearby values less effectively and are harder for ordinary sequential prefetchers to predict. They can still hit cached lines, and several independent reads may overlap. This program doesn't count misses, so we can't conclude that each value caused one.
+
+To be fair, the random version does a little more work: it also reads the list of positions to visit (another 64 MiB, read in order). The comparison includes this extra index-reading work. It demonstrates two access strategies; it doesn't isolate the cost of visiting order alone.
+
+Both sums must agree. Timing differences don't change the answer.
+
+## A bookshelf-sized grid
+
+We store a 4096 × 4096 grid in **one flat vector, row after row**, using:
+
+```text
+position = row × side + column
+```
+
+For a smaller example:
+
+```text
+drawing:         flat storage:
+A B C            [A B C D E F G H I]
+D E F
+G H I
+```
+
+Rows visit A, B, C, D, E, F… Columns visit A, D, G, B, E, H…
+
+The actual summing functions use:
 
 ```rust
-for row in 0..side { for column in 0..side { total += grid[row * side + column]; } }   // fast
-for column in 0..side { for row in 0..side { total += grid[row * side + column]; } }   // slow
+// Rows first:
+for row in 0..side {
+    for column in 0..side {
+        total += u64::from(grid[row * side + column]);
+    }
+}
+
+// Columns first:
+for column in 0..side {
+    for row in 0..side {
+        total += u64::from(grid[row * side + column]);
+    }
+}
 ```
+
+These are function-body excerpts; `grid`, `side` and `total` come from the surrounding function.
+
+`u64::from` turns each `u32` into a `u64`, so the total can grow beyond the largest `u32`. This grid's sum fits in `u64`; even a `u64` could overflow for a sufficiently large different calculation.
+
+Row by row, the next value is the very next 4 bytes. Column by column, with side 4096, the next value is **4096 × 4 = 16,384 bytes** further on: a different line every time.
 
 ```text
-row by row:          6 ms
-column by column:   60 ms    (10× slower, the same sum)
+3. A 4096 × 4096 grid: row by row, or column by column
+    row by row:           6.4 ms
+    column by column:    59.4 ms   (9× slower, the same sum)
 ```
 
-Swapping two lines of code makes the same calculation ten times slower.
+Storing rows one after another is *our* choice for this program. Some libraries store grids column after column instead, and then columns are the fast direction. The rule is: visit the data in the order it's stored.
 
-**A trap when measuring this:** in the first version of this program, the grid's size, 4096, was written directly in the code. The compiler then rearranged the column loop by itself, and column by column came out *faster*: 1.4 ms. Only after hiding the size from the compiler, with `std::hint::black_box(side)`, did the program measure what it was meant to. Always question a benchmark result that seems too good. The compiler may not be running the code you wrote.
+## Be a benchmark detective
 
-## What this means for your programs
+A benchmark can lie. In a release build, the compiler's **optimiser** looks for shortcuts. If it knew `side` was always 4096, it could rearrange the column loop into the fast order, or even work out parts of the answer in advance, and we would no longer be measuring what we think. The program passes `side` through `std::hint::black_box`, which asks the compiler to treat the value as unknown. It's a **best-effort hint**, not a guarantee. See [Rust's `black_box` documentation](https://doc.rust-lang.org/std/hint/fn.black_box.html).
 
-| Do | Because |
+When a result is surprisingly fast, suspect the optimiser or the caches before celebrating. Check the generated assembly ([lesson 5](../05-real-machine-code/) shows how) before claiming the compiler did something. Run the measurement several times, and always check that the answers agree as well as comparing the times: this program asserts that both sums are equal.
+
+**Fun fact:** changing only the order of two loops can change how much travelling the kitchen needs, even though the recipe's final answer stays identical!
+
+## What can you use in real programs?
+
+| Useful starting point | Why it can help |
 |---|---|
-| prefer `Vec` and arrays: items side by side | every cache line brings neighbours you're about to need |
-| go through data in the order it's stored | the prefetcher keeps up; nothing waits for memory |
-| keep data that's used together, together | one cache line instead of several |
-| be careful with linked lists and pointer-heavy structures for big data | each step can be a 100 ns trip to main memory |
+| Use arrays or `Vec` for a sequence | Neighbouring elements share cache lines. |
+| Visit data in storage order | Reuse and prefetching often improve. |
+| Keep frequently used data together | Fewer lines may be needed. |
+| Measure structures full of pointers | Following pointers to values scattered around memory, as in a linked list, can mean a miss at every step, like the treasure trail above. |
 
-This is why [lesson 2](../02-memory-and-addresses/)'s simple rule, "array elements sit side by side", matters so much, and why the [data processing](../../data-processing/) course streams through data in order.
+These are starting points, not rules that win every time.
+
+## Words to remember
+
+| Word | Meaning |
+|---|---|
+| **cache** | a small, fast memory on the processor chip, holding copies of recently used memory |
+| **L1, L2, …** | the cache levels: L1 is the smallest and fastest, the next levels bigger and slower |
+| **cache hit / miss** | the data was already in the cache / it had to be fetched from further away |
+| **cache line** | the block of neighbouring bytes (often 64 or 128) that the cache brings in at once |
+| **prefetch** | fetching lines early, before the program asks for them |
+| **pointer chasing** | each read supplies the next read's location, limiting overlapping work |
+| **benchmark** | a program that measures speed |
+
+First choose a correct representation, then measure the work your program actually does.
 
 ## A bit of history
 
-| When | What happened |
+| When | What happened, and why it mattered |
 |---|---|
-| **1965** | Maurice Wilkes describes a small, fast **"slave memory"** holding copies of the most-used parts of main memory: the idea of the cache |
-| **1968** | IBM's **System/360 Model 85** is the first commercial computer with a cache |
-| **1980s–90s** | Processors get faster much more quickly than memory. In 1994, Wulf and McKee call the growing gap the **"memory wall"** |
-| **today** | Several levels of cache (L1, L2, often L3) take up a large part of every processor chip, to hide that gap |
+| **1968** | IBM describes the cache in the **System/360 Model 85**, among the first commercial computers with one. The paper's title calls it **the cache**, a name that stuck. Ordinary loads can benefit from this hidden store without explicitly choosing it. [The original IBM paper](https://doi.org/10.1147/sj.71.0015) |
+| **1989** | Intel's **80486**, a chip with more than a million transistors, includes a cache on the processor chip itself. The cache and other improvements increased performance without relying only on a higher clock rate. [Computer History Museum, 1989](https://www.computerhistory.org/timeline/1989/) |
+| **1994 / 1995** | Wulf and McKee described the growing processor–memory speed gap as the **“memory wall”** in a 1994 report, published in a journal in 1995. Processors were getting faster much more quickly than memory, so more and more time would be spent waiting for data, however fast the arithmetic became. Caches help, alongside better locality, prefetching and other techniques, but they don't make the memory-speed problem disappear. [Their paper](https://libraopen.lib.virginia.edu/downloads/4b29b598d) |
 
 ## Run it
 
+From this lesson's directory:
+
 ```bash
-cargo run --release      # timings: only meaningful in a release build
+cargo run --release
 cargo test
 ```
+
+The largest table is **256 MiB**, so the program needs a few hundred MiB of memory and a few seconds to build and shuffle its tables. The tests check that the visiting orders are correct and that the sums agree; they don't check any timings, because those depend on the computer.
+
+**Try it:** with a row-major 4 × 4 grid of `u32` values, how far apart are consecutive values in one column?
+
+<details>
+<summary>Show the answer</summary>
+
+**4 × 4 = 16 bytes.** Consecutive values in a row are only four bytes apart.
+
+</details>
 
 Previous: [Lesson 5: Real machine code](../05-real-machine-code/) · Next: [Lesson 7: Virtual memory](../07-virtual-memory/)

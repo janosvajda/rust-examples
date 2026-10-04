@@ -9,7 +9,8 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-/// A tiny pseudo-random generator (xorshift), so results repeat run to run.
+/// A tiny pseudo-random generator (xorshift), so a fixed seed repeats the
+/// visiting orders. Timings can still change from run to run.
 struct Random(u64);
 
 impl Random {
@@ -43,8 +44,8 @@ fn random_cycle(slots: usize, random: &mut Random) -> Vec<u32> {
 }
 
 /// Follows the cycle for `steps` steps. Each read's address depends on the
-/// previous read's result, so the processor can't start the next read early:
-/// the time per step is the true time of one memory read.
+/// previous read's result, limiting overlap. Hardware may still predict or
+/// prefetch; the average also includes loop and address-translation work.
 fn nanoseconds_per_read(next: &[u32], steps: usize) -> f64 {
     let mut slot = 0u32;
     let start = Instant::now();
@@ -67,7 +68,7 @@ fn sum_in_given_order(numbers: &[u32], order: &[u32]) -> u64 {
 
 // ---- 3. Row by row vs column by column -----------------------------------------------------
 
-/// A grid stored row after row (as Rust, C and most languages do).
+/// A grid stored in one flat vector, row after row: position = row × side + column.
 fn sum_rows_first(grid: &[u32], side: usize) -> u64 {
     let mut total = 0u64;
     for row in 0..side {
@@ -101,21 +102,28 @@ fn main() {
     let mut random = Random(0x2545_F491_4F6C_DD1D);
 
     println!("1. The time of one memory read, depending on how much memory is in use");
-    for (label, bytes) in [("16 KB", 16 << 10), ("1 MB", 1 << 20), ("256 MB", 256 << 20)] {
+    for (label, bytes) in [
+        ("16 KiB", 16 << 10),
+        ("1 MiB", 1 << 20),
+        ("256 MiB", 256 << 20),
+    ] {
         let next = random_cycle(bytes / size_of::<u32>(), &mut random);
         let ns = nanoseconds_per_read(&next, 20_000_000);
         println!("    {label:>7} of data: {ns:6.1} ns per read");
     }
 
-    println!("\n2. Reading 64 MB: in order, or in random order");
-    let count = 16 << 20; // 16 Mi numbers × 4 bytes = 64 MB
+    println!("\n2. Reading 64 MiB: in order, or in random order");
+    let count = 16 << 20; // 16 Mi numbers × 4 bytes = 64 MiB
     let numbers: Vec<u32> = (0..count as u32).collect();
     let order = shuffled(count, &mut random);
     let (a, in_order) = time(|| sum_in_order(&numbers));
     let (b, scattered) = time(|| sum_in_given_order(&numbers, &order));
     assert_eq!(a, b);
     println!("    in order:     {in_order:7.1} ms");
-    println!("    random order: {scattered:7.1} ms   ({:.0}× slower, the same numbers)", scattered / in_order);
+    println!(
+        "    random order: {scattered:7.1} ms   ({:.0}× slower, the same numbers)",
+        scattered / in_order
+    );
 
     println!("\n3. A 4096 × 4096 grid: row by row, or column by column");
     let side = 4096;
@@ -124,7 +132,10 @@ fn main() {
     let (b, columns) = time(|| sum_columns_first(&grid, black_box(side)));
     assert_eq!(a, b);
     println!("    row by row:       {rows:7.1} ms");
-    println!("    column by column: {columns:7.1} ms   ({:.0}× slower, the same sum)", columns / rows);
+    println!(
+        "    column by column: {columns:7.1} ms   ({:.0}× slower, the same sum)",
+        columns / rows
+    );
 }
 
 #[cfg(test)]
