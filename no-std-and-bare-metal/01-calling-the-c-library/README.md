@@ -199,4 +199,4 @@ Next: [Lesson 2: A core-only library](../02-core-only-library/) · Back to the [
 
 - [The Embedded Rust Book](https://docs.rust-embedded.org/book/): `no_std` on real microcontrollers.
 - [The Rustonomicon, FFI chapter](https://doc.rust-lang.org/nomicon/ffi.html): calling C safely.
-- The repository's [`raw_pointers`](../../raw_pointers/) example, and the ownership course on [lifetimes](../../ownership-and-borrowing/05-lifetimes/), which explains the `'a` in `find`.
+- [Raw pointers and unsafe](../../pointers-and-memory/06-raw-pointers-and-unsafe/), on writing sound `unsafe` code, and the ownership course on [lifetimes](../../ownership-and-borrowing/05-lifetimes/), which explains the `'a` in `find`.

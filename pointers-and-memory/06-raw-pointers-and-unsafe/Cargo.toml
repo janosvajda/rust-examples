@@ -1,0 +1,6 @@
+[package]
+name = "raw-pointers-and-unsafe"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]

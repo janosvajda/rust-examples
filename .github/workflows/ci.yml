@@ -59,23 +59,41 @@ jobs:
       - run: cargo build --release
       - run: node run.mjs
 
-  asm:
-    name: Inline asm (${{ matrix.os }})
+  hello-syscall:
+    # System calls written by hand in inline assembly: different for every
+    # operating system and processor, so each one runs for real.
+    name: System calls by hand (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: asm/hello_asm
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo run
+      - run: cargo clippy -p hello-syscall -- -D warnings
+      - run: cargo run -p hello-syscall
+
+  aws-lambda-dynamodb:
+    # The user API's integration tests need a real DynamoDB. The official
+    # DynamoDB Local image runs next to the job; REQUIRE_DYNAMODB makes the
+    # tests fail, instead of silently skipping, if it can't be reached.
+    name: AWS Lambda user API (DynamoDB Local)
+    runs-on: ubuntu-latest
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local
+        ports:
+          - 8000:8000
+    env:
+      REQUIRE_DYNAMODB: "1"
+      DYNAMODB_ENDPOINT: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p aws-lambda-example-db
 
   mini:
     name: Mini (any LLVM 16+)

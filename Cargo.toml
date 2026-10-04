@@ -6,14 +6,13 @@ members = [
     "async-await/03-select-and-timeouts",
     "async-await/04-channels-and-shared-state",
     "async-await/05-async-pitfalls",
-    "aws-lambda-example-db",
-    "aws-lambda-example-hello-world",
+    "aws-examples/aws-lambda/hello-world",
+    "aws-examples/aws-lambda/user-api-dynamodb",
     "closures-and-iterators/01-closures",
     "closures-and-iterators/02-fn-traits",
     "closures-and-iterators/03-storing-and-returning-closures",
     "closures-and-iterators/04-iterator-toolbox",
     "closures-and-iterators/05-writing-iterators",
-    "closures_anonymous_functions",
     "concurrency/01-threads",
     "concurrency/02-message-passing",
     "concurrency/03-locks-and-condvars",
@@ -71,6 +70,18 @@ members = [
     "functional_programming/immutability",
     "functional_programming/pure-function-basic",
     "generics/generic_storage",
+    "games-and-graphics/bouncing-face",
+    "games-and-graphics/tic-tac-toe",
+    "how-computers-work/01-bits-and-bytes",
+    "how-computers-work/02-memory-and-addresses",
+    "how-computers-work/03-pointers-are-addresses",
+    "how-computers-work/04-a-tiny-cpu",
+    "how-computers-work/05-real-machine-code",
+    "how-computers-work/06-the-cache",
+    "how-computers-work/07-virtual-memory",
+    "how-computers-work/08-user-space-and-kernel-space",
+    "how-computers-work/08-user-space-and-kernel-space/hello-syscall",
+    "how-computers-work/09-why-rust",
     "macros/01-macro-rules-basics",
     "macros/02-repetition",
     "macros/03-generating-code",
@@ -93,13 +104,14 @@ members = [
     "ownership-and-borrowing/10-advanced-lifetimes",
     "ownership-and-borrowing/11-cow-and-borrowing-traits",
     "ownership-and-borrowing/12-borrow-checker-limits",
-    "raw_pointers",
-    "smart-pointers/box-and-arc",
+    "pointers-and-memory/01-stack-and-heap",
+    "pointers-and-memory/02-box",
+    "pointers-and-memory/03-rc-and-weak",
+    "pointers-and-memory/04-arc",
+    "pointers-and-memory/05-your-own-smart-pointer",
+    "pointers-and-memory/06-raw-pointers-and-unsafe",
     "software-engineering-with-ai/04-why-you-still-need-to-know",
     "software-engineering-with-ai/06-clippy-and-tests-as-guardrails",
-    "test-minifb",
-    "threads",
-    "tic-tac-toe",
     "traits-and-generics/01-traits",
     "traits-and-generics/02-generics",
     "traits-and-generics/03-trait-objects",
@@ -109,7 +121,6 @@ members = [
 ]
 
 # These are built on their own, from their own directories:
-# - asm/hello_asm: platform-specific inline assembly
 # - mini: a separate project with its own README (it runs LLVM's `llc`, 16 or newer)
 # - no-std-and-bare-metal/01-calling-the-c-library and 03-custom-allocator:
 #   no_std programs that need their own `panic = "abort"` profile, which Cargo
@@ -117,7 +128,6 @@ members = [
 # - no-std-and-bare-metal/05-webassembly-without-an-os: builds only for the
 #   wasm32-unknown-unknown target
 exclude = [
-    "asm/hello_asm",
     "mini",
     "no-std-and-bare-metal/01-calling-the-c-library",
     "no-std-and-bare-metal/03-custom-allocator",

@@ -21,7 +21,7 @@ The question for every dependency is: **is what it saves me worth what it costs 
 Adding one line to `Cargo.toml` is easy. Here's what comes with it:
 
 - **Code you trust without reading.** A dependency runs with all the permissions of your program. If it's malicious or buggy, so is your program.
-- **Its dependencies too.** One line can pull in dozens of crates. In this repository, the [Lambda example](../../aws-lambda-example-db/) lists **15** dependencies in its `Cargo.toml`, and builds **226** crates. That's normal for the AWS SDK, which does a lot, but each of those 226 is code someone trusted.
+- **Its dependencies too.** One line can pull in dozens of crates. In this repository, the [AWS Lambda user API](../../aws-examples/aws-lambda/user-api-dynamodb/) lists **15** dependencies in its `Cargo.toml`, and builds **220** crates. That's normal for the AWS SDK, which does a lot, but each of those 220 is code someone trusted.
 - **Supply-chain attacks.** Attackers target packages, because one compromised package reaches thousands of programs. In 2024, a backdoor was found in `xz`, a compression library used by many Linux systems. It had been planted over years by a contributor who had gained the maintainers' trust. Package registries, crates.io included, regularly remove packages whose names imitate popular ones.
 - **Abandonment.** Maintainers move on. `atty`, once used by a huge number of Rust programs to check "is this a terminal?", became unmaintained. Today the standard library does the same job.
 - **Build time, binary size, licences and breaking updates**, multiplied by every crate in the tree.
@@ -53,7 +53,7 @@ Some crates were essential years ago, and the standard library has since caught 
 | `lazy_static` or `once_cell` for a global computed once | `std::sync::LazyLock` and `OnceLock` |
 | `atty` to check for a terminal | `std::io::IsTerminal` |
 | `num_cpus` to count processor cores | `std::thread::available_parallelism` |
-| `cfg-if` to choose code per platform | `cfg_select!` (see the [asm example](../../asm/hello_asm/)) |
+| `cfg-if` to choose code per platform | `cfg_select!` (see [Real machine code](../../how-computers-work/05-real-machine-code/)) |
 | `fs2` or `fs4` for file locks | `File::lock`, `File::try_lock` (see [concurrency lesson 3](../../concurrency/03-locks-and-condvars/)) |
 | `thiserror` for one or two error types | implement `Display` and `Error` yourself (see the [error handling course](../../error-handling/03-custom-error-types/)) |
 
