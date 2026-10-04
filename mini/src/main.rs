@@ -1,10 +1,10 @@
-//! Command-line driver: parse source, emit LLVM IR, link into a native executable.
+//! Command-line driver: parse source, write LLVM IR, compile it with the
+//! installed LLVM, and link the result into a native executable.
 
 use anyhow::Context;
 use std::{env, fs, path::PathBuf};
 
-use mini::{ast::Program, codegen::{Codegen, host_triple}, link::link_exe, parser::Parser};
-use inkwell::context::Context as LlvmContext;
+use mini::{codegen, link::link_exe, llvm, parser::Parser};
 
 fn main() -> anyhow::Result<()> {
     // CLI expects `<input.mini> <output-exe>` for simplicity.
@@ -16,15 +16,20 @@ fn main() -> anyhow::Result<()> {
     let input = PathBuf::from(&args[0]);
     let out_exe = PathBuf::from(&args[1]);
 
-    let src = fs::read_to_string(&input).with_context(|| format!("reading {:?}", input))?;
-    let program: Program = Parser::parse(&src)?;
+    // 1. Check that an LLVM 16+ is installed before doing any work.
+    let llc = llvm::llc_program();
+    llvm::check_version(&llc)?;
 
-    let ctx = LlvmContext::create();
-    let triple = host_triple();
-    let mut cg = Codegen::new(&ctx, &triple);
-    cg.emit_program(&program)?;
+    // 2. Source text → syntax tree → LLVM IR text, saved next to the executable.
+    let src = fs::read_to_string(&input).with_context(|| format!("reading {:?}", input))?;
+    let program = Parser::parse(&src)?;
+    let ir = codegen::generate(&program)?;
+    let ll_file = out_exe.with_extension("ll");
+    fs::write(&ll_file, ir).with_context(|| format!("writing {:?}", ll_file))?;
+
+    // 3. LLVM IR → machine code (object file) → executable.
     let obj = out_exe.with_extension("o");
-    cg.write_object(&triple, &obj)?;
+    llvm::compile_to_object(&llc, &ll_file, &obj)?;
     link_exe(&obj, &out_exe)?;
 
     #[cfg(unix)]
@@ -36,6 +41,6 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Basic success message so users know where the binary landed.
-    println!("Built {}", out_exe.display());
+    println!("Built {} (LLVM IR: {})", out_exe.display(), ll_file.display());
     Ok(())
 }

@@ -3,9 +3,8 @@ name = "mini"
 version = "0.1.0"
 edition = "2021"
 
+# No LLVM crate here: Mini writes LLVM IR as text and runs the installed
+# LLVM's `llc` (version 16 or newer) to turn it into machine code.
 [dependencies]
-inkwell = { version = "0.4", features = ["llvm16-0"] }
 anyhow = "1"
-thiserror = "1"
 regex = "1"
-which = "6"
