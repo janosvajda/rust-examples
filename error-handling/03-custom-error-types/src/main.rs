@@ -177,6 +177,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::assert_matches;
 
     #[test]
     fn valid_config() {
@@ -188,15 +189,11 @@ mod tests {
 
     #[test]
     fn each_problem_is_its_own_variant() {
-        assert!(matches!(load_config("workers=2"), Err(ConfigError::Missing { key }) if key == "port"));
-        assert!(matches!(
-            load_config("port=x\nworkers=2"),
-            Err(ConfigError::NotANumber { .. })
-        ));
-        assert!(matches!(
-            load_config("port=80\nworkers=99"),
-            Err(ConfigError::OutOfRange { value: 99, max: 64, .. })
-        ));
+        // assert_matches! checks the shape of a value against a pattern, and on failure
+        // prints the value it actually got.
+        assert_matches!(load_config("workers=2"), Err(ConfigError::Missing { key }) if key == "port");
+        assert_matches!(load_config("port=x\nworkers=2"), Err(ConfigError::NotANumber { .. }));
+        assert_matches!(load_config("port=80\nworkers=99"), Err(ConfigError::OutOfRange { value: 99, max: 64, .. }));
     }
 
     #[test]
@@ -215,7 +212,7 @@ mod tests {
     #[test]
     fn question_mark_converts_with_from() {
         let error = start_server("/no/such/file").unwrap_err();
-        assert!(matches!(error, AppError::Io(_)));
+        assert_matches!(error, AppError::Io(_));
     }
 
     #[test]

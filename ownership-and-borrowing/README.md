@@ -36,13 +36,13 @@ Everything else in this course is these rules applied to real code.
 | 3 | [The borrowing rules](03-borrowing-rules/) | "many readers or one writer", how long a borrow lasts, *why* the rule exists, reborrows |
 | 4 | [Slices](04-slices/) | `&str` and `&[T]`, why functions should take them, byte positions in UTF-8 text |
 | 5 | [Lifetimes](05-lifetimes/) | dangling references, `'a` annotations, the elision rules, structs holding references, `'static` |
-| 6 | [Borrowing in practice](06-borrowing-in-practice/) | struct fields, `split_at_mut`, the three kinds of loop, closures, `mem::take` |
+| 6 | [Borrowing in practice](06-borrowing-in-practice/) | struct fields, `split_at_mut` and `get_disjoint_mut`, the three kinds of loop, closures, `mem::take` |
 | 7 | [Interior mutability](07-interior-mutability/) | `Cell`, `RefCell` and `Rc<RefCell<T>>`: borrow checking at runtime |
 | 8 | [Threads and borrowing](08-threads-and-borrowing/) | why Rust has no data races, `Send` and `Sync`, scoped threads, `Arc`, `Mutex`, `RwLock` |
 | 9 | [Borrowing in patterns](09-borrowing-in-patterns/) | `match` and `if let` on references, `ref`, partial moves, `as_ref` / `as_mut` / `as_deref` |
 | 10 | [Advanced lifetimes](10-advanced-lifetimes/) | method results tied to data instead of `self`, several lifetimes, `dyn Trait + 'a`, `impl Trait + use<>`, `for<'a>` |
 | 11 | [Cow and the borrowing traits](11-cow-and-borrowing-traits/) | `Cow`, why `HashMap<String, _>` accepts `&str`, `AsRef`, `Deref` and deref coercion |
-| 12 | [Where the borrow checker is too strict](12-borrow-checker-limits/) | correct code that's still rejected, self-referential structs, and the standard workarounds |
+| 12 | [Where the borrow checker is too strict](12-borrow-checker-limits/) | correct code that's still rejected, self-referential structs, and the standard workarounds, including `push_mut` |
 
 Read them in order. Each lesson builds on the one before. Lessons 1–7 are the essentials; 8–12 go deeper.
 

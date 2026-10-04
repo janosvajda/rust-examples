@@ -87,6 +87,33 @@ The escape hatch: add `where Self: Sized` to such a method. It then can't be cal
 
 (The older name for "dyn compatible" is *object safe*. You'll still see it in documentation.)
 
+## From a subtrait object to a supertrait object
+
+A trait can require another one (a **supertrait**, covered in [lesson 6](../06-advanced-traits/)):
+
+```rust
+trait Paintable: Shape {
+    fn colour(&self) -> &'static str;
+}
+```
+
+Every `Paintable` is also a `Shape`, so a `&dyn Paintable` can be used wherever a `&dyn Shape` is expected. Rust converts it for you. This is called **upcasting**:
+
+```rust
+fn paint_and_describe(item: &dyn Paintable) -> String {
+    let shape: &dyn Shape = item;                // dyn Paintable → dyn Shape
+    format!("{} {}", item.colour(), print_dynamic(shape))
+}
+
+let painted: Vec<Box<dyn Paintable>> = …;
+let as_shapes: Vec<Box<dyn Shape>> = painted.into_iter().map(|p| p as Box<dyn Shape>).collect();
+total_area(&as_shapes)                           // a function written for any shape
+```
+
+It works with every pointer type: `&`, `&mut`, `Box`, `Rc`, `Arc`. It's cheap: the data isn't touched or copied. Only the vtable pointer changes, from the table of `Paintable` methods to the table of `Shape` methods.
+
+The other direction doesn't work this way. A `&dyn Shape` can't become a `&dyn Paintable`, because not every shape is paintable. Going "down" to a specific type needs the `Any` trait and a check that can fail (`downcast_ref`).
+
 ## Run it
 
 ```bash

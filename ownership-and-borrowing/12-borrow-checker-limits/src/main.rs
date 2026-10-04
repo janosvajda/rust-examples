@@ -85,6 +85,13 @@ fn duplicate_last(items: &mut Vec<i32>) {
     }
 }
 
+/// The other direction: add an item, then keep changing it. `push_mut` adds the
+/// item and returns a `&mut` to it, so there's no `last_mut().unwrap()` to find
+/// it again, and no way to accidentally change the wrong item.
+fn add_task<'a>(tasks: &'a mut Vec<String>, title: &str) -> &'a mut String {
+    tasks.push_mut(title.to_string())
+}
+
 // ---- 4. Data that points at itself: use indices (an arena) --------------------
 //
 // A graph where nodes reference each other can't be built from plain `&`
@@ -134,6 +141,10 @@ fn main() {
     let mut items = vec![1, 2, 3];
     duplicate_last(&mut items);
     println!("    {items:?}");
+    let mut tasks = vec![String::from("buy milk")];
+    let new_task = add_task(&mut tasks, "call Ana");
+    new_task.push_str(" (urgent)"); // keep changing the item we just added
+    println!("    {tasks:?}");
 
     println!("\n4. Cycles: indices instead of references");
     let mut graph = Graph { names: vec![], edges: vec![] };
@@ -182,6 +193,13 @@ mod tests {
         let mut empty: Vec<i32> = vec![];
         duplicate_last(&mut empty);
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn push_mut_returns_the_new_item() {
+        let mut tasks = vec![String::from("a")];
+        add_task(&mut tasks, "b").push('!');
+        assert_eq!(tasks, ["a", "b!"]);
     }
 
     #[test]

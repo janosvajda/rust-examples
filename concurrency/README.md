@@ -12,7 +12,7 @@ Every compiler error and panic message quoted in these READMEs is the real outpu
 |---|---|---|
 | 1 | [Threads](01-threads/) | `spawn` and `join`, `move`, scoped threads, panics in threads, how many threads to use |
 | 2 | [Message passing](02-message-passing/) | `mpsc` channels, many producers, closing a channel, backpressure, a worker pool |
-| 3 | [Locks and condition variables](03-locks-and-condvars/) | `Arc<Mutex<T>>`, poisoning, `RwLock`, `Condvar`, `Barrier`, avoiding deadlocks |
+| 3 | [Locks and condition variables](03-locks-and-condvars/) | `Arc<Mutex<T>>`, poisoning, `RwLock`, `Condvar`, `Barrier`, file locks between programs, avoiding deadlocks |
 | 4 | [Atomics](04-atomics/) | lock-free counters and flags, `compare_exchange`, memory `Ordering` explained |
 | 5 | [Data parallelism with rayon](05-data-parallelism/) | `par_iter`, parallel sort, `rayon::join`, when parallelism doesn't pay |
 

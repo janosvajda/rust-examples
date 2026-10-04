@@ -100,6 +100,39 @@ fn parse_shape(text: &str) -> Option<Box<dyn Shape>> {
 // `-> Self` needs to know the concrete type's size at compile time, which a
 // trait object hides. Generic methods (`fn f<T>(&self)`) are ruled out too.
 
+// ---- 5. A trait object of a subtrait can become a trait object of its supertrait --------
+
+/// Every `Paintable` is also a `Shape` (a supertrait, see lesson 6).
+trait Paintable: Shape {
+    fn colour(&self) -> &'static str;
+}
+
+struct ColouredSquare {
+    side: f64,
+    colour: &'static str,
+}
+
+impl Shape for ColouredSquare {
+    fn name(&self) -> &'static str {
+        "coloured square"
+    }
+    fn area(&self) -> f64 {
+        self.side * self.side
+    }
+}
+
+impl Paintable for ColouredSquare {
+    fn colour(&self) -> &'static str {
+        self.colour
+    }
+}
+
+/// Takes `&dyn Paintable`, and passes it on where a `&dyn Shape` is expected.
+fn paint_and_describe(item: &dyn Paintable) -> String {
+    let shape: &dyn Shape = item; // upcasting: dyn Paintable → dyn Shape
+    format!("{} {}", item.colour(), print_dynamic(shape))
+}
+
 fn main() {
     println!("1. One Vec, three different types");
     let shapes: Vec<Box<dyn Shape>> = vec![
@@ -128,6 +161,18 @@ fn main() {
     println!("\n4. What a trait object is made of");
     println!("    &Square:    {} bytes (one pointer)", size_of::<&Square>());
     println!("    &dyn Shape: {} bytes (pointer to the data + pointer to the vtable)", size_of::<&dyn Shape>());
+
+    println!("\n5. Upcasting: a dyn Paintable can be used as a dyn Shape");
+    let painted: Vec<Box<dyn Paintable>> = vec![
+        Box::new(ColouredSquare { side: 1.0, colour: "red" }),
+        Box::new(ColouredSquare { side: 2.0, colour: "blue" }),
+    ];
+    for item in &painted {
+        println!("    {}", paint_and_describe(item.as_ref()));
+    }
+    // Box<dyn Paintable> → Box<dyn Shape>, so they fit functions written for any shape.
+    let as_shapes: Vec<Box<dyn Shape>> = painted.into_iter().map(|p| p as Box<dyn Shape>).collect();
+    println!("    total area as shapes: {:.2}", total_area(&as_shapes));
 }
 
 #[cfg(test)]
@@ -161,5 +206,13 @@ mod tests {
     fn trait_object_is_a_fat_pointer() {
         assert_eq!(size_of::<&dyn Shape>(), 2 * size_of::<usize>());
         assert_eq!(size_of::<&Square>(), size_of::<usize>());
+    }
+
+    #[test]
+    fn upcasting_to_the_supertrait() {
+        let painted: Box<dyn Paintable> = Box::new(ColouredSquare { side: 3.0, colour: "green" });
+        assert_eq!(paint_and_describe(painted.as_ref()), "green coloured square with area 9.00");
+        let shape: Box<dyn Shape> = painted; // Box<dyn Paintable> → Box<dyn Shape>
+        assert_eq!(shape.area(), 9.0);
     }
 }

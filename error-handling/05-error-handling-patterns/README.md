@@ -37,7 +37,7 @@ You have a list of inputs, and each one can fail. Three choices, depending on wh
 
 `collect` into a `Result` is the surprising one: an iterator of `Result<T, E>` can be collected straight into `Result<Vec<T>, E>`.
 
-## 3. `let … else`
+## 3. `let … else`, let chains and `if let` guards
 
 ```rust
 let Some(name) = users.get(&id) else {
@@ -47,6 +47,47 @@ let Some(name) = users.get(&id) else {
 ```
 
 Binds the value if the pattern matches, otherwise runs the `else` block, which **must** leave the current function or loop (`return`, `break`, `continue`, or a panic). It keeps the "happy path" unindented, without nesting the rest of the function inside an `if let`.
+
+### Several steps in one condition: let chains
+
+Often a value is only useful after several steps, each of which can fail: it must exist, it must parse, and it must be in range. Nested `if let`s march to the right:
+
+```rust
+if let Some(text) = settings.get("admin_port") {
+    if let Ok(port) = text.parse::<u16>() {
+        if port >= 1024 {
+            …
+```
+
+A **let chain** joins them with `&&` into one condition:
+
+```rust
+if let Some(text) = settings.get("admin_port")
+    && let Ok(port) = text.trim().parse::<u16>()
+    && port >= 1024
+{
+    Some(port)
+} else {
+    None
+}
+```
+
+The steps run from left to right, and the first one that fails sends you to `else`. Every name bound along the way (`text`, `port`) can be used in the steps after it and in the body. Let chains work in `if` and `while`, and need edition 2024.
+
+### A match arm that needs one more step: `if let` guards
+
+A match guard (`if condition`) can also be an `if let`. Then the arm only applies when that extra pattern matches too, and its bindings can be used in the arm:
+
+```rust
+match input.split_once(' ') {
+    Some(("wait", seconds)) if let Ok(n) = seconds.parse::<u32>() => format!("waiting {n} s"),
+    Some(("wait", seconds)) => format!("`{seconds}` is not a number of seconds"),
+    Some((command, _)) => format!("unknown command `{command}`"),
+    None => format!("`{input}` needs an argument"),
+}
+```
+
+If `seconds` doesn't parse, the first arm doesn't apply, and matching simply continues with the next one, which reports the problem. Without the guard, the parsing and its error handling would have to be squeezed inside the arm's body.
 
 ## 4. Fallbacks
 
@@ -77,6 +118,7 @@ Some failures are temporary: a busy server, a dropped connection. `retry` calls 
 | a library: callers need to tell errors apart | your own enum, with `thiserror` |
 | an application: report clearly what went wrong | `anyhow` with `.context(…)` |
 | transform or combine results | `map`, `map_err`, `and_then`, `collect`, `let … else` |
+| several fallible steps in one condition | let chains: `if let … && let … && …` |
 
 ## Run it
 

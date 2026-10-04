@@ -71,6 +71,34 @@ while let Some(result) = set.join_next().await {
 
 Use a `JoinSet` when the number of tasks is only known at runtime. `join_next()` hands back results **in the order they finish**, not the order they were started. The demo starts Oslo, Lisbon, Rome, Amsterdam and gets Rome first, because the shortest name is the fastest fake download.
 
+## Async closures: passing async work to a function
+
+A function can take async work as a parameter, just as it can take a closure. An **async closure** is written `async |args| body`, and a function accepts one with the `AsyncFn` traits, the async counterparts of `Fn`, `FnMut` and `FnOnce`:
+
+```rust
+async fn compare<T>(a: &str, b: &str, fetch: impl AsyncFn(&str) -> T) -> (T, T) {
+    tokio::join!(fetch(a), fetch(b))         // call it twice, run both at once
+}
+
+let note = String::from("checked just now");
+let (rome, budapest) = compare("Rome", "Budapest", async |city| {
+    format!("{} ({note})", fetch_weather(city).await)
+})
+.await;
+```
+
+Calling `fetch(a)` gives a future, which you `.await` (or join, as here). Two things make async closures comfortable:
+- **They can borrow.** The future may borrow the closure's captured variables (`note`) **and** its arguments (`city`). A plain closure that returns an `async move { … }` block can't easily do either: the block would have to own everything it uses.
+- **`AsyncFn` is called through `&self`**, so the same closure can be called several times, even concurrently, as `compare` does with `join!`.
+
+| Trait | Can be called | Like |
+|---|---|---|
+| `AsyncFn` | many times, even at once | `Fn` |
+| `AsyncFnMut` | many times, one after another | `FnMut` |
+| `AsyncFnOnce` | once | `FnOnce` |
+
+The [closures course](../../closures-and-iterators/02-fn-traits/) explains the `Fn` traits these mirror.
+
 ## Concurrency vs parallelism
 
 - **Concurrency:** several tasks *in progress* at the same time, taking turns. One thread is enough. That's `join!`.

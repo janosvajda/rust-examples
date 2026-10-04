@@ -62,7 +62,7 @@ Both built with the same release settings (`opt-level = 3`, LTO, `panic = "abort
 | Program | Size |
 |---|---|
 | `println!("Hello World!")` with `std` | **302,432 bytes** |
-| this `no_std` program, doing six different things | **50,320 bytes** |
+| this `no_std` program, doing seven different things | **50,336 bytes** |
 
 About **6× smaller**, while doing more. Both use the operating system's C library as a shared library (`libSystem` on macOS), so the difference is Rust's standard library itself. On a microcontroller with 32 KB of flash memory, that difference decides whether the program fits at all.
 
@@ -78,6 +78,7 @@ Each C function is wrapped in a **safe** Rust function. The rest of the program 
 | 4 | `malloc` / `free` | `sum_of_malloc_buffer(count) -> Option<i64>` | manual heap memory, as in C |
 | 5 | `snprintf` | `format_temperature(&mut [u8; 32], c_int) -> &CStr` | formatting into a stack buffer, without `format!` |
 | 6 | `getenv`, `getpid` | `env_var_length(&CStr) -> Option<usize>` | the environment and the process |
+| 7 | *(written in Rust)* | `unsafe extern "C" fn sum_ints(count: c_int, ...) -> c_int` | a **variadic** function defined in Rust, callable from C |
 
 ```text
 no_std Rust, talking directly to the C library
@@ -89,6 +90,7 @@ no_std Rust, talking directly to the C library
 5. snprintf: "21 degrees"
 6. getenv: HOME is set (15 characters)
    getpid: this process is 90091, started with 1 argument(s)
+7. variadic Rust function: sum_ints(4, 10, 20, 30, 40) = 100
 ```
 
 ## Key ideas, explained
@@ -134,6 +136,23 @@ libc::qsort(ptr, len, size_of::<i32>(), Some(compare_ints));
 ### 5. Variadic functions: `printf` can't be checked
 
 `printf(format, ...)` takes **any number of arguments of any type**. The format string tells C what to expect, but the Rust compiler can't verify it. Each `%` code must match its argument's C type exactly: `%d` for `c_int`, `%zu` for `usize` (`size_t`), `%lld` for `i64`, `%s` for a C string. A mismatch is undefined behaviour, not a compile error. This is one of the things that makes C dangerous and Rust's `format!` safe.
+
+Rust can also **define** a variadic function, for example to provide one that existing C code expects to call:
+
+```rust
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sum_ints(count: c_int, mut numbers: ...) -> c_int {
+    let mut total = 0;
+    for _ in 0..count {
+        total += unsafe { numbers.next_arg::<c_int>() };
+    }
+    total
+}
+```
+
+`...` must be the last parameter. Inside the function it's a `core::ffi::VaList`, C's `va_list`, and each `next_arg::<T>()` reads the next argument **as type `T`**. Nothing records how many arguments were passed or what their types are, so the function needs another way to know, here the `count` parameter, just like `printf` uses its format string. That's why `next_arg` is `unsafe`, and why calling `sum_ints` is `unsafe` too: the caller promises that `count` matches the arguments.
+
+One C rule matters here: in a variadic call, small integer types are **promoted** to `int`, and `float` to `double`. So read a `c_int` even if the caller passed a `char` or `short`, and a `c_double` for a `float`.
 
 ### 6. What a `no_std` binary must provide itself
 

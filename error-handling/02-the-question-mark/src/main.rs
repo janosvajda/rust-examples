@@ -41,6 +41,8 @@ fn parse_line(line: &str) -> Result<(String, u32), String> {
     let (key, value) = line
         .split_once('=')
         .ok_or(format!("missing '=' in \"{line}\""))?; // Option → Result, then `?`
+    let has_name = !key.trim().is_empty();
+    has_name.ok_or(format!("missing name before '=' in \"{line}\""))?; // bool → Result, then `?`
     let number = value
         .trim()
         .parse::<u32>()
@@ -94,6 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("    {:?}", parse_settings("width=80\nheight=24"));
     println!("    {:?}", parse_settings("width=80\nheight"));
     println!("    {:?}", parse_settings("width=80\nheight=tall"));
+    println!("    {:?}", parse_settings("width=80\n=24"));
 
     println!("\n3. `?` on Option");
     println!("    {:?}", initials("Grace Brewster Hopper"));
@@ -127,6 +130,12 @@ mod tests {
     fn first_bad_line_stops_parsing() {
         let error = parse_settings("a=1\nb\nc=oops").unwrap_err();
         assert_eq!(error, "missing '=' in \"b\"");
+    }
+
+    #[test]
+    fn a_condition_can_be_checked_with_question_mark() {
+        assert_eq!(parse_line("=5"), Err(String::from("missing name before '=' in \"=5\"")));
+        assert_eq!(parse_line("x=5"), Ok((String::from("x"), 5)));
     }
 
     #[test]

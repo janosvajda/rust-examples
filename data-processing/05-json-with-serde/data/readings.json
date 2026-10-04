@@ -1,0 +1,7 @@
+[
+  { "sensorId": "A12", "takenAt": "2024-09-10T12:00", "value": 23.5, "unit": "celsius", "location": "Lab 1" },
+  { "sensorId": "B22", "takenAt": "2024-09-10T12:05", "value": 760, "unit": "mmhg", "location": "Lab 2", "calibrated": true },
+  { "sensorId": "C33", "takenAt": "2024-09-10T12:10", "value": 7.1, "unit": "ph", "location": "Lab 3", "note": "probe cleaned" },
+  { "sensorId": "A12", "takenAt": "2024-09-10T12:15", "value": 24.1, "unit": "celsius", "location": "Lab 1" },
+  { "sensorId": "C33", "takenAt": "2024-09-10T12:25", "value": 7.4, "unit": "ph", "location": "Lab 3" }
+]

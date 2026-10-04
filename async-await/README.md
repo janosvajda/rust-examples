@@ -17,7 +17,7 @@ Every compiler error and warning quoted in these READMEs is the real output of R
 | # | Lesson | You'll learn |
 |---|---|---|
 | 1 | [What async is](01-what-is-async/) | futures, laziness, `.await`, polling, why you need a runtime, async vs threads |
-| 2 | [Running things concurrently](02-running-concurrently/) | `join!`, `try_join!`, `tokio::spawn`, `JoinSet`, concurrency vs parallelism |
+| 2 | [Running things concurrently](02-running-concurrently/) | `join!`, `try_join!`, `tokio::spawn`, `JoinSet`, async closures and `AsyncFn`, concurrency vs parallelism |
 | 3 | [select and timeouts](03-select-and-timeouts/) | racing futures, deadlines, stop signals, cancellation by dropping |
 | 4 | [Channels and shared state](04-channels-and-shared-state/) | `mpsc`, `oneshot`, backpressure, `Arc<Mutex<T>>`, `std` vs `tokio` mutex |
 | 5 | [Async pitfalls](05-async-pitfalls/) | blocking the runtime, locks across `.await`, `Send`, recursion, forgotten `.await` |

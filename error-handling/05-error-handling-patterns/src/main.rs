@@ -63,6 +63,31 @@ fn greeting(users: &HashMap<u32, String>, id: u32) -> String {
     format!("Hello, {name}!")
 }
 
+/// Let chains: several `let` patterns and conditions in one `if`, joined with `&&`.
+/// Each step runs only if the one before it succeeded, and every binding
+/// (`text`, `port`) can be used in the steps after it and in the body.
+fn admin_port(settings: &HashMap<&str, &str>) -> Option<u16> {
+    if let Some(text) = settings.get("admin_port")
+        && let Ok(port) = text.trim().parse::<u16>()
+        && port >= 1024
+    {
+        Some(port)
+    } else {
+        None
+    }
+}
+
+/// `if let` guards: a match arm that applies only when one more pattern matches.
+/// If the guard's pattern fails, matching simply continues with the next arm.
+fn run_command(input: &str) -> String {
+    match input.split_once(' ') {
+        Some(("wait", seconds)) if let Ok(n) = seconds.parse::<u32>() => format!("waiting {n} s"),
+        Some(("wait", seconds)) => format!("`{seconds}` is not a number of seconds"),
+        Some((command, _)) => format!("unknown command `{command}`"),
+        None => format!("`{input}` needs an argument"),
+    }
+}
+
 // ---- 4. Fallbacks: default values and alternatives ------------------------------
 
 fn port_from(env_value: Option<&str>) -> u16 {
@@ -111,10 +136,16 @@ fn main() {
     println!("    keep going: good = {good:?}, problems = {problems:?}");
     println!("    skip failures, sum the rest: {}", sum_valid(&inputs));
 
-    println!("\n3. let … else");
+    println!("\n3. let … else, let chains, if let guards");
     let users = HashMap::from([(1, String::from("Ana"))]);
     println!("    {}", greeting(&users, 1));
     println!("    {}", greeting(&users, 2));
+    let settings = HashMap::from([("admin_port", "8443"), ("name", "demo")]);
+    println!("    let chain, admin_port: {:?}", admin_port(&settings));
+    println!("    let chain, not set:    {:?}", admin_port(&HashMap::new()));
+    for input in ["wait 5", "wait soon", "jump 3", "wait"] {
+        println!("    if let guard: {input:>9} → {}", run_command(input));
+    }
 
     println!("\n4. Fallbacks");
     println!("    port from \"9000\": {}", port_from(Some("9000")));
@@ -166,6 +197,22 @@ mod tests {
     fn let_else_falls_back() {
         let users = HashMap::new();
         assert_eq!(greeting(&users, 9), "Hello, guest!");
+    }
+
+    #[test]
+    fn let_chain_needs_every_step_to_succeed() {
+        assert_eq!(admin_port(&HashMap::from([("admin_port", "8443")])), Some(8443));
+        assert_eq!(admin_port(&HashMap::from([("admin_port", "80")])), None); // below 1024
+        assert_eq!(admin_port(&HashMap::from([("admin_port", "high")])), None); // not a number
+        assert_eq!(admin_port(&HashMap::new()), None); // missing
+    }
+
+    #[test]
+    fn if_let_guard_falls_through_to_the_next_arm() {
+        assert_eq!(run_command("wait 5"), "waiting 5 s");
+        assert_eq!(run_command("wait soon"), "`soon` is not a number of seconds");
+        assert_eq!(run_command("jump 3"), "unknown command `jump`");
+        assert_eq!(run_command("wait"), "`wait` needs an argument");
     }
 
     #[test]

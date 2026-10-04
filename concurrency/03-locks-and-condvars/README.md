@@ -71,6 +71,32 @@ barrier.wait();     // blocks until 3 threads have called wait()
 
 Useful when work happens in phases: every thread must finish phase 1 before any starts phase 2. The demo's test checks that all three "phase 1" lines come before any "phase 2" line.
 
+## File locks: coordinating with other programs
+
+A `Mutex` only protects data inside one program. Sometimes several **programs** share a file: two copies of a tool writing the same log, a background job and a command-line tool updating the same data file. For that, the operating system offers **file locks**, and `File` has them built in:
+
+```rust
+fn append_line(path: &Path, line: &str) -> io::Result<()> {
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+    file.lock()?;                    // wait until no one else holds a lock
+    writeln!(file, "{line}")?;
+    Ok(())                           // the lock is released when the file is closed
+}
+```
+
+| Method | Does |
+|---|---|
+| `lock()` | exclusive lock: waits until nobody else holds any lock on the file |
+| `lock_shared()` | shared lock: many readers at once, but no exclusive lock meanwhile, like `RwLock` |
+| `try_lock()` / `try_lock_shared()` | the same, but returns an error right away instead of waiting |
+| `unlock()` | release early; closing the file releases it too |
+
+The demo has four threads that each open the file **separately**, exactly as separate programs would, and append 25 lines each. All 100 lines arrive complete. While one handle holds the lock, another handle's `try_lock()` reports `Err("WouldBlock")`.
+
+Two things to know:
+- File locks are **advisory** on most systems: they only coordinate programs that also take the lock. A program that ignores locking can still write to the file.
+- The lock belongs to the open file, not to a thread, so the usual way to release it is simply to let the `File` go out of scope.
+
 ## Deadlocks
 
 Rust prevents data races, but **not deadlocks**. If thread A holds lock 1 and waits for lock 2, while thread B holds lock 2 and waits for lock 1, both wait forever. The standard defences:

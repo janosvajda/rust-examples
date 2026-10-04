@@ -87,6 +87,29 @@ A panic stops the current thread and prints the message, plus a backtrace if you
 
 **Rule of thumb:** if a *user* or the *outside world* can cause it, return a `Result`. If only a *programmer mistake* can cause it, panicking is acceptable.
 
+## Overflow: decide what happens when a number gets too big
+
+A `u8` holds 0 to 255. What should `250 + 10` be? Rust lets you say exactly what you mean:
+
+| Method | `250u8 + 10` gives | Use it when |
+|---|---|---|
+| `checked_add` | `None` | overflow is an expected case you want to handle: a `Result`-style answer |
+| `saturating_add` | `255` | stopping at the limit makes sense, like a volume knob |
+| `wrapping_add` | `4` | wrapping around is what you want, like hashes or ring buffers |
+| `strict_add` | **panics**: `attempt to add with overflow` | overflow can only be a bug |
+| plain `+` | panics in a **debug** build, wraps to `4` in a **release** build | the everyday default |
+
+The last row is the surprise: plain `+` checks for overflow only in debug builds. In a release build, the check is removed for speed, and the value silently wraps around. `strict_add`, `strict_sub` and `strict_mul` panic in **every** build:
+
+```rust
+/// Booking more seats than are free is a bug in the caller.
+fn seats_left(free: u8, booked: u8) -> u8 {
+    free.strict_sub(booked)          // seats_left(5, 8) panics, in debug and release
+}
+```
+
+With plain `-`, `seats_left(5, 8)` would panic while you test (a debug build), and quietly return `253` seats in production (a release build). The same rule as above applies: overflow caused by **input** deserves `checked_*` and a `Result`; overflow that only a **bug** can cause deserves `strict_*`.
+
 ## Run it
 
 ```bash
@@ -94,6 +117,6 @@ cargo run
 cargo test
 ```
 
-The tests use `#[should_panic]` to prove that `unwrap` on an error and a broken promise really do panic.
+The tests use `#[should_panic]` to prove that `unwrap` on an error, a broken promise and strict arithmetic really do panic.
 
 Next: [Lesson 2: The `?` operator](../02-the-question-mark/)

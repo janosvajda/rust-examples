@@ -31,6 +31,28 @@ Display: €19.99                     ← written by hand, shows what a person e
 
 Derive `Debug` on nearly every type, since it makes debugging and tests easier. Write `Display` only for types that have a natural human-readable form. Implementing `Display` also gives you `.to_string()`.
 
+### A one-off `Display` from a closure
+
+Sometimes you need a printable value just once: a list joined with commas, a receipt, a table row. Creating a struct and an `impl Display` for that is a lot of ceremony. `fmt::from_fn` turns a closure into a value that implements `Display` (and `Debug`):
+
+```rust
+fn receipt<'a>(items: &'a [(&'a str, Money)]) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        for (i, (name, price)) in items.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{name} {price}")?;
+        }
+        Ok(())
+    })
+}
+
+println!("{}", receipt(&items));     // coffee €2.50, cake €3.20
+```
+
+The closure has the same signature as `Display::fmt`. Unlike building a `String` first, nothing is allocated up front: the text goes straight into whatever is printing it, whether that's the terminal, a file or a `format!`.
+
 ## Operators are traits
 
 `a + b` is literally `a.add(b)` from the `Add` trait:

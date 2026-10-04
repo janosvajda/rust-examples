@@ -3,11 +3,65 @@
 use core::arch::asm;
 
 //
+// ---------- A naked function: a whole function written in assembly ----------
+// A normal function gets a prologue and epilogue from the compiler (saving
+// registers, setting up the stack). A naked function gets NOTHING: its body is
+// exactly the assembly you write, so it must follow the calling convention
+// itself, including the final `ret`. `extern "C"` says which convention:
+// where the arguments arrive and where the result must go.
+//
+// cfg_select! picks the first branch whose condition is true for the target
+// being compiled, like a `match` on the platform. Order matters: the Windows
+// branch must come before the general x86_64 one.
+//
+cfg_select! {
+    target_arch = "aarch64" => {
+        /// AArch64: arguments arrive in x0 and x1, the result goes in x0.
+        #[unsafe(naked)]
+        extern "C" fn add_numbers(a: u64, b: u64) -> u64 {
+            core::arch::naked_asm!(
+                "add x0, x0, x1",
+                "ret",
+            )
+        }
+    }
+    all(target_arch = "x86_64", target_os = "windows") => {
+        /// Windows x64: arguments arrive in rcx and rdx, the result goes in rax.
+        #[unsafe(naked)]
+        extern "C" fn add_numbers(a: u64, b: u64) -> u64 {
+            core::arch::naked_asm!(
+                "lea rax, [rcx + rdx]",
+                "ret",
+            )
+        }
+    }
+    target_arch = "x86_64" => {
+        /// x86_64 on macOS and Linux (System V): arguments in rdi and rsi, result in rax.
+        #[unsafe(naked)]
+        extern "C" fn add_numbers(a: u64, b: u64) -> u64 {
+            core::arch::naked_asm!(
+                "lea rax, [rdi + rsi]",
+                "ret",
+            )
+        }
+    }
+    _ => {
+        compile_error!("add_numbers needs assembly for this processor");
+    }
+}
+
+/// Called at the start of every `main` below, before the assembly "Hello, world!".
+fn naked_function_demo() {
+    println!("A naked function says: 40 + 2 = {}", add_numbers(40, 2));
+}
+
+//
 // ---------- macOS x86_64 (Darwin) ----------
 // Uses syscalls: write (0x2000004) and exit (0x2000001).
 //
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 fn main() {
+    naked_function_demo();
     let msg = b"Hello, world!\n";
     let ptr = msg.as_ptr();
     let len = msg.len();
@@ -40,6 +94,7 @@ fn main() {
 //
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn main() {
+    naked_function_demo();
     let msg = b"Hello, world!\n";
     let ptr = msg.as_ptr();
     let len = msg.len();
@@ -86,6 +141,7 @@ unsafe extern "system" {
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 fn main() {
+    naked_function_demo();
     const STD_OUTPUT_HANDLE: i32 = -11;
     let msg = b"Hello, world!\r\n";
     let mut written: u32 = 0;

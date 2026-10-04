@@ -44,6 +44,7 @@ Laziness is also why endless iterators are fine: `(0..).step_by(2).take(5)` only
 | `enumerate()` | pairs each item with its index: `(0, a), (1, b)…` |
 | `zip(other)` | pairs items from two iterators, stopping at the shorter one |
 | `windows(n)` *(slices)* | overlapping groups: `[1,2], [2,3], [3,4]` |
+| `array_windows()` *(slices)* | the same, as fixed-size arrays you can destructure: `.map(\|[a, b]\| b - a)` |
 | `chunks(n)` *(slices)* | non-overlapping groups: `[1,2], [3,4], [5]` |
 
 **Cut the stream**
@@ -65,6 +66,37 @@ Laziness is also why endless iterators are fine: `(0..).step_by(2).take(5)` only
 | `fold(start, f)` | anything: builds a result step by step |
 
 **Combine streams:** `chain(other)` (one after the other), `rev()` (backwards), `peekable()` (look at the next item without taking it).
+
+**Take items out of a collection**
+
+| Method | Does |
+|---|---|
+| `retain(f)` *(Vec, HashMap, …)* | keeps the items where `f` is true and drops the rest |
+| `extract_if(f)` *(Vec, HashMap, BTreeMap, …; a `Vec` also takes a range first)* | removes the items where `f` is true **and gives them to you** as an iterator |
+| `drain(range)` | removes a whole range and gives it to you |
+
+### Windows as arrays
+
+`windows(2)` gives slices, so you index into them: `w[1] - w[0]`. With `array_windows`, the window size is part of the type, so each window is an array, which you can take apart right in the closure's parameter:
+
+```rust
+let rising: Vec<bool> = visitors.array_windows().map(|[before, after]| after > before).collect();
+```
+
+The size comes from the pattern: `[a, b]` means windows of two, `[a, b, c]` windows of three. No index can be out of range.
+
+### Splitting a collection in two: `extract_if`
+
+`retain` keeps some items and **throws the others away**. Often you need the others too: take the urgent messages out of a queue to handle them first, move finished tasks to an archive. `extract_if` removes the matching items and hands them to you, in one pass:
+
+```rust
+let mut queue = vec!["urgent: server down", "lunch?", "urgent: invoice", "newsletter"];
+let urgent: Vec<&str> = queue.extract_if(.., |message| message.starts_with("urgent")).collect();
+// urgent: ["urgent: server down", "urgent: invoice"]
+// queue:  ["lunch?", "newsletter"]
+```
+
+For a `Vec`, the first argument limits where to look: `..` means everywhere, `..10` only the first ten items. The closure gets a `&mut` to each item, so it may even change the items it keeps.
 
 ## `collect` builds whatever you ask for
 

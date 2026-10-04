@@ -66,13 +66,13 @@ A twelve-lesson course on how Rust manages memory without a garbage collector. E
 3. [The borrowing rules](./ownership-and-borrowing/03-borrowing-rules/): many readers or one writer, and why.
 4. [Slices](./ownership-and-borrowing/04-slices/): `&str` and `&[T]`, borrowing part of a collection.
 5. [Lifetimes](./ownership-and-borrowing/05-lifetimes/): dangling references and `'a` annotations.
-6. [Borrowing in practice](./ownership-and-borrowing/06-borrowing-in-practice/): struct fields, loops, closures, `split_at_mut`, `mem::take`.
+6. [Borrowing in practice](./ownership-and-borrowing/06-borrowing-in-practice/): struct fields, loops, closures, `split_at_mut`, `get_disjoint_mut`, `mem::take`.
 7. [Interior mutability](./ownership-and-borrowing/07-interior-mutability/): `Cell`, `RefCell` and `Rc<RefCell<T>>`.
 8. [Threads and borrowing](./ownership-and-borrowing/08-threads-and-borrowing/): no data races, `Send` and `Sync`, scoped threads, `Arc` and `Mutex`.
 9. [Borrowing in patterns](./ownership-and-borrowing/09-borrowing-in-patterns/): `match` on references, partial moves, `as_ref`.
 10. [Advanced lifetimes](./ownership-and-borrowing/10-advanced-lifetimes/): several lifetimes, `dyn Trait + 'a`, `impl Trait + use<>`.
 11. [Cow and the borrowing traits](./ownership-and-borrowing/11-cow-and-borrowing-traits/): `Cow`, `Borrow`, `AsRef`, `Deref`.
-12. [Where the borrow checker is too strict](./ownership-and-borrowing/12-borrow-checker-limits/): correct code it rejects, and the workarounds.
+12. [Where the borrow checker is too strict](./ownership-and-borrowing/12-borrow-checker-limits/): correct code it rejects, and the workarounds, including `push_mut`.
 
 # Error handling
 A five-lesson course on how Rust handles failure without exceptions, from `panic!` to production-quality error types. Start with the [course overview](./error-handling/).
@@ -83,20 +83,20 @@ A five-lesson course on how Rust handles failure without exceptions, from `panic
   </a>
 </p>
 
-1. [panic vs Result](./error-handling/01-panic-vs-result/): bugs vs expected failures, `unwrap`, `expect` and safe fallbacks.
+1. [panic vs Result](./error-handling/01-panic-vs-result/): bugs vs expected failures, `unwrap`, `expect`, safe fallbacks, and overflow: `checked_*` vs `strict_*`.
 2. [The `?` operator](./error-handling/02-the-question-mark/): passing errors up, `ok_or`, `map_err`, `Box<dyn Error>`.
-3. [Custom error types](./error-handling/03-custom-error-types/): error enums, `Display`, `source()` chains, `From`.
+3. [Custom error types](./error-handling/03-custom-error-types/): error enums, `Display`, `source()` chains, `From`, testing with `assert_matches!`.
 4. [thiserror and anyhow](./error-handling/04-thiserror-and-anyhow/): the same without boilerplate; library vs application errors.
-5. [Everyday patterns](./error-handling/05-error-handling-patterns/): combinators, many results at once, `let … else`, retrying.
+5. [Everyday patterns](./error-handling/05-error-handling-patterns/): combinators, many results at once, `let … else`, let chains, `if let` guards, retrying.
 
 # Traits and generics
 A six-lesson course on writing code that works with many types, without inheritance. Start with the [course overview](./traits-and-generics/).
 
 1. [Traits](./traits-and-generics/01-traits/): defining and implementing traits, default methods, `impl Trait`, `derive`.
 2. [Generics](./traits-and-generics/02-generics/): generic functions and types, trait bounds, monomorphisation.
-3. [Trait objects](./traits-and-generics/03-trait-objects/): `dyn Trait`, vtables, static vs dynamic dispatch.
+3. [Trait objects](./traits-and-generics/03-trait-objects/): `dyn Trait`, vtables, static vs dynamic dispatch, upcasting to a supertrait.
 4. [Associated types and constants](./traits-and-generics/04-associated-types/): `type Item`, `const`, and generic traits.
-5. [The standard traits](./traits-and-generics/05-standard-traits/): `Display`, `Eq`, `Ord`, `Hash`, `Default`, `From`, operators.
+5. [The standard traits](./traits-and-generics/05-standard-traits/): `Display` (also from a closure with `fmt::from_fn`), `Eq`, `Ord`, `Hash`, `Default`, `From`, operators.
 6. [Advanced traits](./traits-and-generics/06-advanced-traits/): supertraits, blanket impls, the orphan rule, extension traits.
 
 # Async / await
@@ -109,7 +109,7 @@ A five-lesson course on async Rust with tokio: one thread, many tasks. Start wit
 </p>
 
 1. [What async is](./async-await/01-what-is-async/): futures, `.await`, polling, runtimes, async vs threads.
-2. [Running things concurrently](./async-await/02-running-concurrently/): `join!`, `tokio::spawn`, `JoinSet`.
+2. [Running things concurrently](./async-await/02-running-concurrently/): `join!`, `tokio::spawn`, `JoinSet`, async closures and `AsyncFn`.
 3. [select and timeouts](./async-await/03-select-and-timeouts/): racing futures, deadlines, cancellation.
 4. [Channels and shared state](./async-await/04-channels-and-shared-state/): `mpsc`, `oneshot`, `Arc<Mutex<T>>`.
 5. [Async pitfalls](./async-await/05-async-pitfalls/): blocking the runtime, locks across `.await`, recursion.
@@ -128,7 +128,7 @@ A five-lesson course on closures and iterators, from capturing variables to writ
 1. [Closures](./closures-and-iterators/01-closures/): syntax, capturing, unique closure types, function pointers.
 2. [`Fn`, `FnMut` and `FnOnce`](./closures-and-iterators/02-fn-traits/): which closure implements which, and which to ask for.
 3. [Storing and returning closures](./closures-and-iterators/03-storing-and-returning-closures/): `impl Fn`, `Box<dyn Fn>`, callbacks, memoisation.
-4. [The iterator toolbox](./closures-and-iterators/04-iterator-toolbox/): laziness, adapters, consumers, `collect` into anything.
+4. [The iterator toolbox](./closures-and-iterators/04-iterator-toolbox/): laziness, adapters, consumers, `collect` into anything, `array_windows`, `extract_if`.
 5. [Writing your own iterators](./closures-and-iterators/05-writing-iterators/): `from_fn`, `impl Iterator`, `IntoIterator`, custom adapters.
 
 # Concurrency with threads
@@ -136,14 +136,14 @@ A five-lesson course on fearless concurrency: threads, channels, locks, atomics 
 
 1. [Threads](./concurrency/01-threads/): `spawn`, `join`, `move`, scoped threads, panics in threads.
 2. [Message passing](./concurrency/02-message-passing/): `mpsc` channels, backpressure, a worker pool.
-3. [Locks and condition variables](./concurrency/03-locks-and-condvars/): `Arc<Mutex<T>>`, poisoning, `RwLock`, `Condvar`, `Barrier`.
+3. [Locks and condition variables](./concurrency/03-locks-and-condvars/): `Arc<Mutex<T>>`, poisoning, `RwLock`, `Condvar`, `Barrier`, file locks shared with other programs.
 4. [Atomics](./concurrency/04-atomics/): lock-free counters, `compare_exchange`, memory ordering.
 5. [Data parallelism with rayon](./concurrency/05-data-parallelism/): `par_iter`, parallel sort, measured speed-ups.
 
 # no_std and bare-metal Rust
 A five-lesson course on Rust without the standard library: the code that runs on microcontrollers, in kernels and firmware, and in tiny WebAssembly modules. Every lesson runs on an ordinary computer. Start with the [course overview](./no-std-and-bare-metal/).
 
-1. [Calling the C library](./no-std-and-bare-metal/01-calling-the-c-library/): `no_std` + `no_main`, safe wrappers around C functions; a binary 6× smaller than `std`'s hello world.
+1. [Calling the C library](./no-std-and-bare-metal/01-calling-the-c-library/): `no_std` + `no_main`, safe wrappers around C functions, a variadic function written in Rust; a binary 6× smaller than `std`'s hello world.
 2. [A core-only library](./no-std-and-bare-metal/02-core-only-library/): fixed-capacity collections, CRC-32 at compile time, parsing binary packets, formatting without a heap.
 3. [A custom allocator](./no-std-and-bare-metal/03-custom-allocator/): a bump allocator that brings back `Vec`, `String` and `format!`.
 4. [Memory-mapped registers](./no-std-and-bare-metal/04-memory-mapped-registers/): volatile access, register layouts, bit fields and a UART driver.
@@ -176,7 +176,7 @@ A ten-lesson course on writing software when AI can write much of the code: what
 - [Test minifb - Human Face mouse follower](./test-minifb/): Abstract human face follow the mouse movment in a window.
 
 # Assembly
-- [Hello asm](./asm/hello_asm/): Prints "Hello, world!" using inline assembly (`asm!`) on macOS x86_64, macOS Apple Silicon and Windows x86_64.
+- [Hello asm](./asm/hello_asm/): Prints "Hello, world!" using inline assembly (`asm!`) on macOS x86_64, macOS Apple Silicon and Windows x86_64, plus a naked function written entirely in assembly, chosen per platform with `cfg_select!`.
 
 # Smart pointers
 - [Box and Arc](./smart-pointers/box-and-arc/): Shows `Box<T>` for recursive types and trait objects, and `Arc<T>` / `Arc<Mutex<T>>` for sharing data between threads.
@@ -236,7 +236,17 @@ Design patterns are proven, reusable solutions to problems that come up again an
 - [Imperative & Declarative paradigm - Fibonacci algorithm](./math/fibonacci/): Imperative & Declarative paradigm example.
 
 # Data processing
-- [CSV](./data-processing/csv-processing/): Basic implementation of CSV processing and a data pipeline.
+A nine-lesson course on reading, cleaning, summarising and reporting on data, following lab sensor readings from a CSV file to a parallel pipeline, live network data, joins and time windows. Start with the [course overview](./data-processing/).
+
+1. [CSV by hand](./data-processing/01-csv-by-hand/): parsing into structs, quoted fields, failing loudly instead of silently.
+2. [Big files: streaming](./data-processing/02-streaming-big-files/): a 60 MB file in about 1.7 MB of memory.
+3. [Cleaning and validation](./data-processing/03-cleaning-and-validation/): units, missing values, impossible values, duplicates, and accounting for every row.
+4. [Aggregation and statistics](./data-processing/04-aggregation-and-statistics/): group by, mean vs median, percentiles, moving averages.
+5. [JSON with serde](./data-processing/05-json-with-serde/): typed JSON in and out, with precise error messages.
+6. [A processing pipeline](./data-processing/06-processing-pipeline/): small stages, fold and merge, and the same code on every core with rayon.
+7. [Live data over the network](./data-processing/07-live-data-over-the-network/): a TCP client and server that survive slow and missing servers, dropped connections, messy data, duplicates and losses, with authentication, authorization and bounded memory.
+8. [Joining datasets](./data-processing/08-joining-datasets/): inner, left and anti joins, and why an index beats nested loops.
+9. [Time and windows](./data-processing/09-time-and-windows/): timestamps as numbers, gaps in the data, tumbling windows.
 
 # Data structures
 Written from scratch with detailed doc comments, ASCII diagrams and complexity tables. See the [data structures overview](./data-structures/) for a suggested learning order.
@@ -259,9 +269,6 @@ The Stack and Linked list examples are also **optimised**. Their READMEs explain
 
 # Network
 - [Simple HTTP server](./network/basic-http-server/): It shows how to create a very simple HTTP server in Rust without using external library.
-
-# Streams
-- [Simple streaming](./streams/sensor_stream/): It shows how to create a very simple HTTP sensor data writing and reading solution.
 
 # Programming fun
 - [Mini](./mini/): Mini programming language designed in Rust. It shows how can we use LLVM in Rust.

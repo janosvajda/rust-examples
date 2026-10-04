@@ -25,6 +25,21 @@ impl fmt::Display for Money {
     }
 }
 
+/// A one-off `Display` without a new type: `fmt::from_fn` turns a closure into
+/// a value that prints by running the closure. Nothing is built up front; the
+/// text is written straight into whatever is printing it.
+fn receipt<'a>(items: &'a [(&'a str, Money)]) -> impl fmt::Display + 'a {
+    fmt::from_fn(move |f| {
+        for (i, (name, price)) in items.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{name} {price}")?;
+        }
+        Ok(())
+    })
+}
+
 // ---- 2. Operators are traits: Add, Mul, Neg -------------------------------------------
 
 /// `a + b` is just `a.add(b)`. Implement `Add` and `+` works on your type.
@@ -120,6 +135,8 @@ fn main() {
     let price = Money { cents: 1999 };
     println!("    Debug:   {price:?}");
     println!("    Display: {price}");
+    let items = [("coffee", Money { cents: 250 }), ("cake", Money { cents: 320 })];
+    println!("    from_fn: {}", receipt(&items));
 
     println!("\n2. Operators");
     let total = price * 3 + Money::from(5);
@@ -165,6 +182,13 @@ mod tests {
     fn display_formats_money() {
         assert_eq!(Money { cents: 105 }.to_string(), "€1.05");
         assert_eq!(Money { cents: -50 }.to_string(), "-€0.50");
+    }
+
+    #[test]
+    fn from_fn_makes_a_display_from_a_closure() {
+        let items = [("tea", Money { cents: 180 }), ("bun", Money { cents: 95 })];
+        assert_eq!(receipt(&items).to_string(), "tea €1.80, bun €0.95");
+        assert_eq!(receipt(&[]).to_string(), "");
     }
 
     #[test]

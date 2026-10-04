@@ -12,9 +12,9 @@ Every compiler error quoted in these READMEs is the real output of Rust 1.99.
 |---|---|---|
 | 1 | [Traits](01-traits/) | defining and implementing traits, default methods, `impl Trait`, `derive` |
 | 2 | [Generics](02-generics/) | generic functions, structs and enums; trait bounds and `where`; monomorphisation |
-| 3 | [Trait objects](03-trait-objects/) | `dyn Trait`, vtables, static vs dynamic dispatch, dyn compatibility |
+| 3 | [Trait objects](03-trait-objects/) | `dyn Trait`, vtables, static vs dynamic dispatch, dyn compatibility, upcasting to a supertrait |
 | 4 | [Associated types and constants](04-associated-types/) | `type Item`, `const`, and when to use a generic parameter instead |
-| 5 | [The standard traits](05-standard-traits/) | `Debug`, `Display`, `Clone`, `Copy`, `Eq`, `Ord`, `Hash`, `Default`, `From`, `TryFrom`, operators |
+| 5 | [The standard traits](05-standard-traits/) | `Debug`, `Display` (and `fmt::from_fn`), `Clone`, `Copy`, `Eq`, `Ord`, `Hash`, `Default`, `From`, `TryFrom`, operators |
 | 6 | [Advanced traits](06-advanced-traits/) | supertraits, blanket impls, the orphan rule, newtypes, extension traits, disambiguation |
 
 ## The errors you'll meet
