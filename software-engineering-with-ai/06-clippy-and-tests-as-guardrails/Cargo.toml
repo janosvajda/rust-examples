@@ -1,0 +1,13 @@
+[package]
+name = "clippy-and-tests-as-guardrails"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+# Stricter rules than clippy's defaults, written down once for the whole crate.
+# Useful when much of the code is AI-written: these are the shortcuts an AI likes to take.
+[lints.clippy]
+unwrap_used = "deny"   # no .unwrap(): handle the error or use .expect("why it can't fail")
+todo = "deny"          # no todo!() left behind
+dbg_macro = "deny"     # no forgotten dbg!() calls

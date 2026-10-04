@@ -149,6 +149,20 @@ A five-lesson course on Rust without the standard library: the code that runs on
 4. [Memory-mapped registers](./no-std-and-bare-metal/04-memory-mapped-registers/): volatile access, register layouts, bit fields and a UART driver.
 5. [WebAssembly without an OS](./no-std-and-bare-metal/05-webassembly-without-an-os/): an 801-byte module with no imports, run from Node.js.
 
+# Software engineering with AI
+A ten-lesson course on writing software when AI can write much of the code: what vibe coding is and isn't, prompting, why programmers still need to know their craft, why Rust is a great fit for AI-driven development, why fewer dependencies are safer, why clippy and tests belong in every project from day one, and the shadow side: why people should still learn to read, calculate and code. It's written in October 2026, and the AI industry changes every day, so read it critically: what's true today might not be true tomorrow. Start with the [course overview](./software-engineering-with-ai/).
+
+1. [What is vibe coding?](./software-engineering-with-ai/01-what-is-vibe-coding/): accepting AI code without reading it; when that's fine and when it's dangerous.
+2. [AI-assisted engineering](./software-engineering-with-ai/02-ai-assisted-engineering/): the human sets the direction and checks the work; real examples from building this repository.
+3. [Prompting](./software-engineering-with-ai/03-prompting/): a prompt is a specification, and you can only ask for what you can name.
+4. [Why you still need to know](./software-engineering-with-ai/04-why-you-still-need-to-know/): plausible AI-style Rust next to good Rust, and the tests that tell them apart.
+5. [Why Rust fits AI-assisted development](./software-engineering-with-ai/05-why-rust-fits-ai/): the compiler as a tireless reviewer, and the honest downsides.
+6. [Clippy and tests as guardrails](./software-engineering-with-ai/06-clippy-and-tests-as-guardrails/): what clippy catches, stricter lints, and tests that check intent instead of copying output.
+7. [From day one, or later?](./software-engineering-with-ai/07-from-day-one-or-later/): a five-minute setup, the prototype exception, and adding checks to old code.
+8. [Fewer dependencies](./software-engineering-with-ai/08-fewer-dependencies/): every package is a decision; what AI changes; how to check what you depend on.
+9. [Reviewing AI-written code](./software-engineering-with-ai/09-reviewing-ai-code/): a checklist for code you didn't write.
+10. [The shadow side](./software-engineering-with-ai/10-the-shadow-side/): fading skills, the learning paradox, and why the basics matter more with AI, not less.
+
 # AWS examples
 - [simple-aws-lambda](./aws-lambda-example-hello-world/): Very basic AWS Lambda example in Rust.
 - [aws-lambda-example-db](./aws-lambda-example-db/): Serverless user-management API on AWS Lambda with DynamoDB, login and token refresh flows, and a SAM template.

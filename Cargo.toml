@@ -88,6 +88,8 @@ members = [
     "raw_pointers",
     "smart-pointers/box-and-arc",
     "streams/sensor_stream",
+    "software-engineering-with-ai/04-why-you-still-need-to-know",
+    "software-engineering-with-ai/06-clippy-and-tests-as-guardrails",
     "test-minifb",
     "threads",
     "tic-tac-toe",
@@ -101,7 +103,7 @@ members = [
 
 # These are built on their own, from their own directories:
 # - asm/hello_asm: platform-specific inline assembly
-# - mini: needs LLVM 16 installed
+# - mini: a separate project with its own README (it runs LLVM's `llc`, 16 or newer)
 # - no-std-and-bare-metal/01-calling-the-c-library and 03-custom-allocator:
 #   no_std programs that need their own `panic = "abort"` profile, which Cargo
 #   ignores for workspace members
