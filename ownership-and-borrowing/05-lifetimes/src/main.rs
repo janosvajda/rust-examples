@@ -1,20 +1,23 @@
 // Lesson 5: lifetimes.
 //
 // A reference must never outlive the value it points to. The compiler checks
-// this by tracking how long every reference is used and how long every value
-// lives. That span is called a *lifetime*.
+// this by tracking the region for which each reference must remain valid.
+// Uses through copied references or destructors can also require validity.
 //
-// Most of the time this is invisible. You only write lifetimes (`'a`) when
-// the compiler can't work out on its own how references relate to each other.
+// Many lifetimes are inferred. Signature elision rules fill in common
+// relationships; explicit annotations (`'a`) describe other relationships.
 
 // ---- 1. Returning a reference: which input does it come from? ---------------
 
-// fn longest(a: &str, b: &str) -> &str { ... }
+// fn longest(a: &str, b: &str) -> &str {
+//     if a.len() >= b.len() { a } else { b }
+// }
 // error[E0106]: missing lifetime specifier
 //
 // The compiler can't tell whether the result borrows from `a` or from `b`,
 // so it can't check the caller's code. `'a` says: the result lives no
 // longer than BOTH inputs.
+/// Chooses the input with more UTF-8 bytes; ties choose `a`.
 fn longest<'a>(a: &'a str, b: &'a str) -> &'a str {
     if a.len() >= b.len() { a } else { b }
 }
@@ -27,7 +30,8 @@ fn after_prefix<'a>(text: &'a str, prefix: &str) -> &'a str {
 
 // ---- 2. No annotation needed: the elision rules ---------------------------------
 //
-// With exactly one reference input, the compiler assumes the output borrows
+// With exactly one input lifetime, the compiler assigns it to the elided
+// output lifetime. Here the result borrows
 // from it. Writing `fn first_line<'a>(text: &'a str) -> &'a str` would mean
 // exactly the same thing.
 fn first_line(text: &str) -> &str {
@@ -104,7 +108,11 @@ fn main() {
     println!("\n5. A struct can't outlive the data it borrows");
     let article = String::from("Rust is fast. Rust is safe.");
     let highlight = Highlight::new(&article[..13]);
-    println!("    highlight = \"{}\" ({} words)", highlight.text, highlight.word_count());
+    println!(
+        "    highlight = \"{}\" ({} words)",
+        highlight.text,
+        highlight.word_count()
+    );
     // let h;
     // {
     //     let temporary = String::from("gone soon");
@@ -136,6 +144,7 @@ mod tests {
         assert_eq!(longest("abc", "de"), "abc");
         assert_eq!(longest("a", "bc"), "bc");
         assert_eq!(longest("ab", "cd"), "ab"); // ties go to the first
+        assert_eq!(longest("éé", "abc"), "éé"); // four UTF-8 bytes beat three
     }
 
     #[test]

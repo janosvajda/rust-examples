@@ -1,13 +1,12 @@
 // Lesson 3: the borrowing rules.
 //
-// At any moment, a value can have EITHER
-//   - any number of shared references (&T), OR
-//   - exactly one mutable reference (&mut T),
-// but not both. And while a value is borrowed, its owner can't move it,
-// change it, or drop it either.
+// Ordinary shared and exclusive accesses to the same region must not conflict.
+// Different fields or disjoint slices can have separate mutable borrows.
+// Reborrowing temporarily limits the original reference's access; interior
+// mutability types provide controlled changes through shared references.
 //
-// A borrow lasts from where the reference is created to where it's LAST USED,
-// not to the end of the block.
+// A borrow lasts for every use that needs it. In simple examples that means
+// the reference's last use, but copied references or destructors can extend it.
 
 fn add_one(number: &mut i32) {
     *number += 1;
@@ -43,18 +42,22 @@ fn main() {
 
     println!("\n4. Why rule 3 matters: the reference could end up pointing at freed memory");
     let mut grow = Vec::with_capacity(1);
-    grow.push(10);
+    grow.resize(grow.capacity(), 10); // fill the actual reported capacity
     let (capacity_before, address_before) = (grow.capacity(), grow.as_ptr());
-    grow.push(20); // full, so the Vec must get a bigger buffer
+    grow.push(20); // full: capacity must grow; the allocator may grow in place
     println!(
         "    capacity {} → {}; the items {} to a new address",
         capacity_before,
         grow.capacity(),
-        if grow.as_ptr() != address_before { "moved" } else { "happened not to move" }
+        if grow.as_ptr() != address_before {
+            "moved"
+        } else {
+            "did not move"
+        }
     );
     println!("    the compiler must assume they CAN move, so it forbids the reference");
 
-    println!("\n5. Changing a collection while looping over it: not allowed");
+    println!("\n5. Pushing to a Vec while iterating over &items: not allowed");
     let mut items = vec![1, 2, 3];
     // for x in &items {
     //     items.push(*x);
@@ -83,7 +86,7 @@ fn main() {
 
     println!("\n8. `v.push(v.len())`: allowed, even though it looks like rule 3 is broken");
     let mut lengths = vec![0];
-    lengths.push(lengths.len()); // the argument is read before the mutable borrow starts
+    lengths.push(lengths.len()); // shared read during reservation, before exclusive activation
     println!("    lengths = {lengths:?}");
 }
 
@@ -113,15 +116,14 @@ mod tests {
     #[test]
     // Pushing one item at a time into a Vec that's too small is the point here.
     #[allow(clippy::vec_init_then_push)]
-    fn pushing_into_a_full_vec_reallocates() {
+    fn pushing_into_a_full_vec_increases_capacity() {
         let mut v = Vec::with_capacity(1);
-        v.push(1);
+        v.resize(v.capacity(), 1); // with_capacity guarantees at least the request
+        let capacity_before = v.capacity();
         v.push(2);
-        // The Vec had to get a bigger buffer. Whether the allocator moved it
-        // or grew it in place is up to the allocator, so a reference to `v[0]`
-        // taken before the push could have been left pointing at freed memory.
-        // That possibility is why the borrowing rules forbid it.
-        assert!(v.capacity() >= 2);
+        // Capacity grows because the actual buffer was full. The address may
+        // stay the same if the allocator can grow that allocation in place.
+        assert!(v.capacity() > capacity_before);
     }
 
     #[test]

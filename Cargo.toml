@@ -69,7 +69,6 @@ members = [
     "functional_programming/higher-order-functions",
     "functional_programming/immutability",
     "functional_programming/pure-function-basic",
-    "generics/generic_storage",
     "games-and-graphics/bouncing-face",
     "games-and-graphics/tic-tac-toe",
     "how-computers-work/01-bits-and-bytes",

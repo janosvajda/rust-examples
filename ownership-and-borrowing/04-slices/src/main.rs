@@ -1,12 +1,13 @@
 // Lesson 4: slices.
 //
-// A slice is a reference to a *part* of a collection: a run of items that
-// sit next to each other in memory.
+// A borrowed slice gives a view of contiguous data, covering part or all
+// of a collection. &[T] and &str are references to unsized slice types.
 //   &str  a slice of text (part of a String, or a string literal)
 //   &[T]  a slice of items (part of a Vec, an array, ...)
-// A slice is a borrow like any other, so all the borrowing rules apply to it.
+// A slice reference is a borrow, so the borrowing rules apply to it.
 
-/// Returns the first word of `text` as a slice of it: no copying.
+/// Returns the text before the first ASCII space, without copying.
+/// A leading space returns an empty slice; tabs are not separators here.
 ///
 /// Taking `&str` instead of `&String` means this works for `String`s,
 /// string literals, and slices of either.
@@ -19,8 +20,10 @@ fn average(numbers: &[i32]) -> Option<f64> {
     if numbers.is_empty() {
         return None;
     }
-    let total: i32 = numbers.iter().sum();
-    Some(total as f64 / numbers.len() as f64)
+    // Convert each item before adding: an i32 total could overflow even
+    // when the final average is within the input range.
+    let total: f64 = numbers.iter().map(|&n| f64::from(n)).sum();
+    Some(total / numbers.len() as f64)
 }
 
 /// A mutable slice lets a function change part of a collection in place.
@@ -68,7 +71,11 @@ fn main() {
 
     println!("\n6. String slices are measured in bytes, not characters");
     let city = String::from("Győr");
-    println!("    \"{city}\" has {} characters but {} bytes", city.chars().count(), city.len());
+    println!(
+        "    \"{city}\" has {} Unicode scalar values but {} UTF-8 bytes",
+        city.chars().count(),
+        city.len()
+    );
     // &city[0..3] would panic at runtime: byte 3 is in the middle of "ő",
     // which takes 2 bytes in UTF-8.
     println!("    safe: {:?}", city.get(0..3)); // returns None instead of panicking
@@ -99,6 +106,14 @@ mod tests {
         assert_eq!(average(&[2, 4, 6]), Some(4.0));
         assert_eq!(average(&[1, 2, 3, 4][2..]), Some(3.5));
         assert_eq!(average(&[]), None);
+    }
+
+    #[test]
+    fn average_handles_totals_outside_i32_range() {
+        assert_eq!(average(&[i32::MAX, i32::MAX]), Some(f64::from(i32::MAX)));
+        assert_eq!(average(&[i32::MIN, i32::MIN]), Some(f64::from(i32::MIN)));
+        assert_eq!(average(&[i32::MAX, 1]), Some(1_073_741_824.0));
+        assert_eq!(average(&[i32::MIN, -1]), Some(-1_073_741_824.5));
     }
 
     #[test]

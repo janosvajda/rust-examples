@@ -34,20 +34,38 @@ fn take_items(order: &mut Order) -> Vec<String> {
 }
 
 /// Move money between two accounts. Two `&mut` into the same HashMap at once
-/// would be refused by the borrow checker; `get_disjoint_mut` checks that the
-/// keys are different and then hands out both. (Same keys would panic.)
-fn transfer(balances: &mut HashMap<&str, u32>, from: &str, to: &str, amount: u32) -> Result<(), String> {
+/// would be refused by separate get_mut calls; get_disjoint_mut obtains both.
+/// This wrapper rejects equal keys and checks both new balances before changing
+/// either account. Every returned Err leaves the balances unchanged.
+fn transfer(
+    balances: &mut HashMap<&str, u32>,
+    from: &str,
+    to: &str,
+    amount: u32,
+) -> Result<(), String> {
+    if from == to {
+        return Err(String::from("choose two different accounts"));
+    }
     let [Some(source), Some(target)] = balances.get_disjoint_mut([from, to]) else {
         return Err(format!("unknown account: `{from}` or `{to}`"));
     };
-    *source = source.checked_sub(amount).ok_or(format!("`{from}` can't pay {amount}"))?;
-    *target += amount;
+    let new_source = source
+        .checked_sub(amount)
+        .ok_or_else(|| format!("`{from}` can't pay {amount}"))?;
+    let new_target = target
+        .checked_add(amount)
+        .ok_or_else(|| format!("`{to}` can't hold another {amount}"))?;
+    *source = new_source;
+    *target = new_target;
     Ok(())
 }
 
 fn main() {
     println!("1. Different fields of a struct can be borrowed separately");
-    let mut book = Book { title: String::from("Dune"), pages: 412 };
+    let mut book = Book {
+        title: String::from("Dune"),
+        pages: 412,
+    };
     let title = &mut book.title;
     let pages = &mut book.pages; // fine: a different field
     title.push_str(" Messiah");
@@ -80,12 +98,24 @@ fn main() {
         mem::swap(first, last);
     }
     println!("    swapped first and last: {scores:?}");
-    println!("    same index twice:       {:?}", scores.get_disjoint_mut([1, 1]).map(|_| ()));
+    println!(
+        "    same index twice:       {:?}",
+        scores.get_disjoint_mut([1, 1]).map(|_| ())
+    );
 
     let mut balances = HashMap::from([("ana", 100), ("bob", 50)]);
-    println!("    transfer 30 ana → bob:  {:?}", transfer(&mut balances, "ana", "bob", 30));
-    println!("    balances: ana {}, bob {}", balances["ana"], balances["bob"]);
-    println!("    transfer 30 ana → zoe:  {:?}", transfer(&mut balances, "ana", "zoe", 30));
+    println!(
+        "    transfer 30 ana → bob:  {:?}",
+        transfer(&mut balances, "ana", "bob", 30)
+    );
+    println!(
+        "    balances: ana {}, bob {}",
+        balances["ana"], balances["bob"]
+    );
+    println!(
+        "    transfer 30 ana → zoe:  {:?}",
+        transfer(&mut balances, "ana", "zoe", 30)
+    );
 
     println!("\n4. Iterating: borrow, borrow mutably, or take ownership");
     let mut names = vec![String::from("ana"), String::from("bob")];
@@ -122,7 +152,9 @@ fn main() {
     // println!("{greeting}"); // error[E0382]: borrow of moved value: `greeting`
 
     println!("\n6. Taking a value out from behind a &mut: mem::take");
-    let mut order = Order { items: vec![String::from("coffee"), String::from("cake")] };
+    let mut order = Order {
+        items: vec![String::from("coffee"), String::from("cake")],
+    };
     let items = take_items(&mut order);
     println!("    took {items:?}, the order now has {:?}", order.items);
 }
@@ -133,7 +165,10 @@ mod tests {
 
     #[test]
     fn separate_fields_can_be_changed_at_once() {
-        let mut book = Book { title: String::from("A"), pages: 1 };
+        let mut book = Book {
+            title: String::from("A"),
+            pages: 1,
+        };
         let (title, pages) = (&mut book.title, &mut book.pages);
         title.push('B');
         *pages += 1;
@@ -153,7 +188,9 @@ mod tests {
     #[test]
     fn get_disjoint_mut_checks_the_indexes() {
         let mut data = [1, 2, 3];
-        let [a, c] = data.get_disjoint_mut([0, 2]).expect("different, in-bounds indexes");
+        let [a, c] = data
+            .get_disjoint_mut([0, 2])
+            .expect("different, in-bounds indexes");
         mem::swap(a, c);
         assert_eq!(data, [3, 2, 1]);
         assert!(data.get_disjoint_mut([1, 1]).is_err()); // the same index twice
@@ -170,6 +207,30 @@ mod tests {
     }
 
     #[test]
+    fn failed_transfers_leave_both_balances_unchanged() {
+        let cases = [
+            ("ana", "bob", 2), // source cannot pay
+            ("ana", "bob", 1), // target would overflow
+            ("ana", "ana", 0), // overlapping accounts
+            ("ana", "zoe", 1), // missing target
+            ("zoe", "bob", 1), // missing source
+        ];
+        for (from, to, amount) in cases {
+            let mut balances = HashMap::from([("ana", 1), ("bob", u32::MAX)]);
+            let before = balances.clone();
+            assert!(transfer(&mut balances, from, to, amount).is_err());
+            assert_eq!(balances, before, "failed transfer {from} -> {to}");
+        }
+    }
+
+    #[test]
+    fn transfer_can_reach_the_maximum_balance_exactly() {
+        let mut balances = HashMap::from([("ana", 1), ("bob", u32::MAX - 1)]);
+        assert_eq!(transfer(&mut balances, "ana", "bob", 1), Ok(()));
+        assert_eq!((balances["ana"], balances["bob"]), (0, u32::MAX));
+    }
+
+    #[test]
     fn iter_mut_changes_items_in_place() {
         let mut v = vec![1, 2, 3];
         for x in &mut v {
@@ -180,7 +241,9 @@ mod tests {
 
     #[test]
     fn mem_take_leaves_an_empty_value_behind() {
-        let mut order = Order { items: vec![String::from("x")] };
+        let mut order = Order {
+            items: vec![String::from("x")],
+        };
         assert_eq!(take_items(&mut order), vec!["x"]);
         assert!(order.items.is_empty());
     }

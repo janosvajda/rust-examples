@@ -4,20 +4,22 @@
 
 ## The rule in one sentence
 
-At any moment, a value can have **many readers or one writer**, never both.
+For ordinary data, allow **many readers or one exclusive writer** while those accesses are needed.
 
-Precisely: for a given value, at any point in the program there may be **either**
+Picture a shared drawing: several friends may look at it together. If one friend is changing it with a pencil, everyone else must wait for that exclusive access to finish.
+
+For an ordinary region of data, the basic access choices are:
 
 - any number of shared references (`&T`), **or**
 - exactly one mutable reference (`&mut T`),
 
-and while any reference is in use, the **owner** can't move, change or drop the value either.
+While a shared borrow is active, its owner cannot directly mutate, move or drop the borrowed value. While an exclusive mutable borrow is active, the owner cannot access that region through a conflicting path.
 
-That's the whole rule. Everything the borrow checker does follows from it.
+Two separate fields or disjoint slices can each have their own mutable reference (lesson 6). A reborrow temporarily limits the original reference's access. Interior-mutability types control changes through shared references using their own safe APIs (lesson 7).
 
 ## How long does a borrow last?
 
-**From where the reference is created to where it's last used**, not to the end of the block. This is called *non-lexical lifetimes*.
+**For as long as any use requires it.** In the simple example below, that ends at the reference's last use, before the block ends. This more flexible analysis is called *non-lexical lifetimes*.
 
 ```rust
 let mut list = vec![1, 2, 3];
@@ -32,6 +34,10 @@ Move the `println!` below the `push` and the borrows overlap:
 error[E0502]: cannot borrow `list` as mutable because it is also borrowed as immutable
 ```
 
+Copies and derived references also count. If `let another = first;` is used later, the borrow stays active for that use too. A destructor can use a stored reference when its holder is dropped, even after the holder's last visible use. Lifetime annotations and function signatures can also require a longer borrow.
+
+**A little history:** Rust 1.31 introduced non-lexical lifetimes for Rust 2018 programs, allowing many borrows to finish before the closing brace. [Release announcement](https://blog.rust-lang.org/2018/12/06/Rust-1.31-and-rust-2018/)
+
 ## Why the rule exists
 
 The rule isn't arbitrary. It prevents a real class of bugs. Here's what could happen without it:
@@ -42,25 +48,27 @@ The rule isn't arbitrary. It prevents a real class of bugs. Here's what could ha
                                  to a new, bigger buffer and free the old one
                                  first ──► ░░░░░░░             (freed memory!)
                                  list ──► [1, 2, 3, 4]
-  println!("{first}");           reads freed memory: garbage, or a crash
+  println!("{first}");           dereferences freed memory: undefined behaviour
 ```
 
-Whether the buffer actually moves depends on the memory allocator: sometimes it can grow the block in place. The compiler can't know in advance, so it must assume the worst. In C or C++ this code compiles and fails at runtime, *sometimes*, which makes it one of the hardest bugs to find. In Rust it doesn't compile at all. The demo prints whether the buffer moved on your machine.
+Whether the buffer moves depends on the allocator: sometimes it can grow in place. Dereferencing a pointer into the freed buffer would be **undefined behaviour**; a crash or incorrect value is only one possible outcome.
 
-The same reasoning explains every case below. If something can change or free the data, nobody else may be looking at it. If several parts of the code are looking, nobody may change it.
+Rust checks the borrowing contract of `push(&mut self, ...)`, rather than predicting what this allocator will do. The conflicting borrow is rejected even when you believe there is enough spare capacity. The demo fills the vector's actual reported capacity before pushing and prints whether its buffer address changed.
 
-## Every case, with the real compiler error
+This is why ordinary shared and exclusive access must not conflict. Special APIs can provide disjoint mutable slices, and interior-mutability types support controlled shared mutation.
+
+## Common cases, with compiler errors
 
 | Situation | Allowed? | Error if not |
 |---|---|---|
 | Several `&` at the same time | ✓ | |
 | Two `&mut` at the same time | ✗ | **E0499**: cannot borrow `score` as mutable more than once at a time |
 | `&` and `&mut` at the same time | ✗ | **E0502**: cannot borrow `list` as mutable because it is also borrowed as immutable |
-| Changing a `Vec` while looping over it | ✗ | **E0502** (the loop holds a `&` for its whole duration) |
+| Pushing to a `Vec` while iterating over `&v` | ✗ | **E0502** (the shared iterator still needs its borrow) |
 | Moving a value while it's borrowed | ✗ | **E0505**: cannot move out of `text` because it is borrowed |
 | A new borrow after the old one's last use | ✓ | |
 
-"At the same time" always means *the borrows are both still going to be used*. Two borrows written one after another are fine as long as the first one is finished.
+Here, "at the same time" means the borrows' required lifetimes overlap. Two borrows written one after another are fine when the first is finished; stored references and destructors can extend the required lifetime.
 
 ## Two cases that look wrong but compile
 
@@ -72,9 +80,9 @@ add_one(handle);   // lends `*handle` to the function for the duration of the ca
 add_one(handle);   // ✓ `handle` is usable again
 ```
 
-The compiler automatically lends a fresh, shorter borrow (`&mut *handle`) for each call. It's called a **reborrow**. But `let b = a;` between two `&mut` variables *does* move, as lesson 2 showed.
+Because `add_one` specifically expects `&mut i32`, the compiler lends a fresh, shorter borrow (`&mut *handle`) for each call. This is a **reborrow**. Passing the same reference to a generic by-value parameter can move it instead; automatic reborrowing is not a rule for every function call. An unannotated `let b = a;` also moves the mutable reference.
 
-**`v.push(v.len())`.** This seems to use `v` mutably (`push`) and immutably (`len`) at the same time. It compiles because the mutable borrow for `push` doesn't really start until the arguments have been evaluated. This is called a **two-phase borrow**, and it exists precisely to allow this common pattern.
+**`v.push(v.len())`.** This seems to use `v` mutably (`push`) and immutably (`len`) at the same time. The compiler first **reserves** the implicit mutable borrow for the method receiver. During that phase, a shared read such as `len()` is allowed; exclusive access is **activated** when `push` is called. This **two-phase borrow** supports the common pattern. An explicit `&mut v` does not automatically get the same treatment.
 
 ## Run it
 
@@ -84,5 +92,7 @@ cargo test
 ```
 
 Each forbidden case is in `src/main.rs` as a comment, with the real error underneath and the allowed version right after it.
+
+Library guarantees: [Vec capacity and growth](https://doc.rust-lang.org/std/vec/struct.Vec.html).
 
 Previous: [Lesson 2: References](../02-references/) · Next: [Lesson 4: Slices](../04-slices/)

@@ -2,8 +2,8 @@
 //
 // Four standard-library tools that let code work with borrowed and owned
 // data interchangeably:
-//   Cow<T>   "clone on write": holds borrowed data, and only makes an owned
-//            copy if it actually needs to change it.
+//   Cow<T>   "clone on write": holds borrowed or owned data; to_mut() clones
+//            borrowed contents before mutable access, even if no write follows.
 //   Borrow   why a HashMap<String, _> can be searched with a &str.
 //   AsRef    accept anything that can be viewed as a &str, &Path, &[u8]...
 //   Deref    why a String, Box or Vec can be used like the thing inside it.
@@ -15,9 +15,9 @@ use std::path::Path;
 
 // ---- 1. Cow: borrow when you can, own when you must -------------------------
 
-/// Replaces tabs with spaces. Most text has no tabs, so most of the time we
-/// can return the input unchanged (borrowed, no allocation). Only text that
-/// really changes gets a new String.
+/// Replaces each tab with exactly four spaces, not column-based tab stops.
+/// Text without tabs is returned unchanged (borrowed, no allocation).
+/// Text containing tabs gets a new String.
 fn normalise_tabs(text: &str) -> Cow<'_, str> {
     if text.contains('\t') {
         Cow::Owned(text.replace('\t', "    "))
@@ -71,16 +71,21 @@ impl Deref for SortedNames {
         &self.0
     }
 }
-// We deliberately don't implement DerefMut: that would let callers push or
-// reorder items and break the "always sorted" promise.
+// No DerefMut<Target = [String]>: mutable slice access permits reordering
+// or replacing names and can break sorting. A slice does not expose Vec::push.
 
 fn main() {
     println!("1. Cow: only copy when something changes");
     for text in ["no tabs here", "one\ttab"] {
         let result = normalise_tabs(text);
-        println!("    {:<14} → {:<16} ({})", format!("{text:?}"), format!("{result:?}"), describe(&result));
+        println!(
+            "    {:<14} → {:<16} ({})",
+            format!("{text:?}"),
+            format!("{result:?}"),
+            describe(&result)
+        );
     }
-    // A Cow derefs to &str, so it's used just like one…
+    // Cow<str> dereferences to str, so it exposes string-slice methods…
     let cleaned = normalise_tabs("a\tb");
     println!("    length: {}", cleaned.len());
     // …and `into_owned` gives a String either way (copying only if borrowed).
@@ -103,7 +108,11 @@ fn main() {
     println!("    {}", shout("hi") + " " + &shout(String::from("there")));
 
     println!("\n4. Deref: use a wrapper like the thing inside it");
-    let names = SortedNames::new(vec![String::from("zoe"), String::from("ana"), String::from("max")]);
+    let names = SortedNames::new(vec![
+        String::from("zoe"),
+        String::from("ana"),
+        String::from("max"),
+    ]);
     // `len`, `first`, `contains` and `iter` all come from [String] via Deref.
     println!("    {} names, first: {:?}", names.len(), names.first());
     println!("    contains max: {}", names.contains(&String::from("max")));
@@ -112,9 +121,10 @@ fn main() {
     println!("\n5. Deref coercion: &Box<String> → &String → &str, automatically");
     let boxed: Box<String> = Box::new(String::from("deeply wrapped"));
     let len = count_chars(&boxed); // `count_chars` takes &str
-    println!("    {len} characters");
+    println!("    {len} Unicode scalar values");
 }
 
+/// Counts Unicode scalar values, rather than grapheme clusters.
 /// Takes a plain `&str`. Thanks to deref coercion it also accepts `&String`,
 /// `&Box<String>`, `&Cow<str>`…
 fn count_chars(text: &str) -> usize {
@@ -149,7 +159,10 @@ mod tests {
     #[test]
     fn as_ref_accepts_many_types() {
         assert_eq!(file_extension("a.rs"), Some(String::from("rs")));
-        assert_eq!(file_extension(String::from("b.md")), Some(String::from("md")));
+        assert_eq!(
+            file_extension(String::from("b.md")),
+            Some(String::from("md"))
+        );
         assert_eq!(file_extension(Path::new("noext")), None);
         assert_eq!(shout("a"), shout(String::from("a")));
     }
