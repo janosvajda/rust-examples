@@ -4,25 +4,44 @@
 
 # Rust Practice Hub
 
-This repository contains various Rust code examples to demonstrate different concepts and features in the Rust programming language.
+A place to learn Rust: step-by-step **lessons** for people who want to learn the language, and standalone **examples** to look things up in.
 
 ## Why?
 
-I created these examples for the sheer fun of exploring Rust and learning more about this excellent programming language.
+I've been a software developer for more than 25 years, in many different industries. I've used Rust since its very first public appearance, and I still keep learning every single day. I started this repository in 2023 as a collection of Rust examples, for the sheer fun of exploring Rust and learning more about this excellent programming language.
 
-Feel free to use these examples to learn Rust or as a reference for your own projects. If you find any issues or have ideas for improvement, I'd be happy to receive contributions and feedback.
+It has since grown into something more. Today I write it for people who **want to learn Rust**: to share good practices, and to help junior developers get past the parts of Rust that feel hard at first, like ownership, borrowing, lifetimes and error handling. That's why you'll find two kinds of content here.
+
+## Lessons and examples
+
+| | **Lessons** | **Examples** |
+|---|---|---|
+| what | a numbered course, like `01-…`, `02-…`, that teaches one subject step by step | one standalone program that shows one thing |
+| how to read | in order: each lesson builds on the ones before it | in any order: jump straight to what you need |
+| the README | explains the *why*, with real compiler errors and an "idea in one sentence" | explains what the program does and how to run it |
+| good for | learning a subject properly | a quick reference, or a starting point for your own code |
+
+**The courses**, with lessons:
+- [Ownership and borrowing](./ownership-and-borrowing/), [Error handling](./error-handling/), [Traits and generics](./traits-and-generics/), [Closures and iterators](./closures-and-iterators/)
+- [Async / await](./async-await/), [Concurrency with threads](./concurrency/), [Macros](./macros/), [no_std and bare-metal Rust](./no-std-and-bare-metal/)
+- [Data processing](./data-processing/), [Software engineering with AI](./software-engineering-with-ai/)
+
+**The examples:**
+- [Design patterns](./design-patterns/) and [data structures](./data-structures/): organised by category, each one standalone;
+- the smaller examples further down this page;
+- [Mini](./mini/), a tiny programming language, which is a project of its own.
+
+Every lesson and example is checked in CI: it builds, its tests pass, and Clippy has no warnings. Compiler errors quoted in the lessons are the real output of the compiler.
+
+If you find any issues or have ideas for improvement, I'd be happy to receive contributions and feedback.
 
 ## How to Contribute
 
-Contributions are welcome! If you have any interesting Rust examples, bug fixes, or enhancements, feel free to submit a pull request. Let's collaborate and build a collection of useful and educational Rust examples together.
-
-## Usage
-
-Each directory contains an example showcasing a specific topic in Rust. Click on the links to navigate to the respective examples and learn more about them.
+Contributions are welcome! If you have a Rust example, a lesson idea, a bug fix or an improvement, feel free to submit a pull request. Let's build a collection that helps people learn Rust, together.
 
 ## Building and testing
 
-All examples are members of one Cargo workspace, so you can build or test everything from the repository root:
+All lessons and examples are members of one Cargo workspace, so you can build or test everything from the repository root:
 
 ```bash
 cargo build --workspace
@@ -32,7 +51,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ### Clippy
 
-[Clippy](https://doc.rust-lang.org/clippy/) is Rust's official linter. It catches common mistakes and suggests more idiomatic code. Every example in this repository passes Clippy with warnings treated as errors (`-D warnings`), and CI runs it on every pull request and every push to `main`, so a new warning fails the build.
+[Clippy](https://doc.rust-lang.org/clippy/) is Rust's official linter. It catches common mistakes and suggests more idiomatic code. Every lesson and example in this repository passes Clippy with warnings treated as errors (`-D warnings`), and CI runs it on every pull request and every push to `main`, so a new warning fails the build.
 
 Many warnings can be fixed automatically:
 
