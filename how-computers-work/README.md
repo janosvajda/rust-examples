@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="rust-how-computers-work.png">
-    <img src="rust-how-computers-work.png" alt="Ferris the crab reads a book called How computers work, in front of a board showing the lessons: bits and bytes, memory, pointers, the CPU, machine code, the cache, virtual memory, and user space and kernel space" width="100%">
+    <img src="rust-how-computers-work.png" alt="Ferris the crab reads a book called How computers work, in front of a board showing the lessons: bits and bytes, memory, pointers, the CPU, machine code, the cache, virtual memory, and user space and kernel space" width="350px">
   </a>
 </p>
 
