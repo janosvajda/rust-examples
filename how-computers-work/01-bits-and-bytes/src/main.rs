@@ -27,8 +27,19 @@ fn main() {
     println!("    255.wrapping_add(1) = {}", 255u8.wrapping_add(1));
 
     println!("\n3. The same eight bits, read as u8 and as i8");
-    for pattern in [0b0000_0001u8, 0b0111_1111, 0b1000_0000, 0b1111_1011, 0b1111_1111] {
-        println!("    {}  as u8: {:>3}   as i8: {:>4}", bits(pattern), pattern, pattern as i8);
+    for pattern in [
+        0b0000_0001u8,
+        0b0111_1111,
+        0b1000_0000,
+        0b1111_1011,
+        0b1111_1111,
+    ] {
+        println!(
+            "    {}  as u8: {:>3}   as i8: {:>4}",
+            bits(pattern),
+            pattern,
+            pattern as i8
+        );
     }
 
     println!("\n4. Text in UTF-8: each character's Unicode number, and its bytes");

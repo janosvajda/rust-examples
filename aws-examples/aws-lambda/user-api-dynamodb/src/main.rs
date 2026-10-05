@@ -8,10 +8,10 @@
 use std::sync::Arc;
 
 use aws_lambda_example_db::{
-    bootstrap::ensure_tables, handle_request, runtime_env::DeploymentEnv, AppContext,
+    AppContext, bootstrap::ensure_tables, handle_request, runtime_env::DeploymentEnv,
 };
 use aws_sdk_dynamodb::Client;
-use lambda_http::{run, service_fn, Error as LambdaError};
+use lambda_http::{Error as LambdaError, run, service_fn};
 use tracing::{info, warn};
 
 #[tokio::main]
@@ -85,7 +85,7 @@ async fn main() -> Result<(), LambdaError> {
         Err(err) => {
             return Err(LambdaError::from(format!(
                 "failed to fetch JWT secret from SSM: {err}"
-            )))
+            )));
         }
     };
 

@@ -118,7 +118,11 @@ impl SmartHome {
             "lights on: {:?}, heating: {} °C, door {}, alarm {}",
             self.lights.on_rooms,
             self.thermostat.target_c,
-            if self.door.locked { "locked" } else { "unlocked" },
+            if self.door.locked {
+                "locked"
+            } else {
+                "unlocked"
+            },
             if self.alarm.armed { "armed" } else { "off" },
         )
     }

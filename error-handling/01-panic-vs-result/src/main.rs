@@ -21,7 +21,8 @@ fn divide(a: i32, b: i32) -> Result<i32, String> {
     if b == 0 {
         Err(format!("cannot divide {a} by zero"))
     } else {
-        Ok(a / b)
+        a.checked_div(b)
+            .ok_or_else(|| format!("{a} / {b} does not fit in i32"))
     }
 }
 
@@ -44,7 +45,8 @@ fn find_user(id: u32) -> Option<&'static str> {
 /// stop. `assert!` panics with the message if the condition is false.
 fn apply_discount(price_cents: u32, percent: u32) -> u32 {
     assert!(percent <= 100, "discount must be 0..=100, got {percent}");
-    price_cents - price_cents * percent / 100
+    let discount = u64::from(price_cents) * u64::from(percent) / 100;
+    price_cents - discount as u32
 }
 
 // ---- Overflow: decide what happens when a number gets too big ----------------
@@ -93,9 +95,19 @@ fn main() {
     println!("    expect on Ok: {fixed}");
 
     println!("\n5. Safe fallbacks that never panic");
-    println!("    unwrap_or:         {}", parse_port("oops").unwrap_or(8080));
-    println!("    unwrap_or_default: {}", parse_port("oops").unwrap_or_default());
-    println!("    is_ok / is_err:    {} / {}", parse_port("1").is_ok(), parse_port("x").is_err());
+    println!(
+        "    unwrap_or:         {}",
+        parse_port("oops").unwrap_or(8080)
+    );
+    println!(
+        "    unwrap_or_default: {}",
+        parse_port("oops").unwrap_or_default()
+    );
+    println!(
+        "    is_ok / is_err:    {} / {}",
+        parse_port("1").is_ok(),
+        parse_port("x").is_err()
+    );
 
     println!("\n6. A panic for a broken promise");
     println!("    20% off 1000 cents = {}", apply_discount(1000, 20));
@@ -105,9 +117,18 @@ fn main() {
 
     println!("\n7. Overflow: choose what should happen");
     let big: u8 = 250;
-    println!("    250 + 10 as u8, checked_add:    {:?}", big.checked_add(10)); // None: it doesn't fit
-    println!("    250 + 10 as u8, saturating_add: {}", big.saturating_add(10)); // 255: stop at the maximum
-    println!("    250 + 10 as u8, wrapping_add:   {}", big.wrapping_add(10)); // 4: wrap around on purpose
+    println!(
+        "    250 + 10 as u8, checked_add:    {:?}",
+        big.checked_add(10)
+    ); // None: it doesn't fit
+    println!(
+        "    250 + 10 as u8, saturating_add: {}",
+        big.saturating_add(10)
+    ); // 255: stop at the maximum
+    println!(
+        "    250 + 10 as u8, wrapping_add:   {}",
+        big.wrapping_add(10)
+    ); // 4: wrap around on purpose
     println!("    seats_left(5, 3) = {}", seats_left(5, 3)); // strict_sub: panics if it would overflow
     println!("    (seats_left(5, 8) would panic: see the tests)");
 
@@ -160,5 +181,11 @@ mod tests {
     #[should_panic(expected = "discount must be 0..=100, got 150")]
     fn broken_promise_panics() {
         apply_discount(1000, 150);
+    }
+    #[test]
+    fn arithmetic_boundaries_are_handled() {
+        assert!(divide(i32::MIN, -1).is_err());
+        assert_eq!(apply_discount(u32::MAX, 100), 0);
+        assert_eq!(apply_discount(u32::MAX, 0), u32::MAX);
     }
 }

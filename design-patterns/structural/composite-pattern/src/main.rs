@@ -115,12 +115,20 @@ fn main() {
 
     home.print(0);
 
-    println!("\nTotal: {} KB in {} files", home.size_kb(), home.file_count());
+    println!(
+        "\nTotal: {} KB in {} files",
+        home.size_kb(),
+        home.file_count()
+    );
     println!("All .jpg files: {:?}", home.find_by_extension(".jpg"));
 
     // A single file answers the same questions as the whole tree.
     let single = Node::file("todo.md", 1);
-    println!("A lone file: {} KB, {} file", single.size_kb(), single.file_count());
+    println!(
+        "A lone file: {} KB, {} file",
+        single.size_kb(),
+        single.file_count()
+    );
 }
 
 #[cfg(test)]
@@ -132,7 +140,10 @@ mod tests {
             "root",
             vec![
                 Node::file("a.txt", 10),
-                Node::folder("sub", vec![Node::file("b.jpg", 20), Node::file("c.jpg", 30)]),
+                Node::folder(
+                    "sub",
+                    vec![Node::file("b.jpg", 20), Node::file("c.jpg", 30)],
+                ),
                 Node::folder("empty", vec![]),
             ],
         )

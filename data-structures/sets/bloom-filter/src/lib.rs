@@ -240,7 +240,9 @@ mod tests {
             filter.insert(&i);
         }
         // Check 100,000 values that were never inserted.
-        let false_positives = (10_000..110_000).filter(|i| filter.might_contain(i)).count();
+        let false_positives = (10_000..110_000)
+            .filter(|i| filter.might_contain(i))
+            .count();
         let rate = false_positives as f64 / 100_000.0;
         assert!(rate < 0.02, "false positive rate {rate} is far above 1%");
     }

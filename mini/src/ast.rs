@@ -25,9 +25,18 @@ pub enum UnaryOp {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {
-    Add, Sub, Mul, Div,     // + - * /
-    Eq, Ne, Lt, Le, Gt, Ge, // == != < <= > >=
-    And, Or,                // and or
+    Add,
+    Sub,
+    Mul,
+    Div, // + - * /
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge, // == != < <= > >=
+    And,
+    Or, // and or
 }
 
 impl BinOp {

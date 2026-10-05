@@ -82,7 +82,13 @@ macro_rules! listed_enum {
     };
 }
 
-listed_enum!(Weekday { Monday, Tuesday, Wednesday, Thursday, Friday });
+listed_enum!(Weekday {
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday
+});
 
 fn speed(distance: Metres, time: Seconds) -> f64 {
     distance.0 / time.0

@@ -25,6 +25,10 @@ cargo doc --open
 - Queue (BFS) vs stack (DFS): one small change, very different behaviour
 - Why recursion can overflow and an explicit stack doesn't
 
+## Many separate components
+
+`connected_components` uses **one** "visited" list for the whole search, so even a graph of 10,000 unconnected nodes (10,000 components of one node each) is processed in O(V + E) time.
+
 ## Run it
 
 ```bash

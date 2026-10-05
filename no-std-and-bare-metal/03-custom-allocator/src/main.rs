@@ -35,9 +35,9 @@ pub struct BumpAllocator<const SIZE: usize> {
     // UnsafeCell: the memory is changed through a shared reference (the
     // allocator is a `static`). Every access below goes through raw pointers.
     arena: UnsafeCell<[u8; SIZE]>,
-    next: AtomicUsize,          // offset of the first free byte
-    allocations: AtomicUsize,   // statistics, for the demo
-    bytes_freed: AtomicUsize,   // freed, but not reusable until reset
+    next: AtomicUsize,        // offset of the first free byte
+    allocations: AtomicUsize, // statistics, for the demo
+    bytes_freed: AtomicUsize, // freed, but not reusable until reset
 }
 
 // SAFETY: the only mutable state shared between callers is `next`, which is
@@ -88,7 +88,10 @@ unsafe impl<const SIZE: usize> GlobalAlloc for BumpAllocator<SIZE> {
                 _ => return core::ptr::null_mut(), // out of memory: report failure
             };
             // Claim [start, end) atomically, in case of concurrent callers.
-            match self.next.compare_exchange(current, end, Ordering::Relaxed, Ordering::Relaxed) {
+            match self
+                .next
+                .compare_exchange(current, end, Ordering::Relaxed, Ordering::Relaxed)
+            {
                 Ok(_) => {
                     self.allocations.fetch_add(1, Ordering::Relaxed);
                     return (base + start) as *mut u8;

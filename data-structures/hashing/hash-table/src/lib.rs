@@ -50,9 +50,10 @@
 //! | `get`     | O(1)           | O(n)                                 |
 //! | `remove`  | O(1)           | O(n)                                 |
 //!
-//! The worst case only happens with a bad hash function, or when an attacker
-//! picks keys on purpose. Rust's default hasher (SipHash) uses a random key
-//! per program run so attackers can't predict which keys collide.
+//! Collisions can occur even with a good hash function. RandomState creates
+//! randomly keyed hashers to make deliberately chosen collisions harder.
+//! These bounds treat hashing and comparing a key as constant-cost operations;
+//! long strings also cost time proportional to the bytes examined.
 //!
 //! ## Example
 //!
@@ -111,6 +112,10 @@ impl<K: Hash + Eq, V> HashTable<K, V> {
     /// Inserts `key → value`. If the key was already present, the value is
     /// replaced and the old one is returned.
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+        // Replacing an entry never increases the load factor.
+        if let Some(existing) = self.get_mut(&key) {
+            return Some(std::mem::replace(existing, value));
+        }
         // Check *before* inserting whether one more entry would overload the table.
         if self.buckets.is_empty()
             || (self.len + 1) as f64 / self.buckets.len() as f64 > MAX_LOAD_FACTOR
@@ -306,5 +311,16 @@ mod tests {
         let mut table = HashTable::new();
         table.insert(String::from("rust"), 2015);
         assert_eq!(table.get(&String::from("rust")), Some(&2015));
+    }
+    #[test]
+    fn replacing_an_entry_does_not_resize_at_the_load_threshold() {
+        let mut table = HashTable::new();
+        for key in 0..6 {
+            table.insert(key, key);
+        }
+        let capacity = table.buckets.len();
+        assert_eq!(table.insert(0, 99), Some(0));
+        assert_eq!(table.buckets.len(), capacity);
+        assert_eq!(table.len(), 6);
     }
 }

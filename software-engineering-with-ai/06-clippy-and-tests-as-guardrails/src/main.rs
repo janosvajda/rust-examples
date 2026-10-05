@@ -16,7 +16,9 @@
 /// Apply `percent` discount to `price_cents`, rounding to the nearest cent.
 pub fn discounted_price(price_cents: u32, percent: u32) -> Result<u32, String> {
     if percent > 100 {
-        return Err(format!("a discount of {percent}% is more than the whole price"));
+        return Err(format!(
+            "a discount of {percent}% is more than the whole price"
+        ));
     }
     // Work in u64: price × percentage can be larger than a u32 can hold.
     let hundredths_of_cents = u64::from(price_cents) * u64::from(100 - percent);
@@ -27,7 +29,10 @@ pub fn discounted_price(price_cents: u32, percent: u32) -> Result<u32, String> {
 
 fn main() {
     for (price, percent) in [(999, 15), (1000, 0), (1000, 100), (1, 50), (1000, 101)] {
-        println!("{price:>5} cents, {percent:>3}% off → {:?}", discounted_price(price, percent));
+        println!(
+            "{price:>5} cents, {percent:>3}% off → {:?}",
+            discounted_price(price, percent)
+        );
     }
 }
 
@@ -72,7 +77,11 @@ mod tests {
             for percent in 0..=100 {
                 let now = discounted_price(price, percent).expect("0-100% is always valid");
                 assert!(now <= price, "{price} at {percent}% became {now}");
-                assert!(now <= previous, "{price}: {percent}% costs more than {}%", percent - 1);
+                assert!(
+                    now <= previous,
+                    "{price}: {percent}% costs more than {}%",
+                    percent - 1
+                );
                 previous = now;
             }
         }

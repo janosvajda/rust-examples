@@ -21,7 +21,8 @@ struct Money {
 impl fmt::Display for Money {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sign = if self.cents < 0 { "-" } else { "" };
-        write!(f, "{sign}€{}.{:02}", self.cents.abs() / 100, self.cents.abs() % 100)
+        let magnitude = self.cents.unsigned_abs();
+        write!(f, "{sign}€{}.{:02}", magnitude / 100, magnitude % 100)
     }
 }
 
@@ -46,7 +47,12 @@ fn receipt<'a>(items: &'a [(&'a str, Money)]) -> impl fmt::Display + 'a {
 impl Add for Money {
     type Output = Money;
     fn add(self, other: Money) -> Money {
-        Money { cents: self.cents + other.cents }
+        Money {
+            cents: self
+                .cents
+                .checked_add(other.cents)
+                .expect("money addition overflow"),
+        }
     }
 }
 
@@ -54,14 +60,21 @@ impl Add for Money {
 impl Mul<i64> for Money {
     type Output = Money;
     fn mul(self, quantity: i64) -> Money {
-        Money { cents: self.cents * quantity }
+        Money {
+            cents: self
+                .cents
+                .checked_mul(quantity)
+                .expect("money multiplication overflow"),
+        }
     }
 }
 
 impl Neg for Money {
     type Output = Money;
     fn neg(self) -> Money {
-        Money { cents: -self.cents }
+        Money {
+            cents: self.cents.checked_neg().expect("money negation overflow"),
+        }
     }
 }
 
@@ -69,8 +82,8 @@ impl Neg for Money {
 
 /// Implement `From` and you get `Into` for free, in the other direction.
 impl From<i64> for Money {
-    fn from(euros: i64) -> Money {
-        Money { cents: euros * 100 }
+    fn from(cents: i64) -> Money {
+        Money { cents }
     }
 }
 
@@ -79,13 +92,37 @@ impl TryFrom<&str> for Money {
     type Error = String;
 
     fn try_from(text: &str) -> Result<Money, String> {
-        let text = text.trim().trim_start_matches('€');
-        let (euros, cents) = text.split_once('.').unwrap_or((text, "0"));
-        let euros: i64 = euros.parse().map_err(|_| format!("bad amount: {text:?}"))?;
-        let cents: i64 = format!("{cents:0<2}")[..2]
-            .parse()
-            .map_err(|_| format!("bad cents: {text:?}"))?;
-        Ok(Money { cents: euros * 100 + cents })
+        let text = text.trim();
+        let bad =
+            || format!("bad amount: {text:?}; expected euros with at most two decimal digits");
+        let (negative, amount) = text.strip_prefix('-').map_or((false, text), |s| (true, s));
+        let amount = amount.strip_prefix('€').unwrap_or(amount);
+        let (whole, fraction) = amount.split_once('.').unwrap_or((amount, ""));
+        if whole.is_empty()
+            || !whole.bytes().all(|b| b.is_ascii_digit())
+            || fraction.len() > 2
+            || !fraction.bytes().all(|b| b.is_ascii_digit())
+            || (amount.contains('.') && fraction.is_empty())
+        {
+            return Err(bad());
+        }
+        let whole: u64 = whole.parse().map_err(|_| bad())?;
+        let fraction: u64 = match fraction.len() {
+            0 => 0,
+            1 => fraction.parse::<u64>().map_err(|_| bad())? * 10,
+            _ => fraction.parse().map_err(|_| bad())?,
+        };
+        let magnitude = whole
+            .checked_mul(100)
+            .and_then(|n| n.checked_add(fraction))
+            .ok_or_else(bad)?;
+        let signed = if negative {
+            -i128::from(magnitude)
+        } else {
+            i128::from(magnitude)
+        };
+        let cents = i64::try_from(signed).map_err(|_| bad())?;
+        Ok(Money { cents })
     }
 }
 
@@ -126,7 +163,11 @@ struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { volume: 50, theme: String::from("dark"), notifications: true }
+        Settings {
+            volume: 50,
+            theme: String::from("dark"),
+            notifications: true,
+        }
     }
 }
 
@@ -135,26 +176,41 @@ fn main() {
     let price = Money { cents: 1999 };
     println!("    Debug:   {price:?}");
     println!("    Display: {price}");
-    let items = [("coffee", Money { cents: 250 }), ("cake", Money { cents: 320 })];
+    let items = [
+        ("coffee", Money { cents: 250 }),
+        ("cake", Money { cents: 320 }),
+    ];
     println!("    from_fn: {}", receipt(&items));
 
     println!("\n2. Operators");
-    let total = price * 3 + Money::from(5);
+    let total = price * 3 + Money::from(500);
     println!("    3 × {price} + €5 = {total}");
     println!("    refund: {}", -total);
 
     println!("\n3. Conversions");
-    let ten: Money = 10.into(); // Into comes free with From
-    println!("    10.into() = {ten}");
+    let ten: Money = 1000.into(); // Into comes free with From; the input counts cents
+    println!("    1000 cents.into() = {ten}");
     for text in ["€12.5", "7", "€3.99", "lots"] {
-        println!("    Money::try_from({text:?}) = {:?}", Money::try_from(text).map(|m| m.to_string()));
+        println!(
+            "    Money::try_from({text:?}) = {:?}",
+            Money::try_from(text).map(|m| m.to_string())
+        );
     }
 
     println!("\n4. Comparing, sorting, hashing");
     let mut tasks = vec![
-        Task { priority: 2, title: String::from("write tests") },
-        Task { priority: 1, title: String::from("fix bug") },
-        Task { priority: 2, title: String::from("deploy") },
+        Task {
+            priority: 2,
+            title: String::from("write tests"),
+        },
+        Task {
+            priority: 1,
+            title: String::from("fix bug"),
+        },
+        Task {
+            priority: 2,
+            title: String::from("deploy"),
+        },
     ];
     tasks.sort(); // needs Ord: by priority, then title
     for task in &tasks {
@@ -163,10 +219,18 @@ fn main() {
     let unique: BTreeSet<Task> = tasks.iter().cloned().collect(); // needs Ord
     let mut hours: HashMap<Task, u32> = HashMap::new(); // needs Hash + Eq
     hours.insert(tasks[0].clone(), 3);
-    println!("    {} unique tasks; \"{}\" takes {} hours", unique.len(), tasks[0].title, hours[&tasks[0]]);
+    println!(
+        "    {} unique tasks; \"{}\" takes {} hours",
+        unique.len(),
+        tasks[0].title,
+        hours[&tasks[0]]
+    );
 
     println!("\n5. Default");
-    let settings = Settings { volume: 80, ..Default::default() }; // override one field
+    let settings = Settings {
+        volume: 80,
+        ..Default::default()
+    }; // override one field
     println!(
         "    volume {} (set), theme {} and notifications {} (defaults)",
         settings.volume, settings.theme, settings.notifications
@@ -193,9 +257,9 @@ mod tests {
 
     #[test]
     fn operators() {
-        let a = Money::from(2);
+        let a = Money::from(200);
         assert_eq!(a + a, Money { cents: 400 });
-        assert_eq!(a * 3, Money::from(6));
+        assert_eq!(a * 3, Money::from(600));
         assert_eq!(-a, Money { cents: -200 });
     }
 
@@ -209,14 +273,55 @@ mod tests {
 
     #[test]
     fn derived_ordering_uses_field_order() {
-        let a = Task { priority: 1, title: String::from("z") };
-        let b = Task { priority: 2, title: String::from("a") };
+        let a = Task {
+            priority: 1,
+            title: String::from("z"),
+        };
+        let b = Task {
+            priority: 2,
+            title: String::from("a"),
+        };
         assert!(a < b); // priority decides before title
     }
 
     #[test]
     fn default_with_overrides() {
-        let s = Settings { theme: String::from("light"), ..Default::default() };
+        let s = Settings {
+            theme: String::from("light"),
+            ..Default::default()
+        };
         assert_eq!((s.volume, s.notifications), (50, true));
+    }
+    #[test]
+    fn money_sign_precision_and_boundaries() {
+        for (text, cents) in [
+            ("-1.23", -123),
+            ("-0.50", -50),
+            ("-€1.23", -123),
+            ("-92233720368547758.08", i64::MIN),
+            ("92233720368547758.07", i64::MAX),
+        ] {
+            let money = Money::try_from(text).unwrap();
+            assert_eq!(money.cents, cents);
+            assert_eq!(Money::try_from(money.to_string().as_str()), Ok(money));
+        }
+        for text in [
+            "3.999",
+            "4.",
+            "1.é",
+            "92233720368547758.08",
+            "999999999999999999999999",
+            "€-2",
+            "+2",
+        ] {
+            assert!(Money::try_from(text).is_err(), "{text}");
+        }
+        assert_eq!(Money::from(i64::MAX).cents, i64::MAX);
+    }
+    #[test]
+    fn money_overflow_is_explicit_in_every_build_profile() {
+        assert!(std::panic::catch_unwind(|| Money::from(i64::MAX) + Money::from(1)).is_err());
+        assert!(std::panic::catch_unwind(|| -Money::from(i64::MIN)).is_err());
+        assert!(std::panic::catch_unwind(|| Money::from(i64::MAX) * 2).is_err());
     }
 }

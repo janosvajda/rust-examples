@@ -91,8 +91,14 @@ impl<T> MyRc<T> {
     pub fn new(value: T) -> Self {
         // Put the Inner on the heap, then take over ownership as a raw pointer:
         // from now on, OUR code is responsible for freeing it.
-        let inner = Box::new(Inner { count: Cell::new(1), value });
-        MyRc { pointer: NonNull::from(Box::leak(inner)), _owns: PhantomData }
+        let inner = Box::new(Inner {
+            count: Cell::new(1),
+            value,
+        });
+        MyRc {
+            pointer: NonNull::from(Box::leak(inner)),
+            _owns: PhantomData,
+        }
     }
 
     fn inner(&self) -> &Inner<T> {
@@ -109,8 +115,17 @@ impl<T> MyRc<T> {
 impl<T> Clone for MyRc<T> {
     fn clone(&self) -> Self {
         let count = &self.inner().count;
-        count.set(count.get() + 1); // one more owner; the value isn't copied
-        MyRc { pointer: self.pointer, _owns: PhantomData }
+        // Wrapping the count could free the allocation while owners still exist.
+        // Abort before overflow: a reference-counting failure cannot be recovered.
+        let next = count
+            .get()
+            .checked_add(1)
+            .unwrap_or_else(|| std::process::abort());
+        count.set(next);
+        MyRc {
+            pointer: self.pointer,
+            _owns: PhantomData,
+        }
     }
 }
 
@@ -140,14 +155,21 @@ fn main() {
     println!("    through a reference: {}", read_value(&value));
     let pointer: *const u32 = &raw const value; // making a raw pointer is safe
     // SAFETY: `pointer` points to `value`, which is alive and a valid u32.
-    println!("    through a raw pointer: {}", unsafe { read_raw(pointer) });
-    // SAFETY: null is allowed, and a non-null pointer here points to `value`.
-    println!("    null checked: {:?}, {:?}", unsafe { read_if_not_null(pointer) }, unsafe {
-        read_if_not_null(std::ptr::null())
+    println!("    through a raw pointer: {}", unsafe {
+        read_raw(pointer)
     });
+    // SAFETY: null is allowed, and a non-null pointer here points to `value`.
+    println!(
+        "    null checked: {:?}, {:?}",
+        unsafe { read_if_not_null(pointer) },
+        unsafe { read_if_not_null(std::ptr::null()) }
+    );
 
     println!("\n2. Pointer arithmetic");
-    println!("    sum of [1, 2, 3, 4] by walking a pointer: {}", sum_with_pointers(&[1, 2, 3, 4]));
+    println!(
+        "    sum of [1, 2, 3, 4] by walking a pointer: {}",
+        sum_with_pointers(&[1, 2, 3, 4])
+    );
 
     println!("\n3. A homemade Rc");
     let first = MyRc::new(String::from("shared text"));
@@ -213,5 +235,31 @@ mod tests {
         assert_eq!(*drops.borrow(), 0); // `b` still owns it
         drop(b);
         assert_eq!(*drops.borrow(), 1); // freed now, and only once
+    }
+    #[test]
+    fn reference_count_overflow_aborts_before_wrapping() {
+        const CHILD: &str = "RUST_EXAMPLES_RC_OVERFLOW_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let owner = MyRc::new(42);
+            owner.inner().count.set(usize::MAX);
+            let _copy = owner.clone();
+            return;
+        }
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tests::reference_count_overflow_aborts_before_wrapping",
+            ])
+            .env(CHILD, "1")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(!status.success());
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(status.signal(), Some(6));
+        }
     }
 }

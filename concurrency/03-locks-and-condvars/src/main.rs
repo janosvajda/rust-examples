@@ -105,13 +105,19 @@ impl JobQueue {
         let mut jobs = self.jobs.lock().unwrap();
         // Always wait in a loop: a thread can wake up without anything
         // having changed (a "spurious wakeup"). `wait_while` does the loop.
-        jobs = self.not_empty.wait_while(jobs, |jobs| jobs.is_empty()).unwrap();
+        jobs = self
+            .not_empty
+            .wait_while(jobs, |jobs| jobs.is_empty())
+            .unwrap();
         jobs.pop_front().unwrap()
     }
 }
 
 fn condvar_demo() -> Vec<u32> {
-    let queue = Arc::new(JobQueue { jobs: Mutex::new(VecDeque::new()), not_empty: Condvar::new() });
+    let queue = Arc::new(JobQueue {
+        jobs: Mutex::new(VecDeque::new()),
+        not_empty: Condvar::new(),
+    });
     let consumer = {
         let queue = Arc::clone(&queue);
         thread::spawn(move || (0..3).map(|_| queue.pop()).collect::<Vec<_>>())
@@ -193,7 +199,10 @@ fn file_lock_demo() -> io::Result<(usize, String)> {
 
 fn main() {
     println!("1. Mutex");
-    println!("    8 threads × 10,000 increments = {}", count_with_mutex(8, 10_000));
+    println!(
+        "    8 threads × 10,000 increments = {}",
+        count_with_mutex(8, 10_000)
+    );
 
     println!("\n2. Poisoning");
     let (poisoned, value) = poisoned_lock_demo();
@@ -261,7 +270,11 @@ mod tests {
     #[test]
     fn a_file_lock_blocks_other_handles_until_released() {
         let path = std::env::temp_dir().join("rust-examples-lock-test.txt");
-        let first = OpenOptions::new().create(true).append(true).open(&path).unwrap();
+        let first = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .unwrap();
         let second = OpenOptions::new().append(true).open(&path).unwrap();
         first.lock().unwrap();
         assert!(second.try_lock().is_err()); // someone else holds it

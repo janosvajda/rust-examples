@@ -22,6 +22,13 @@ pub fn check_version(llc: &str) -> Result<u32> {
     let output = Command::new(llc).arg("--version").output().with_context(|| {
         format!("could not run `{llc}`: Mini needs LLVM {MIN_LLVM_VERSION} or newer, with `llc` on your PATH")
     })?;
+    if !output.status.success() {
+        bail!(
+            "`{llc} --version` failed ({}): {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
     let text = String::from_utf8_lossy(&output.stdout);
     let major = major_version(&text)
         .ok_or_else(|| anyhow!("could not read the LLVM version from `{llc} --version`"))?;
@@ -59,8 +66,14 @@ mod tests {
 
     #[test]
     fn reads_the_major_version() {
-        assert_eq!(major_version("Homebrew LLVM version 21.1.3\n  Optimized build."), Some(21));
-        assert_eq!(major_version("LLVM (http://llvm.org/):\n  Ubuntu LLVM version 18.1.3"), Some(18));
+        assert_eq!(
+            major_version("Homebrew LLVM version 21.1.3\n  Optimized build."),
+            Some(21)
+        );
+        assert_eq!(
+            major_version("LLVM (http://llvm.org/):\n  Ubuntu LLVM version 18.1.3"),
+            Some(18)
+        );
         assert_eq!(major_version("something else"), None);
     }
 }

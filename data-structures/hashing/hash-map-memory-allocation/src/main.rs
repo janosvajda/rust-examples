@@ -42,7 +42,10 @@ fn main() {
     drop(profiles); // Explicitly drop the profiles to measure deallocation time
     let deallocation_duration = start.elapsed();
 
-    println!("Time to allocate {} user profiles: {:?}", num_objects, allocation_duration);
+    println!(
+        "Time to allocate {} user profiles: {:?}",
+        num_objects, allocation_duration
+    );
     println!("Time to deallocate profiles: {:?}", deallocation_duration);
 }
 
@@ -82,9 +85,12 @@ mod tests {
             profiles.push(profile);
         }
         let allocation_duration = start.elapsed();
-        
+
         // Check that allocation took a reasonable time
-        assert!(allocation_duration.as_secs_f64() < 1.0, "Allocation took too long!");
+        assert!(
+            allocation_duration.as_secs_f64() < 1.0,
+            "Allocation took too long!"
+        );
 
         // Deallocate and check the time
         let start = Instant::now();
@@ -92,6 +98,9 @@ mod tests {
         let deallocation_duration = start.elapsed();
 
         // Ensure deallocation is fast as well
-        assert!(deallocation_duration.as_secs_f64() < 1.0, "Deallocation took too long!");
+        assert!(
+            deallocation_duration.as_secs_f64() < 1.0,
+            "Deallocation took too long!"
+        );
     }
 }

@@ -62,8 +62,9 @@ macro_rules! greeting {
 macro_rules! max {
     ( $x:expr ) => { $x };
     ( $x:expr, $( $rest:expr ),+ ) => {{
+        let first = $x;
         let rest = max!( $( $rest ),+ );
-        if $x > rest { $x } else { rest }
+        if first > rest { first } else { rest }
     }};
 }
 
@@ -137,5 +138,27 @@ mod tests {
         const N: usize = count!(x y z);
         assert_eq!(N, 3);
         assert_eq!(count!(), 0);
+    }
+    #[test]
+    fn max_evaluates_each_argument_once_from_left_to_right() {
+        let mut order = Vec::new();
+        assert_eq!(
+            max!(
+                {
+                    order.push(1);
+                    9
+                },
+                {
+                    order.push(2);
+                    3
+                },
+                {
+                    order.push(3);
+                    4
+                }
+            ),
+            9
+        );
+        assert_eq!(order, [1, 2, 3]);
     }
 }

@@ -19,7 +19,7 @@ Think of a recipe for making a hot drink: boil water, brew, pour into a cup, add
   └── 4. footer(total)          ◄── optional step: the default writes nothing
 ```
 
-- **Template method** (`export`): runs the steps in a fixed order and does the shared work, like looping over the sales and adding up the total. Every format gets it for free and doesn't override it.
+- **Template method** (`export`): runs the steps in a fixed order and does the shared work, like looping over the sales and adding up the total. All three formats reuse its default implementation.
 - **Required steps** (`header`, `row`): every format must provide these.
 - **Optional steps, or "hooks"** (`title`, `footer`): have a sensible default that a format can replace if it wants to.
 
@@ -33,7 +33,7 @@ A café exports its daily sales report in three formats. They all use the same `
 | `MarkdownExporter` | overridden: a `##` heading | a Markdown table | overridden: a bold total row |
 | `PlainTextExporter` | default: a plain line | fixed-width columns | overridden: a separator and total |
 
-Adding a fourth format, say HTML, means writing just `header` and `row`, plus any optional steps it wants. The loop, the order and the total calculation are already done, and can't be got wrong.
+Adding a fourth format, say HTML, means writing `header` and `row`, plus any optional steps it wants. Reusing `export` keeps the loop, order and total calculation in one place. Rust permits overriding any default trait method, including `export`; this design shares a recipe but does not enforce that every future implementor follows it.
 
 ## The Rust way: default methods in traits
 
@@ -43,14 +43,21 @@ Many languages build this pattern with an abstract base class. In Rust it's a **
 - A trait method **without a body** must be written by every implementor (`header`, `row`).
 - A default method can call other trait methods, including ones the implementor provides. That's what lets `export` call `row` without knowing which format it's working with.
 
-The standard library uses this everywhere. `Iterator` has one required method, `next`, and dozens of default ones like `map`, `filter` and `sum`. Each is a template built on top of `next`.
+The standard library also uses default trait methods extensively. `Iterator` has one required method, `next`, and many default methods such as `map`, `filter` and `sum` that build on the iterator's behavior. Implementors can override defaults when a specialized implementation is useful.
 
 ## When to use it
 
 - Several variations of a task share the same overall steps and differ in the details.
-- You want the order of the steps, and the shared work, to be written once and impossible to get wrong.
+- You want the order of the steps and the shared work to be written once and reused by several implementations.
 
 **Compared with Strategy:** Strategy swaps out a whole algorithm. Template Method keeps the algorithm and swaps out individual steps inside it.
+
+## Every format has its own special characters
+
+- **CSV:** a product name containing a comma or a quote, like `Tea, "iced"`, is put in quotes, with every inner quote doubled, so it stays one field.
+- **Markdown:** a `|` would end a table cell, so it's written as `&#124;`; a line break becomes `<br>`; and HTML characters like `<` are escaped, so a name can't inject HTML.
+
+Prices are whole cents, multiplied and added up in `u64` with checked arithmetic, so the total is exact and can't silently overflow.
 
 ## Run it
 

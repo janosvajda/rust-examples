@@ -42,9 +42,22 @@ enum Problem {
     MissingValue,
     NotANumber(String),
     UnknownUnit(String),
-    OutOfRange { value: f64, unit: Unit, allowed: &'static str },
+    UnitConflict {
+        first_line: usize,
+        kept: Unit,
+        other: Unit,
+    },
+    OutOfRange {
+        value: f64,
+        unit: Unit,
+        allowed: &'static str,
+    },
     /// Same sensor, same time, but a DIFFERENT value: one of them is wrong.
-    Conflict { first_line: usize, kept: f64, other: f64 },
+    Conflict {
+        first_line: usize,
+        kept: f64,
+        other: f64,
+    },
 }
 
 impl fmt::Display for Problem {
@@ -54,11 +67,35 @@ impl fmt::Display for Problem {
             Problem::MissingValue => write!(f, "the value is missing"),
             Problem::NotANumber(text) => write!(f, "`{text}` is not a valid number"),
             Problem::UnknownUnit(text) => write!(f, "unknown unit `{text}`"),
-            Problem::OutOfRange { value, unit, allowed } => {
-                write!(f, "{value} {unit} is impossible (allowed: {allowed})")
+            Problem::UnitConflict {
+                first_line,
+                kept,
+                other,
+            } => {
+                write!(
+                    f,
+                    "unit {other} conflicts with {kept} on line {first_line} (kept the first)"
+                )
             }
-            Problem::Conflict { first_line, kept, other } => {
-                write!(f, "conflicts with line {first_line}: {other} here, {kept} there (kept the first)")
+            Problem::OutOfRange {
+                value,
+                unit,
+                allowed,
+            } => {
+                write!(
+                    f,
+                    "{value} {unit} is outside the accepted range ({allowed})"
+                )
+            }
+            Problem::Conflict {
+                first_line,
+                kept,
+                other,
+            } => {
+                write!(
+                    f,
+                    "conflicts with line {first_line}: {other} here, {kept} there (kept the first)"
+                )
             }
         }
     }
@@ -94,12 +131,23 @@ fn normalize_unit(text: &str) -> Option<(Unit, Conversion)> {
 // ---- 2. Validate: is the value possible at all? -------------------------------------------
 
 fn check_range(value: f64, unit: Unit) -> Result<(), Problem> {
+    if !value.is_finite() {
+        return Err(Problem::NotANumber(value.to_string()));
+    }
     let (ok, allowed) = match unit {
         Unit::Celsius => (value >= -273.15, "≥ -273.15, absolute zero"),
         Unit::MmHg => (value > 0.0, "> 0"),
         Unit::Ph => ((0.0..=14.0).contains(&value), "0 to 14"),
     };
-    if ok { Ok(()) } else { Err(Problem::OutOfRange { value, unit, allowed }) }
+    if ok {
+        Ok(())
+    } else {
+        Err(Problem::OutOfRange {
+            value,
+            unit,
+            allowed,
+        })
+    }
 }
 
 // ---- 3. Clean one row: parse, normalise, validate, and note every change --------------------
@@ -125,16 +173,25 @@ fn clean_row(line: &str) -> Result<(Reading, Vec<String>), Problem> {
             .ok_or_else(|| Problem::NotANumber(text.to_string()))?,
     };
 
-    let (unit_kind, convert) = normalize_unit(unit).ok_or_else(|| Problem::UnknownUnit(unit.trim().to_string()))?;
+    let (unit_kind, convert) =
+        normalize_unit(unit).ok_or_else(|| Problem::UnknownUnit(unit.trim().to_string()))?;
     let converted = convert(value);
     if converted != value {
-        fixes.push(format!("{value} {} → {converted:.1} {unit_kind}", unit.trim()));
+        fixes.push(format!(
+            "{value} {} → {converted:.1} {unit_kind}",
+            unit.trim()
+        ));
     } else if unit != unit_kind.to_string() {
         fixes.push(format!("unit `{unit}` → `{unit_kind}`"));
     }
     check_range(converted, unit_kind)?;
 
-    let reading = Reading { timestamp: timestamp.trim().to_string(), sensor: clean_sensor, value: converted, unit: unit_kind };
+    let reading = Reading {
+        timestamp: timestamp.trim().to_string(),
+        sensor: clean_sensor,
+        value: converted,
+        unit: unit_kind,
+    };
     Ok((reading, fixes))
 }
 
@@ -151,7 +208,7 @@ struct Report {
 fn clean(text: &str) -> Report {
     let mut report = Report::default();
     // (timestamp, sensor) → (line number, value) of the reading already kept
-    let mut seen: HashMap<(String, String), (usize, f64)> = HashMap::new();
+    let mut seen: HashMap<(String, String), (usize, f64, Unit)> = HashMap::new();
     for (index, line) in text.lines().enumerate().skip(1) {
         let line_number = index + 1;
         if line.trim().is_empty() {
@@ -162,17 +219,32 @@ fn clean(text: &str) -> Report {
                 // A duplicate is the same sensor at the same time, after cleaning:
                 // " a12 " and "A12" are the same sensor.
                 let key = (reading.timestamp.clone(), reading.sensor.clone());
-                if let Some(&(first_line, kept)) = seen.get(&key) {
-                    if kept == reading.value {
+                if let Some(&(first_line, kept, kept_unit)) = seen.get(&key) {
+                    if kept_unit != reading.unit {
+                        report.problems.push((
+                            line_number,
+                            Problem::UnitConflict {
+                                first_line,
+                                kept: kept_unit,
+                                other: reading.unit,
+                            },
+                        ));
+                    } else if kept == reading.value {
                         report.duplicates.push(line_number); // a harmless repeat
                     } else {
-                        let conflict = Problem::Conflict { first_line, kept, other: reading.value };
+                        let conflict = Problem::Conflict {
+                            first_line,
+                            kept,
+                            other: reading.value,
+                        };
                         report.problems.push((line_number, conflict)); // a person must decide
                     }
                     continue;
                 }
-                seen.insert(key, (line_number, reading.value));
-                report.fixes.extend(fixes.into_iter().map(|fix| (line_number, fix)));
+                seen.insert(key, (line_number, reading.value, reading.unit));
+                report
+                    .fixes
+                    .extend(fixes.into_iter().map(|fix| (line_number, fix)));
                 report.readings.push(reading);
             }
             Err(problem) => report.problems.push((line_number, problem)),
@@ -184,13 +256,23 @@ fn clean(text: &str) -> Report {
 fn main() {
     let text = include_str!("../data/messy_readings.csv");
     let report = clean(text);
-    let rows = text.lines().skip(1).filter(|l| !l.trim().is_empty()).count();
+    let rows = text
+        .lines()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .count();
 
-    println!("{rows} rows in, {} clean readings out\n", report.readings.len());
+    println!(
+        "{rows} rows in, {} clean readings out\n",
+        report.readings.len()
+    );
 
     println!("Kept ({}):", report.readings.len());
     for r in &report.readings {
-        println!("    {} {:<4} {:>6.1} {}", r.timestamp, r.sensor, r.value, r.unit);
+        println!(
+            "    {} {:<4} {:>6.1} {}",
+            r.timestamp, r.sensor, r.value, r.unit
+        );
     }
 
     println!("\nFixed along the way ({}):", report.fixes.len());
@@ -203,7 +285,11 @@ fn main() {
         println!("    line {line:>2}: {problem}");
     }
 
-    println!("\nDuplicates dropped ({}): lines {:?}", report.duplicates.len(), report.duplicates);
+    println!(
+        "\nDuplicates dropped ({}): lines {:?}",
+        report.duplicates.len(),
+        report.duplicates
+    );
 }
 
 #[cfg(test)]
@@ -228,15 +314,42 @@ mod tests {
 
     #[test]
     fn each_problem_is_named() {
-        assert_eq!(clean_row("t,A12,,Celsius").unwrap_err(), Problem::MissingValue);
-        assert_eq!(clean_row("t,A12,n/a,Celsius").unwrap_err(), Problem::MissingValue);
-        assert_eq!(clean_row("t,A12,warm,Celsius").unwrap_err(), Problem::NotANumber(String::from("warm")));
-        assert_eq!(clean_row("t,B22,755").unwrap_err(), Problem::WrongFieldCount(3));
-        assert_eq!(clean_row("t,B22,750,mHg").unwrap_err(), Problem::UnknownUnit(String::from("mHg")));
-        assert!(matches!(clean_row("t,A12,-300,Celsius"), Err(Problem::OutOfRange { .. })));
-        assert!(matches!(clean_row("t,C33,15.2,pH"), Err(Problem::OutOfRange { .. })));
-        assert_eq!(clean_row("t,A12,inf,Celsius").unwrap_err(), Problem::NotANumber(String::from("inf")));
-        assert_eq!(clean_row("t,A12,NaN,Celsius").unwrap_err(), Problem::NotANumber(String::from("NaN")));
+        assert_eq!(
+            clean_row("t,A12,,Celsius").unwrap_err(),
+            Problem::MissingValue
+        );
+        assert_eq!(
+            clean_row("t,A12,n/a,Celsius").unwrap_err(),
+            Problem::MissingValue
+        );
+        assert_eq!(
+            clean_row("t,A12,warm,Celsius").unwrap_err(),
+            Problem::NotANumber(String::from("warm"))
+        );
+        assert_eq!(
+            clean_row("t,B22,755").unwrap_err(),
+            Problem::WrongFieldCount(3)
+        );
+        assert_eq!(
+            clean_row("t,B22,750,mHg").unwrap_err(),
+            Problem::UnknownUnit(String::from("mHg"))
+        );
+        assert!(matches!(
+            clean_row("t,A12,-300,Celsius"),
+            Err(Problem::OutOfRange { .. })
+        ));
+        assert!(matches!(
+            clean_row("t,C33,15.2,pH"),
+            Err(Problem::OutOfRange { .. })
+        ));
+        assert_eq!(
+            clean_row("t,A12,inf,Celsius").unwrap_err(),
+            Problem::NotANumber(String::from("inf"))
+        );
+        assert_eq!(
+            clean_row("t,A12,NaN,Celsius").unwrap_err(),
+            Problem::NotANumber(String::from("NaN"))
+        );
     }
 
     #[test]
@@ -244,7 +357,10 @@ mod tests {
         let report = clean("h\nt,A12,20.0,C\nt,A12,20.0,C\nt,A12,21.0,C\n");
         assert_eq!(report.readings.len(), 1);
         assert_eq!(report.duplicates, [3]); // same value: a repeat
-        assert!(matches!(report.problems[..], [(4, Problem::Conflict { first_line: 2, .. })]));
+        assert!(matches!(
+            report.problems[..],
+            [(4, Problem::Conflict { first_line: 2, .. })]
+        ));
     }
 
     #[test]
@@ -257,9 +373,23 @@ mod tests {
     fn the_messy_file_is_fully_accounted_for() {
         let text = include_str!("../data/messy_readings.csv");
         let report = clean(text);
-        let rows = text.lines().skip(1).filter(|l| !l.trim().is_empty()).count();
+        let rows = text
+            .lines()
+            .skip(1)
+            .filter(|l| !l.trim().is_empty())
+            .count();
         // every row ends up somewhere: nothing disappears silently
-        assert_eq!(report.readings.len() + report.problems.len() + report.duplicates.len(), rows);
+        assert_eq!(
+            report.readings.len() + report.problems.len() + report.duplicates.len(),
+            rows
+        );
         assert_eq!(report.duplicates, [13]);
+    }
+    #[test]
+    fn conversion_overflow_and_conflicting_units_are_rejected() {
+        assert!(clean_row("t,A,1e308,kPa").is_err());
+        let report = clean("h\nt,A,20,C\nt,A,20,mmHg\n");
+        assert!(report.duplicates.is_empty());
+        assert!(matches!(report.problems[0].1, Problem::UnitConflict { .. }));
     }
 }

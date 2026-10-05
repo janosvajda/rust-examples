@@ -19,7 +19,10 @@ fn main() -> std::io::Result<()> {
         listener,
         ServerConfig {
             tokens: HashMap::from([
-                (String::from("demo-token"), vec![String::from("A12"), String::from("B22")]),
+                (
+                    String::from("demo-token"),
+                    vec![String::from("A12"), String::from("B22")],
+                ),
                 (String::from("guest-token"), vec![String::from("B22")]),
             ]),
             max_clients: 8,

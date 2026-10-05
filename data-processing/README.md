@@ -2,7 +2,7 @@
 
 # Data processing
 
-Reading, cleaning, summarising and reporting on data is one of the most common jobs a program does, and Rust is very good at it: fast, memory-efficient, and strict about types, so messy data can't quietly turn into wrong results.
+Reading, cleaning, summarising and reporting on data is one of the most common jobs a program does, and Rust is very good at it: fast, memory-efficient, and strict about types, while validation and explicit units help prevent misleading results. Rust's type system does not validate domain rules by itself.
 
 This course follows one kind of data all the way through: **readings from lab sensors**. Each lesson adds one skill: from parsing a file, through cleaning and statistics, to a pipeline on every CPU core, live data from the network, combining tables and working with time.
 
@@ -15,12 +15,12 @@ This course follows one kind of data all the way through: **readings from lab se
 | 3 | [Cleaning and validation](03-cleaning-and-validation/) | normalising units and spellings, "no value" markers, impossible values, duplicates, accounting for every row | none |
 | 4 | [Aggregation and statistics](04-aggregation-and-statistics/) | group by, mean vs median, percentiles, sorting floats, moving averages | none |
 | 5 | [JSON with serde](05-json-with-serde/) | typed JSON in and out, optional fields and defaults, enums as validation, precise errors, JSON Lines | `serde`, `serde_json` |
-| 6 | [A processing pipeline](06-processing-pipeline/) | small testable stages, fold and merge, running on every core with rayon, why parallel float sums differ | `rayon` |
-| 7 | [Live data over the network](07-live-data-over-the-network/) | a TCP client and server that survive everything: timeouts, retries with backoff, resuming, duplicates (idempotency), losses, messy data, authentication, authorization, bounded memory | none |
+| 6 | [A processing pipeline](06-processing-pipeline/) | small testable stages, fold and merge, running on every core with rayon, why parallel float means differ | `rayon` |
+| 7 | [Live data over the network](07-live-data-over-the-network/) | a TCP client and server that handle specified faults: timeouts, retries with backoff, resuming, duplicates (idempotency), losses, messy data, authentication, authorization, bounded memory | none |
 | 8 | [Joining datasets](08-joining-datasets/) | combining tables by a key, inner / left / anti joins, the rows that don't match, hash join vs nested loops | none |
 | 9 | [Time and windows](09-time-and-windows/) | timestamps as numbers, leap years, out-of-order data, finding gaps, tumbling windows, why time zones need a crate | none |
 
-Lessons 5 and 6 use the two crates almost every Rust data project relies on, on purpose. All the others use only the standard library.
+Only two lessons use crates, on purpose: lesson 5 uses `serde`, which almost every Rust program reading JSON relies on, and lesson 6 uses `rayon` for parallelism. Everything else uses only the standard library.
 
 ## The ideas that run through the course
 
@@ -39,7 +39,7 @@ Lessons 5 and 6 use the two crates almost every Rust data project relies on, on 
 | Lesson | Idea |
 |---|---|
 | 1. CSV by hand | parse carefully (quotes!), and fail loudly, never silently |
-| 2. Streaming | keep a summary, not the data: memory stays flat |
+| 2. Streaming | keep a summary, not the data: memory stays bounded for fixed sensor IDs |
 | 3. Cleaning | normalise, validate, deduplicate, and account for every row |
 | 4. Statistics | group by a key; the median is often more honest than the mean |
 | 5. JSON with serde | describe the shape once; the struct is the validation |
@@ -70,3 +70,5 @@ cargo test
 ```
 
 Lessons 2, 6 and 8 process millions of lines or comparisons, so run them with `cargo run --release`.
+
+Lessons 2 and 6 write their generated files to the system's temporary folder and delete them at the end. Lesson 2's memory figures assume a limited line length and a fixed set of sensor IDs: every new ID adds an entry to the summary.

@@ -25,6 +25,13 @@ cargo doc --open
 - Depth-first collection with a reused `String` buffer
 - Working with `char`s, including non-ASCII text
 
+## Long words and empty prefixes
+
+- Autocomplete walks the tree with its own stack (a `Vec`) instead of recursion, so a very long word can't overflow the call stack. Dropping the trie works the same way.
+- Non-ASCII words such as `éclair` work: prefixes are cut only at character boundaries.
+- The empty prefix `""` matches every word. So `starts_with("")` is `true` once the trie holds a word, and `false` for an empty trie.
+- Words come out in Rust's character order (`Z` before `a`), not in dictionary order.
+
 ## Run it
 
 ```bash

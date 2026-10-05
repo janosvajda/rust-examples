@@ -130,7 +130,11 @@ fn main() {
     ];
 
     for drink in &orders {
-        println!("{:<45} {:>8}", drink.description(), price(drink.cost_cents()));
+        println!(
+            "{:<45} {:>8}",
+            drink.description(),
+            price(drink.cost_cents())
+        );
     }
 }
 

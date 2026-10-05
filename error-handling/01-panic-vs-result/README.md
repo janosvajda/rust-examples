@@ -110,6 +110,12 @@ fn seats_left(free: u8, booked: u8) -> u8 {
 
 With plain `-`, `seats_left(5, 8)` would panic while you test (a debug build), and quietly return `253` seats in production (a release build). The same rule as above applies: overflow caused by **input** deserves `checked_*` and a `Result`; overflow that only a **bug** can cause deserves `strict_*`.
 
+## Division has two ways to fail
+
+Dividing by zero is the famous one, but `i32::MIN / -1` fails too: the answer, 2,147,483,648, is one more than an `i32` can hold. `checked_div` returns `None` for **both**, so the `Result` version of `divide` reports either.
+
+The discount calculation multiplies a price by a percentage before dividing by 100. It does that in a `u64`, which has room for the bigger intermediate number, so even a 100% discount on the largest possible price can't overflow.
+
 ## Run it
 
 ```bash

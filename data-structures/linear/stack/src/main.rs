@@ -18,10 +18,17 @@ fn main() {
         std::mem::size_of::<Stack<u64>>()
     );
     let mut numbers = Stack::with_capacity(1000);
-    println!("with_capacity(1000): capacity {} before any push", numbers.capacity());
+    println!(
+        "with_capacity(1000): capacity {} before any push",
+        numbers.capacity()
+    );
     // `extend` reserves once and writes in a tight, vectorised loop.
     numbers.extend(1..=1000u64);
-    println!("after extend(1..=1000): len {}, top {:?}", numbers.len(), numbers.peek());
+    println!(
+        "after extend(1..=1000): len {}, top {:?}",
+        numbers.len(),
+        numbers.peek()
+    );
 
     println!("\n--- Balanced brackets ---");
     for text in ["(a + b) * [c - d]", "{ [ ( ) ] }", "(]", "((("] {

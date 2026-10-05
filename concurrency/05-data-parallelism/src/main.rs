@@ -11,7 +11,10 @@ use std::time::Instant;
 
 /// Deliberately slow: counts primes below `n` the naive way.
 fn is_prime(n: u64) -> bool {
-    n >= 2 && (2..).take_while(|d| d * d <= n).all(|d| !n.is_multiple_of(d))
+    n >= 2
+        && (2..)
+            .take_while(|d| d * d <= n)
+            .all(|d| !n.is_multiple_of(d))
 }
 
 fn count_primes_sequential(limit: u64) -> usize {
@@ -36,7 +39,10 @@ fn parallel_sum(numbers: &[u64]) -> u64 {
 fn time<T>(label: &str, work: impl FnOnce() -> T) -> T {
     let start = Instant::now();
     let result = work();
-    println!("    {label:<12} {:>9.3} ms", start.elapsed().as_secs_f64() * 1000.0);
+    println!(
+        "    {label:<12} {:>9.3} ms",
+        start.elapsed().as_secs_f64() * 1000.0
+    );
     result
 }
 
@@ -85,7 +91,10 @@ mod tests {
 
     #[test]
     fn parallel_and_sequential_agree() {
-        assert_eq!(count_primes_parallel(10_000), count_primes_sequential(10_000));
+        assert_eq!(
+            count_primes_parallel(10_000),
+            count_primes_sequential(10_000)
+        );
         assert_eq!(count_primes_parallel(100), 25);
     }
 

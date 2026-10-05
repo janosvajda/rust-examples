@@ -31,23 +31,42 @@ struct Reading {
 fn split_fields(line: &str) -> Result<Vec<String>, String> {
     let mut fields = Vec::new();
     let mut field = String::new();
-    let mut in_quotes = false;
-    let mut chars = line.chars().peekable();
-
-    while let Some(c) = chars.next() {
-        match (c, in_quotes) {
-            ('"', false) if field.is_empty() => in_quotes = true, // a quoted field starts
-            ('"', true) if chars.peek() == Some(&'"') => {
-                field.push('"'); // "" inside quotes is one literal quote
-                chars.next();
-            }
-            ('"', true) => in_quotes = false, // the quoted part ends
-            (',', false) => fields.push(std::mem::take(&mut field)), // end of a field
-            _ => field.push(c),
-        }
+    #[derive(Clone, Copy)]
+    enum State {
+        Start,
+        Bare,
+        Quoted,
+        Closed,
     }
-    if in_quotes {
-        return Err(String::from("a quoted field is never closed"));
+    let mut state = State::Start;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        state = match (state, c) {
+            (State::Start, '"') => State::Quoted,
+            (State::Quoted, '"') if chars.peek() == Some(&'"') => {
+                chars.next();
+                field.push('"');
+                State::Quoted
+            }
+            (State::Quoted, '"') => State::Closed,
+            (State::Quoted, c) => {
+                field.push(c);
+                State::Quoted
+            }
+            (_, ',') => {
+                fields.push(std::mem::take(&mut field));
+                State::Start
+            }
+            (State::Bare, '"') => return Err("quote inside an unquoted field".into()),
+            (State::Closed, _) => return Err("characters after a closing quote".into()),
+            (_, c) => {
+                field.push(c);
+                State::Bare
+            }
+        };
+    }
+    if matches!(state, State::Quoted) {
+        return Err("quoted field was never closed".into());
     }
     fields.push(field);
     Ok(fields)
@@ -105,7 +124,11 @@ fn temperatures_in_fahrenheit(readings: &[Reading]) -> Vec<Reading> {
     readings
         .iter()
         .filter(|r| r.unit == "Celsius")
-        .map(|r| Reading { value: r.value * 1.8 + 32.0, unit: String::from("Fahrenheit"), ..r.clone() })
+        .map(|r| Reading {
+            value: r.value * 1.8 + 32.0,
+            unit: String::from("Fahrenheit"),
+            ..r.clone()
+        })
         .collect()
 }
 
@@ -123,12 +146,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     let readings = read_readings(&path)?;
     println!("    {} readings", readings.len());
     for r in &readings {
-        println!("    {} {:<4} {:>6} {:<8} {:<17} {}", r.timestamp, r.sensor_id, r.value, r.unit, r.location, r.experiment);
+        println!(
+            "    {} {:<4} {:>6} {:<8} {:<17} {}",
+            r.timestamp, r.sensor_id, r.value, r.unit, r.location, r.experiment
+        );
     }
 
     println!("\n3. Pipeline: temperatures only, in Fahrenheit");
     for r in temperatures_in_fahrenheit(&readings) {
-        println!("    {} {:<4} {:.1} °F ({})", r.timestamp, r.sensor_id, r.value, r.location);
+        println!(
+            "    {} {:<4} {:.1} °F ({})",
+            r.timestamp, r.sensor_id, r.value, r.location
+        );
     }
 
     println!("\n4. Errors name the problem and the line");
@@ -151,8 +180,14 @@ mod tests {
 
     #[test]
     fn quoted_fields_may_contain_commas_and_quotes() {
-        assert_eq!(split_fields(r#"a,"b, still b",c"#).unwrap(), ["a", "b, still b", "c"]);
-        assert_eq!(split_fields(r#""say ""hi""",x"#).unwrap(), [r#"say "hi""#, "x"]);
+        assert_eq!(
+            split_fields(r#"a,"b, still b",c"#).unwrap(),
+            ["a", "b, still b", "c"]
+        );
+        assert_eq!(
+            split_fields(r#""say ""hi""",x"#).unwrap(),
+            [r#"say "hi""#, "x"]
+        );
     }
 
     #[test]
@@ -176,19 +211,25 @@ mod tests {
         let readings = read_readings(&path).unwrap();
         assert_eq!(readings.len(), 8);
         assert_eq!(readings[7].location, "Lab 4, cold room");
-        assert_eq!(readings[7].experiment, r#"Temperature Monitoring, "backup" sensor"#);
+        assert_eq!(
+            readings[7].experiment,
+            r#"Temperature Monitoring, "backup" sensor"#
+        );
     }
 
     #[test]
     fn nan_and_infinity_are_rejected() {
         for value in ["NaN", "inf", "-infinity", "1e400"] {
             let fields = split_fields(&format!("t,A1,{value},Celsius,Lab 1,Test")).unwrap();
-            assert!(parse_reading(&fields).is_err(), "{value} should be rejected");
+            assert!(
+                parse_reading(&fields).is_err(),
+                "{value} should be rejected"
+            );
         }
     }
 
     fn read_text(name: &str, bytes: &[u8]) -> Result<Vec<Reading>, Box<dyn Error>> {
-        let path = std::env::temp_dir().join(name);
+        let path = std::env::temp_dir().join(format!("rust-examples-{name}"));
         std::fs::write(&path, bytes).unwrap();
         let result = read_readings(&path);
         std::fs::remove_file(&path).unwrap();
@@ -198,12 +239,24 @@ mod tests {
     #[test]
     fn edge_cases_of_whole_files() {
         // Windows line endings
-        assert_eq!(read_text("csv-crlf.csv", b"h\r\nt,A1,1,C,L,E\r\n").unwrap()[0].experiment, "E");
+        assert_eq!(
+            read_text("csv-crlf.csv", b"h\r\nt,A1,1,C,L,E\r\n").unwrap()[0].experiment,
+            "E"
+        );
         // an empty file, and a file with only a header
         assert!(read_text("csv-empty.csv", b"").unwrap().is_empty());
-        assert!(read_text("csv-header.csv", b"Timestamp,SensorID\n").unwrap().is_empty());
+        assert!(
+            read_text("csv-header.csv", b"Timestamp,SensorID\n")
+                .unwrap()
+                .is_empty()
+        );
         // no newline at the very end
-        assert_eq!(read_text("csv-no-newline.csv", b"h\nt,A1,1,C,L,E").unwrap().len(), 1);
+        assert_eq!(
+            read_text("csv-no-newline.csv", b"h\nt,A1,1,C,L,E")
+                .unwrap()
+                .len(),
+            1
+        );
         // bytes that aren't UTF-8: an error that names the line
         let error = read_text("csv-binary.csv", b"h\nt,A1,1,C,L,E\n\xff\xfe\n").unwrap_err();
         assert!(error.to_string().starts_with("line 3:"), "{error}");
@@ -224,5 +277,12 @@ mod tests {
         assert_eq!(fahrenheit.len(), 4);
         assert!((fahrenheit[0].value - 74.3).abs() < 1e-9); // 23.5 °C
         assert!(fahrenheit.iter().all(|r| r.unit == "Fahrenheit"));
+    }
+    #[test]
+    fn invalid_quote_placement_is_an_error() {
+        for line in ["a,\"b\"x,c", "a,b\"c,d", "a,\"unfinished"] {
+            assert!(split_fields(line).is_err(), "{line}");
+        }
+        assert_eq!(split_fields("\"\",a,").unwrap(), ["", "a", ""]);
     }
 }

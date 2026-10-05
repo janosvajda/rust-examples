@@ -12,8 +12,8 @@ You've used macros since your first Rust program: `println!`, `vec!`, `format!`,
 
 | A function can't… | …but a macro can | Example |
 |---|---|---|
-| take any number of arguments | ✓ | `println!("{} {} {}", a, b, c)` |
-| check things at compile time | ✓ | `println!("{}")` with no argument is a **compile** error |
+| have a variable number of ordinary parameters | ✓ | `println!("{} {} {}", a, b, c)` |
+| inspect format-string syntax at compile time | ✓ | `println!("{}")` with no argument is a **compile** error |
 | take code, not just values | ✓ | a block of code to time, a name to define |
 | create new items | ✓ | define a function, struct or `impl` |
 
@@ -21,16 +21,16 @@ You've used macros since your first Rust program: `println!`, `vec!`, `format!`,
 
 ```rust
 macro_rules! square {
-    ($x:expr) => { $x * $x };
+    ($x:expr) => {{ let value = $x; value * value }};
 //   ───┬───      ────┬────
 //   pattern      template
 }
 
-square!(7)   →   7 * 7
+square!(7)   →   { let value = 7; value * value }
 ```
 
 - **Pattern** (`($x:expr)`): what the call must look like. `$x` names the matched piece, and `expr` says what kind of code it must be.
-- **Template** (`$x * $x`): the code that replaces the call, with `$x` filled in.
+- **Template** (`{ let value = $x; value * value }`): the code that replaces the call, with `$x` filled in.
 
 A macro can have **several rules**, tried top to bottom like the arms of a `match`:
 
@@ -101,11 +101,15 @@ error[E0425]: cannot find value `x` in this scope
 
 ## Order matters
 
-A `macro_rules!` macro must be **defined before it's used** in the file. The compiler reads macros top to bottom:
+Unlike a function, a `macro_rules!` macro must be defined **above** the place where it's used in the file. Using it first gives:
 
 ```text
 error: cannot find macro `shout` in this scope
 ```
+
+## Use each argument once
+
+A macro pastes code; it doesn't calculate values first. If `square!` expanded to `$x * $x`, then `square!({ calls += 1; 4 })` would run the block **twice**. So the macro first stores the argument in a variable, `let value = $x;`, and multiplies that: the block runs once, and the result is 16. Hygiene keeps the macro's variable names separate from yours, but it doesn't prevent this kind of repetition: that's up to you.
 
 ## Run it
 

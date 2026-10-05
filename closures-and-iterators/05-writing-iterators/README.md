@@ -18,7 +18,7 @@ You can make anything iterable, from a one-line closure to a full struct, and ev
 ## 1. Iterators from closures
 
 ```rust
-iter::successors(Some(1), |&n| n.checked_mul(2).filter(|&next| next <= limit))   // 1, 2, 4, 8…
+iter::successors((limit >= 1).then_some(1), |&n| n.checked_mul(2).filter(|&next| next <= limit))   // 1, 2, 4, 8…
 iter::from_fn(move || { state = …; Some(state % 6 + 1) })                        // dice rolls
 ```
 
@@ -41,7 +41,7 @@ impl Iterator for Countdown {
 | Implement | And callers get |
 |---|---|
 | `DoubleEndedIterator` (`next_back`) | `.rev()`, and taking items from **both ends** of the same iterator |
-| `size_hint` + `ExactSizeIterator` | `.len()`, and `collect` allocates exactly the right size up front |
+| `size_hint` + `ExactSizeIterator` | `.len()` when the length fits `usize`; consumers can use the size hint for allocation |
 
 The demo's `Countdown` keeps a count of the items **remaining**. That makes both ends easy: `next` takes from the top, `next_back` from the bottom, and both stop when nothing remains. A test takes one from each end and checks that the middle is left.
 
@@ -91,6 +91,13 @@ impl<I: Iterator> EveryNthExt for I {}
 ```
 
 This is exactly how `map`, `filter` and the others work inside the standard library: each is a small struct wrapping the previous iterator. (The standard library already has this one as `step_by`. Writing it yourself shows how adapters work.)
+
+## The ends of a sequence
+
+Edge values are where iterators go wrong, so the tests check them:
+
+- `powers_of_two(0)` is **empty**: even the first value, 1, is above the limit. `checked_mul` ends the sequence before a multiplication could overflow.
+- `countdown(n)` includes both `n` and `0`, so `countdown(u32::MAX)` has 4,294,967,296 items: one more than a `u32` can count. That's why `Countdown` keeps its remaining count in a `u64`. And since an iterator is lazy, `countdown(u32::MAX).take(2)` is instant: it never creates the other four billion items.
 
 ## Run it
 

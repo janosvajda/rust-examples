@@ -127,7 +127,7 @@ pub struct MyRc<T> {
 | Step | What happens |
 |---|---|
 | `MyRc::new(value)` | `Box::new(Inner { count: 1, value })` puts it on the heap; `Box::leak` hands over the raw pointer. From now on, our code must free it |
-| `clone()` | count + 1; the pointer is copied, the value isn't |
+| `clone()` | checked count + 1; aborts before overflow. The pointer is copied, the value isn't |
 | `*my_rc` (`Deref`) | reads the value through the pointer |
 | `drop()` | count − 1; at **0**, `Box::from_raw` turns the pointer back into a `Box`, and dropping that Box frees it |
 
@@ -150,7 +150,11 @@ Every `unsafe` block rests on one **invariant**, a rule the type always keeps tr
 
 A test proves the value is freed **exactly once**, and only after the last owner is gone. And `MyRc`, like the real `Rc`, can't be sent to another thread: `NonNull` is neither `Send` nor `Sync`, so the compiler refuses, which is right for a counter that isn't atomic ([lesson 4](../04-arc/)).
 
-The real `Rc` adds a lot on top: `Weak` support, unsized types such as `Rc<str>`, overflow checks on the counter, and many optimisations. The core idea is these few lines.
+The real `Rc` adds a lot on top: `Weak` support, unsized types such as `Rc<str>`, and many optimisations.
+
+## A reference count must never wrap around
+
+Safe code can call `clone` and then `mem::forget` again and again, so the count can grow without limit. If it ever wrapped around from its maximum back to 0, one handle could free the value while other handles still point at it: a safe-looking API with a use-after-free inside. So `MyRc::clone` uses checked addition and **aborts** the program if the count is full, just like the standard `Rc`. A test runs this in a separate process, so that the abort doesn't end the test run itself. ([The Rustonomicon explains why.](https://doc.rust-lang.org/nomicon/arc-mutex/arc-clone.html))
 
 ## Run it
 

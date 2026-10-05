@@ -6,7 +6,7 @@ Small, playable programs. Games are a great way to learn: you see the result imm
 
 These are **examples**, not a course: each one stands on its own.
 
-| Example | What it is | What it teaches |
+| Example | What it is | Concepts demonstrated |
 |---|---|---|
 | [Tic-tac-toe](tic-tac-toe/) | the classic game in the terminal, with an unbeatable computer player | the **minimax** algorithm and recursion, enums for game state, and testing a game by playing it with typed text |
 | [Bouncing face](bouncing-face/) | a face in a window that follows your mouse, with fireworks | how **graphics** work: a framebuffer of pixels, colours as numbers, drawing shapes, and the game loop |

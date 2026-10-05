@@ -48,6 +48,8 @@ error[E0308]: `if` and `else` have incompatible types
 
 `Box<dyn Fn(i32) -> i32>` is a trait object (traits course, lesson 3): it can hold any closure with that signature, at the cost of one heap allocation and an indirect call.
 
+The demo's `"power"` operation only accepts exponents of 0 or more, and returns `None` for a negative one. Simply converting −1 to an unsigned number would turn it into 4,294,967,295: an enormous power nobody asked for.
+
 ## Storing closures in structs
 
 **One closure, known when the struct is created: a generic field.**

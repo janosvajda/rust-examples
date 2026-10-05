@@ -26,9 +26,19 @@ pub fn derive_describe(input: TokenStream) -> TokenStream {
     let fields = match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(named) => &named.named,
-            _ => return error(&input, "Describe needs a struct with named fields, like `struct S { a: u32 }`"),
+            _ => {
+                return error(
+                    &input,
+                    "Describe needs a struct with named fields, like `struct S { a: u32 }`",
+                );
+            }
         },
-        _ => return error(&input, "Describe can only be derived for structs, not enums or unions"),
+        _ => {
+            return error(
+                &input,
+                "Describe can only be derived for structs, not enums or unions",
+            );
+        }
     };
 
     let field_idents: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).collect();

@@ -17,11 +17,16 @@ fn main() {
             misses += 1;
             let evicted = cache.put(user_id, load_profile(user_id));
             match evicted {
-                Some((old_id, _)) => println!("user {user_id}: miss, loaded (evicted user {old_id})"),
+                Some((old_id, _)) => {
+                    println!("user {user_id}: miss, loaded (evicted user {old_id})")
+                }
                 None => println!("user {user_id}: miss, loaded"),
             }
         }
-        println!("         cache, most recent first: {:?}", cache.keys_by_recency());
+        println!(
+            "         cache, most recent first: {:?}",
+            cache.keys_by_recency()
+        );
     }
 
     println!("\n{hits} hits, {misses} misses");

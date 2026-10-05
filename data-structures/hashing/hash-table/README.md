@@ -24,6 +24,12 @@ cargo doc --open
 - `RandomState::hash_one` and why std uses random hash keys
 - `std::mem::replace` and `swap_remove`
 
+## Updating is different from inserting
+
+Inserting a key that's already there **replaces** its value: the number of entries stays the same, so it never makes the table grow. Only a new key can.
+
+The "O(1) average" assumes keys are quick to hash and compare. Long strings take longer, because every byte is hashed. The hash keys are random, like the standard `HashMap`'s, so an attacker can't easily choose keys that all land in the same bucket.
+
 ## Run it
 
 ```bash

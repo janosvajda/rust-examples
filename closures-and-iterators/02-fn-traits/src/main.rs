@@ -44,7 +44,10 @@ fn main() {
     // This closure only holds a shared reference to `greeting`, so it's
     // `Copy`: passing it to call_twice copies it, and `read` stays usable.
     println!("    {}", call_twice(read));
-    println!("    and it works with FnMut and FnOnce functions too: {}", run_once(read));
+    println!(
+        "    and it works with FnMut and FnOnce functions too: {}",
+        run_once(read)
+    );
 
     println!("\n2. FnMut: changes what it captured");
     let mut total = 0;
@@ -78,7 +81,10 @@ fn main() {
 
     println!("\n4. Standard library functions choose the least demanding trait");
     println!("    {}", name_or_default(None, String::from("guest")));
-    println!("    {}", name_or_default(Some(String::from("Ana")), String::from("guest")));
+    println!(
+        "    {}",
+        name_or_default(Some(String::from("Ana")), String::from("guest"))
+    );
 }
 
 #[cfg(test)]

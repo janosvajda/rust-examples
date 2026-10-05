@@ -18,7 +18,7 @@ Airline pilots know this problem well. Autopilot flies most of the flight, so pi
 
 Programming has the same risk. If the AI always writes the loop, the error handling and the SQL query, you slowly lose the ability to write them, and with it **the ability to judge them**. And judging is exactly the job [lesson 2](../02-ai-assisted-engineering/) gave the human.
 
-Early research points the same way. A 2025 study by Microsoft Research and Carnegie Mellon University surveyed knowledge workers who use AI. The more people trusted the AI, the less critical thinking they reported putting into their work.
+Early research points the same way. A 2025 study by Microsoft Research and Carnegie Mellon University surveyed knowledge workers who use AI. The more people trusted the AI, the less critical thinking they reported putting into their work. [The paper](https://doi.org/10.1145/3706598.3713778)
 
 ## 2. The learning paradox
 
@@ -28,13 +28,15 @@ Here's the uncomfortable core of this lesson:
 
 An experienced programmer learned to spot an O(n²) loop by writing slow loops, waiting for them, and fixing them. Someone who starts their career with AI writing every loop may never go through that struggle, and may never get the instinct.
 
-The struggle isn't a waste of time. Teachers call it **productive struggle**: getting stuck, trying, being wrong and finally understanding is how knowledge gets stored in your head. When an AI removes the struggle, it can also remove the learning.
+This is sometimes called **productive struggle**: getting stuck, trying an approach, finding a mistake and working through it can build understanding. Having an AI do all of that work can remove the opportunity to practise.
 
 ## 3. Feeling faster isn't being faster
 
 In 2025, the research group METR ran a careful experiment with experienced open-source developers working on their own projects. Some tasks were done with AI tools, some without.
 - **What happened:** with the AI tools, the developers were about **19% slower**.
 - **What they believed:** afterwards, they thought the AI had made them about **20% faster**.
+
+[METR's report on the study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/)
 
 It was one small study, with the tools of early 2025, and newer tools may well give different results. The lesson that lasts isn't "AI makes you slower". It's: **how productive you *feel* isn't a measurement.** Measure.
 
@@ -73,7 +75,7 @@ What matters a little less: memorising exact syntax, function names and API deta
 
 ## Learning with AI without losing the skill
 
-AI can be a wonderful teacher. It's patient, available at midnight, and happy to explain the same thing five ways. The difference is who does the thinking:
+AI can help explain a concept in different ways and provide examples on demand. The difference is who does the thinking:
 
 | AI as a tutor ✓ | AI as a ghostwriter ✗ (while you're learning) |
 |---|---|

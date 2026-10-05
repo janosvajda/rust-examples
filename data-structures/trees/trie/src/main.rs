@@ -3,7 +3,15 @@ use trie::Trie;
 fn main() {
     let mut trie = Trie::new();
     let dictionary = [
-        "rust", "rustacean", "rusty", "ruby", "run", "runtime", "cargo", "crate", "crates",
+        "rust",
+        "rustacean",
+        "rusty",
+        "ruby",
+        "run",
+        "runtime",
+        "cargo",
+        "crate",
+        "crates",
     ];
     for word in dictionary {
         trie.insert(word);

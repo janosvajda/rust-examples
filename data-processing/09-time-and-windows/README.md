@@ -17,7 +17,7 @@ A number can. This lesson stores a time as **seconds since 1970-01-01 00:00:00 U
 struct Timestamp(i64);
 ```
 
-Comparing, sorting and subtracting are now integer operations, and they're always right: 10 minutes across midnight is simply 600 seconds.
+Comparing, sorting and subtracting are now simple integer operations: ten minutes across midnight is 600 seconds.
 
 ## 1. Parsing: only real dates
 
@@ -115,7 +115,13 @@ Everything here is in **UTC**, a single clock with no daylight saving time. That
 - In autumn, one hour happens **twice**, so "01:30" is ambiguous.
 - The rules change by country and by year.
 
-Don't write that yourself. For time zones and calendars, use a crate: `jiff` or `chrono`. They contain the official time zone database. Store and compute in UTC, and convert to local time only to show it to a person.
+Don't write that yourself. For time zones and calendars, use a crate: `jiff` has time zones built in; `chrono` needs a second crate, `chrono-tz`, for named zones like `Europe/Budapest`. Store and calculate in UTC, and convert to local time only to show it to a person.
+
+## The calendar rules
+
+The parser accepts years 1 to 9999, treats every time as UTC, and checks hours (0–23), minutes and seconds (0–59). A leap second written as `:60` is rejected rather than quietly turned into the next minute. It's a parser for this lesson's format, not for every date format in the world.
+
+Each row needs exactly three fields, a sensor ID, and a temperature that's a finite number. Window sizes and the expected interval between readings must be positive. Windows with no readings are left out.
 
 ## Run it
 

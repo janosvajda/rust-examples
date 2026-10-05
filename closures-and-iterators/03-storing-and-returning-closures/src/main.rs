@@ -37,7 +37,7 @@ fn make_operation(name: &str, n: i32) -> Option<Box<dyn Fn(i32) -> i32>> {
     match name {
         "add" => Some(Box::new(move |x| x + n)),
         "multiply" => Some(Box::new(move |x| x * n)),
-        "power" => Some(Box::new(move |x| x.pow(n as u32))),
+        "power" if n >= 0 => Some(Box::new(move |x| x.pow(n as u32))),
         _ => None,
     }
 }
@@ -55,7 +55,11 @@ struct Memo<F: Fn(u64) -> u64> {
 
 impl<F: Fn(u64) -> u64> Memo<F> {
     fn new(calculation: F) -> Self {
-        Memo { calculation, cache: HashMap::new(), calls: 0 }
+        Memo {
+            calculation,
+            cache: HashMap::new(),
+            calls: 0,
+        }
     }
 
     fn get(&mut self, input: u64) -> u64 {
@@ -90,7 +94,10 @@ impl Button {
     }
 
     fn click(&self) -> Vec<String> {
-        self.handlers.iter().map(|handler| handler(&self.label)).collect()
+        self.handlers
+            .iter()
+            .map(|handler| handler(&self.label))
+            .collect()
     }
 }
 
@@ -98,9 +105,18 @@ fn main() {
     println!("1. Returning closures with impl Fn");
     let add_five = make_adder(5);
     let add_ten = make_adder(10);
-    println!("    add_five(1) = {}, add_ten(1) = {}", add_five(1), add_ten(1));
+    println!(
+        "    add_five(1) = {}, add_ten(1) = {}",
+        add_five(1),
+        add_ten(1)
+    );
     let mut next_ticket = make_counter();
-    println!("    tickets: {}, {}, {}", next_ticket(), next_ticket(), next_ticket());
+    println!(
+        "    tickets: {}, {}, {}",
+        next_ticket(),
+        next_ticket(),
+        next_ticket()
+    );
 
     println!("\n2. Choosing a closure at run time with Box<dyn Fn>");
     for name in ["add", "multiply", "power", "divide"] {
@@ -118,10 +134,16 @@ fn main() {
     for n in [4, 4, 9, 4, 9] {
         print!("    {n}² = {} ", slow_square.get(n));
     }
-    println!("\n    only {} real calculations for 5 requests", slow_square.calls);
+    println!(
+        "\n    only {} real calculations for 5 requests",
+        slow_square.calls
+    );
 
     println!("\n4. A struct with many different closures");
-    let mut button = Button { label: String::from("Save"), handlers: Vec::new() };
+    let mut button = Button {
+        label: String::from("Save"),
+        handlers: Vec::new(),
+    };
     let user = String::from("Ana");
     button.on_click(|label| format!("clicked {label}"));
     button.on_click(move |label| format!("{user} pressed {label}")); // captures `user`
@@ -165,7 +187,10 @@ mod tests {
 
     #[test]
     fn button_runs_every_handler_in_order() {
-        let mut button = Button { label: String::from("Go"), handlers: Vec::new() };
+        let mut button = Button {
+            label: String::from("Go"),
+            handlers: Vec::new(),
+        };
         button.on_click(|l| l.to_uppercase());
         button.on_click(|l| l.repeat(2));
         assert_eq!(button.click(), ["GO", "GoGo"]);

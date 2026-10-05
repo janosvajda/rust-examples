@@ -37,9 +37,16 @@ struct Labelled<T: std::fmt::Debug> {
 //     error: Describe needs a struct with named fields, like `struct S { a: u32 }`
 
 fn main() {
-    let user = User { name: String::from("Ferris"), age: 9, admin: true };
+    let user = User {
+        name: String::from("Ferris"),
+        age: 9,
+        admin: true,
+    };
     let point = Point { x: 1.5, y: -2.0 };
-    let tagged = Labelled { label: "scores", value: vec![10, 20] };
+    let tagged = Labelled {
+        label: "scores",
+        value: vec![10, 20],
+    };
 
     println!("Generated describe():");
     println!("    {}", user.describe());
@@ -57,8 +64,15 @@ mod tests {
 
     #[test]
     fn describe_lists_every_field() {
-        let user = User { name: String::from("Ana"), age: 30, admin: false };
-        assert_eq!(user.describe(), "User { name: \"Ana\", age: 30, admin: false }");
+        let user = User {
+            name: String::from("Ana"),
+            age: 30,
+            admin: false,
+        };
+        assert_eq!(
+            user.describe(),
+            "User { name: \"Ana\", age: 30, admin: false }"
+        );
     }
 
     #[test]
@@ -69,7 +83,10 @@ mod tests {
 
     #[test]
     fn works_with_generics() {
-        let l = Labelled { label: "n", value: 5u8 };
+        let l = Labelled {
+            label: "n",
+            value: 5u8,
+        };
         assert_eq!(l.describe(), "Labelled { label: \"n\", value: 5 }");
     }
 }

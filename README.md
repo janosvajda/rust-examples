@@ -2,6 +2,12 @@
   <img src="rust-exampleslogo.png" alt="Rust Examples logo" width="320">
 </p>
 
+# Deprecated
+
+This project is now deprecated. In the AI age, I don't think people need these kinds of examples as much anymore, since most people use AI. I might update it later, but books, documentation, lessons, and example projects like this just don't really matter anymore.
+
+I may revisit or update this project in the future, but for now, I consider it archived.
+
 # Things I Learned About Rust
 
 A place where I learned Rust, step by step. Hopefully, it can help others along the way too.
@@ -12,15 +18,13 @@ I've been a software developer for 25+ years across many industries, and I've be
 
 I started this repository in 2023 as a collection of examples while exploring and learning Rust, mostly for my own amusement.
 
-It's not perfect. Some examples may be outdated, imprecise, or simply wrong — much like their author from time to time. If you spot something that needs fixing, please let me know. Contributions, corrections, and friendly pointers are always welcome!
-
-Since then, this repository has grown into something more. Today, I write it for people who want to learn Rust: to share good practices and help junior developers get through the parts that can feel intimidating at first — ownership, borrowing, lifetimes, error handling, and the occasional “why is the compiler angry with me?” moment.
+It's not perfect. Some examples may be outdated, imprecise, or "should be better". If you spot something that needs fixing, please let me know. Contributions, corrections, and friendly pointers are always welcome.
 
 ## Lessons and examples
 
 | | **Lessons** | **Examples** |
 |---|---|---|
-| what | a numbered course, like `01-…`, `02-…`, that teaches one subject step by step | one standalone program that shows one thing |
+| what | a numbered series, like `01-…`, `02-…`, that explores one subject step by step | one standalone program that shows one thing |
 | how to read | in order: each lesson builds on the ones before it | in any order: jump straight to what you need |
 | the README | explains the *why*, with real compiler errors and an "idea in one sentence" | explains what the program does and how to run it |
 | good for | learning a subject properly | a quick reference, or a starting point for your own code |
@@ -89,7 +93,7 @@ A few examples are kept out of the workspace build:
 Build those from their own directories. They are checked with Clippy in CI as well.
 
 # How computers work: from bits to the kernel
-A nine-lesson course on what really happens inside a computer, explained twice in every lesson: once with a picture simple enough for children, once precisely, with Rust code you can run. With a bit of history in every lesson, and measurements instead of guesses. Start with the [course overview](./how-computers-work/).
+A ten-lesson course on what really happens inside a computer, explained twice in every lesson: once with a picture simple enough for children, once precisely, with Rust code you can run. With a bit of history in every lesson, and measurements instead of guesses. Start with the [course overview](./how-computers-work/).
 
 1. [Bits and bytes](./how-computers-work/01-bits-and-bytes/): binary, bytes, text and colours as numbers.
 2. [Memory and addresses](./how-computers-work/02-memory-and-addresses/): numbered mailboxes, endianness, alignment.
@@ -100,6 +104,7 @@ A nine-lesson course on what really happens inside a computer, explained twice i
 7. [Virtual memory](./how-computers-work/07-virtual-memory/): pages, randomised addresses, and the operating system stopping bad accesses.
 8. [User space and kernel space](./how-computers-work/08-user-space-and-kernel-space/): system calls by hand in assembly, and what they cost.
 9. [Why Rust](./how-computers-work/09-why-rust/): C's power and memory bugs, and Rust's checks at the same speed.
+10. [Quantum computing](./how-computers-work/10-quantum-computing/): qubits, interference, measurement and entanglement, and where Rust fits.
 
 # Ownership and borrowing
 A twelve-lesson course on how Rust manages memory without a garbage collector. Every README explains one idea simply and precisely, and every compiler error it quotes is real. Start with the [course overview](./ownership-and-borrowing/).

@@ -64,7 +64,11 @@ impl Editor {
     /// Shows the text with a `|` where the cursor is.
     fn show(&self) -> String {
         let byte_index = self.byte_index(self.cursor);
-        format!("\"{}|{}\"", &self.text[..byte_index], &self.text[byte_index..])
+        format!(
+            "\"{}|{}\"",
+            &self.text[..byte_index],
+            &self.text[byte_index..]
+        )
     }
 
     /// Converts a position in characters to a position in bytes. Rust strings
@@ -165,7 +169,10 @@ fn main() {
     editor.type_text(",");
     println!("{:<16} → {}", "insert \",\"", editor.show());
     if !history.redo(&mut editor) {
-        println!("{:<16} → nothing to redo (the new edit replaced that future)", "redo");
+        println!(
+            "{:<16} → nothing to redo (the new edit replaced that future)",
+            "redo"
+        );
     }
 
     while history.undo(&mut editor) {}

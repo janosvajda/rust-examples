@@ -104,7 +104,10 @@ impl<T> LinkedList<T> {
         } else {
             // No free slot: append a new one at the end of the Vec.
             let index = self.slots.len();
-            assert!(index < NIL as usize, "a LinkedList can hold at most u32::MAX - 1 nodes");
+            assert!(
+                index < NIL as usize,
+                "a LinkedList can hold at most u32::MAX - 1 nodes"
+            );
             self.slots.push(node);
             index as u32
         };

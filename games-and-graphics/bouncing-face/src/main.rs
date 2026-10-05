@@ -14,7 +14,12 @@ use minifb::{Key, MouseMode, Window, WindowOptions};
 use scene::{Face, HEIGHT, Random, WIDTH};
 
 fn main() {
-    let mut window = match Window::new("Bouncing face: move the mouse, Esc to quit", WIDTH, HEIGHT, WindowOptions::default()) {
+    let mut window = match Window::new(
+        "Bouncing face: move the mouse, Esc to quit",
+        WIDTH,
+        HEIGHT,
+        WindowOptions::default(),
+    ) {
         Ok(window) => window,
         Err(error) => {
             // For example on a server without a display: say so, don't panic.

@@ -29,7 +29,7 @@ They were written with an AI assistant (Claude), in a conversation with the auth
 - times the AI got something wrong and the human corrected it;
 - times the AI found real bugs.
 
-That seems the most honest way to teach this subject.
+These examples show both the benefits and the risks of using AI in software development.
 
 ## The lessons
 

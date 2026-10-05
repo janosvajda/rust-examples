@@ -113,6 +113,8 @@ Two limits to know about:
 - **Sums of millions of floats** slowly lose precision, because every addition rounds. For very long series, use compensated (Kahan) summation, or sum integers, for example in hundredths of a degree.
 - **Median and percentiles need all the values in memory.** For data too big for that, use approximate streaming algorithms such as t-digest, or compute exact values per group when each group fits.
 
+Grouping by hour uses the first 13 characters of a timestamp, so the parser checks the timestamp **first**: exactly `YYYY-MM-DD HH:MM`, a real calendar date and a valid clock time. Slicing text that's too short, or contains multi-byte characters, would otherwise panic. Rows with a missing lab, the wrong number of fields, or a temperature that isn't a finite number are counted as rejected.
+
 ## Run it
 
 ```bash

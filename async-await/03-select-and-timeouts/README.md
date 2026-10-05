@@ -4,65 +4,133 @@
 
 ## The idea in one sentence
 
-`join!` waits for **all** futures. `select!` waits for the **first** one, and `timeout` gives a future a deadline. Whatever doesn't finish is **cancelled** simply by being dropped.
+**`select!` chooses a ready, matching branch; `timeout` limits how long you wait for an operation.**
 
-## `select!`: the first one wins
+Ferris asks two kitchens for a dish and accepts one reply. Taking the other order off Ferris's list does not magically undo food already cooked. Async cancellation has that same limit: it can stop future work without undoing past effects.
+
+## select!: choose one result
+
+Using the simulated `ask_server` helper:
 
 ```rust
-tokio::select! {
+let reply = tokio::select! {
     answer = ask_server("Europe mirror", 150) => answer,
     answer = ask_server("US mirror", 400) => answer,
-}
+};
+println!("{reply}");
 ```
 
-Both futures run concurrently. As soon as one finishes, its branch runs and the **other future is dropped**:
+Both branch futures are polled in the **current task**, so their timer waits can overlap. Once a ready result matches its branch pattern, that branch's handler runs. The other **owned branch future** is dropped. Here the shorter timer normally wins; the test verifies the 150 ms result using paused Tokio time.
 
-```text
-answer from Europe mirror after 152 ms
-```
+This chooses a completion, not necessarily a successful result. An `Err` can win too. If several branches are ready, default polling order is randomised: the first written branch does not always win. Patterns and `if` conditions can disable branches; an `else` branch handles the case where none remain enabled, otherwise `select!` panics.
 
-The US request never finishes. It's cancelled, and nobody waits the extra 250 ms.
+Dropping a temporary borrow such as `&mut operation` does not drop the operation stored outside the macro. That distinction lets you reuse a future.
 
-## `timeout`: a deadline
+Many futures from `async fn` need pinning before they can be awaited through a mutable reference. `tokio::pin!` keeps the future's stored value in place; the pinned handle can still move. Here a short timer can finish first, and we continue waiting for the **same** operation:
 
 ```rust
-timeout(Duration::from_millis(300), ask_server("slow server", 900)).await
-// → Err(Elapsed): gave up at 300 ms
+let operation = ask_server("saved operation", 100);
+tokio::pin!(operation);
+let reply = tokio::select! {
+    reply = &mut operation => reply,
+    _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => operation.await,
+};
+assert_eq!(reply, "answer from saved operation");
 ```
 
-`timeout` returns `Ok(result)` if the future finished in time, or an error if the deadline passed first. It's `select!` between your future and a timer, packaged up. The test checks that a 5-second request with a 200 ms deadline takes exactly 200 ms.
-
-Every network call in real code should have a timeout. Without one, a server that never answers makes your program wait forever.
-
-## `select!` in a loop: work until told to stop
+## timeout: a cooperative deadline
 
 ```rust
-loop {
-    tokio::select! {
-        _ = ticker.tick() => { /* periodic work */ }
-        _ = &mut stop      => { /* clean up */ return ticks; }
+use std::time::Duration;
+use tokio::time::timeout;
+
+let result = timeout(
+    Duration::from_millis(300),
+    ask_server("slow server", 900),
+).await;
+assert!(result.is_err());
+```
+
+The result is `Ok(answer)` on completion or `Err(Elapsed)` when the timeout expires. Our `ask_with_deadline` helper turns the timeout error into a friendly message.
+
+A timeout is **not an alarm that interrupts arbitrary code**. Tokio must get control back to check it. A blocking call or endless computation inside the future can exceed the limit without yielding; the timeout may then fail to report that overrun. Completion right at the deadline also needs a deliberate policy rather than assumptions about ties.
+
+Network operations usually need a deliberate timeout policy: a per-request deadline, idle timeout or longer-lived connection can require different choices. Our examples perform no real network requests.
+
+## A worker that stops cleanly
+
+The runnable worker waits for a timer or a `oneshot` stop message. This complete helper excerpt shows its control flow:
+
+```rust
+use std::time::Duration;
+use tokio::sync::oneshot;
+
+async fn worker(mut stop: oneshot::Receiver<()>) -> u32 {
+    let mut ticker = tokio::time::interval(Duration::from_millis(100));
+    let mut ticks = 0_u32;
+    loop {
+        tokio::select! {
+            biased;
+            _ = &mut stop => return ticks,
+            _ = ticker.tick() => ticks = ticks.saturating_add(1),
+        }
     }
 }
 ```
 
-A common shape for background workers: do something every 100 ms, but react **immediately** when a stop signal arrives. The stop signal is a `oneshot` channel (lesson 4). `&mut stop` lets the same receiver be checked again on every loop iteration instead of being used up by the first `select!`.
+`&mut stop` borrows the same receiver on each iteration. A winning tick drops only that temporary borrow, leaving the receiver available next time. The receiver completes on either a sent message or a dropped sender; this worker treats both as shutdown.
 
-## Cancellation: just drop the future
+`biased;` checks branches in written order. Putting shutdown first gives an already-ready stop priority over a tick. This does not interrupt a branch that is already doing work.
 
-In Rust, **cancelling a future means dropping it.** A future only makes progress when polled. Once it's dropped, it's never polled again, and its `Drop` code runs to clean up, for example closing a connection.
+**Fun timer surprise:** `interval`'s first tick is immediate. The test that stops after 250 ms counts ticks at 0, 100 and 200 ms. Missed ticks use Tokio's default `Burst` policy, so delayed workers can get catch-up ticks; use another policy when that would be unsuitable. This counter saturates at `u32::MAX` rather than wrapping.
+
+## Dropping an operation and dropping a handle differ
+
+| What you drop | What happens |
+|---|---|
+| unpolled future from our `ask_server` | its async body never starts; captured values are still dropped |
+| partially polled owned operation future | its stored state and live values are dropped; it receives no further polls |
+| `JoinHandle` from `tokio::spawn` | the handle detaches; the task can keep running |
+| `JoinSet` | requests cancellation of its tracked tasks |
+
+An operation's destructor can release its owned resources. It cannot `.await` asynchronous cleanup, undo a sent payment, or guarantee that a remote server stops processing a request. Graceful shutdown often means sending a stop request and then awaiting the worker's handle, as the demo does.
+
+## A timeout around a task handle stops waiting
 
 ```rust
-let slow = ask_server("never awaited", 10_000);
-drop(slow);     // cancelled: it never ran at all
+use std::time::Duration;
+
+let mut task = tokio::spawn(async {
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    "background result"
+});
+if tokio::time::timeout(Duration::from_millis(20), &mut task).await.is_err() {
+    task.abort(); // request cancellation of this async task
+    match task.await {
+        Err(error) if error.is_cancelled() => println!("cancelled"),
+        Ok(result) => println!("already completed: {result}"),
+        Err(error) => println!("task failed: {error}"),
+    }
+}
 ```
 
-**Be careful where you are when you're cancelled.** A future can be dropped at **any** `.await` point. If it was halfway through something, say it had read a message from a channel but not yet processed it, that work is lost. Keep each `.await` in a `select!` branch at a point where stopping is safe. Tokio's documentation calls this *cancellation safety*.
+Borrowing the handle keeps it available after the timeout. `abort()` requests cancellation; awaiting the handle waits for task termination and cleanup. Completion can race with cancellation, so handle both outcomes. A non-yielding async task cannot be interrupted mid-poll this way, and an already-running `spawn_blocking` closure cannot be aborted.
 
-## Run it
+## Cancellation safety: can we restart without losing progress?
+
+In a loop, a losing branch may be dropped and recreated. For **`mpsc::Receiver::recv`**, losing that race does not remove a message from the queue. But a larger future that receives a message and then awaits processing can lose the in-progress message when cancelled.
+
+Likewise, cancelling `read_exact` or `write_all` can leave partial I/O. Check each API's cancellation contract. Put work that must finish outside the repeatedly cancelled receive branch, or design an explicit recovery or shutdown path.
+
+## Try it
+
+Predict whether a worker receives a first tick before 100 ms, then run:
 
 ```bash
 cargo run
 cargo test
 ```
+
+[select and cancellation safety](https://docs.rs/tokio/latest/tokio/macro.select.html), [timeout](https://docs.rs/tokio/latest/tokio/time/fn.timeout.html), [interval](https://docs.rs/tokio/latest/tokio/time/fn.interval.html), [task cancellation](https://docs.rs/tokio/latest/tokio/task/struct.JoinHandle.html#method.abort)
 
 Previous: [Lesson 2: Running things concurrently](../02-running-concurrently/) · Next: [Lesson 4: Channels and shared state](../04-channels-and-shared-state/)

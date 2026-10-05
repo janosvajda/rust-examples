@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use crate::ast::{BinOp, Expr, Program, Stmt, UnaryOp};
 
 /// Decimal `*`, `/` and printing, written in LLVM IR. Added only to programs that use decimals.
+const INTEGER_RUNTIME: &str = include_str!("integer-runtime.ll");
 const RUNTIME: &str = include_str!("runtime.ll");
 
 /// The type of a Mini value.
@@ -73,10 +74,11 @@ pub fn generate(program: &Program) -> Result<String> {
 
 #[derive(Default)]
 struct Codegen {
-    globals: String,     // string constants, written above `main`
-    body: String,        // the instructions inside `main`
-    next_tmp: usize,     // numbers the temporaries: %t0, %t1, …
-    next_id: usize,      // numbers string constants and variable slots
+    globals: String, // string constants, written above `main`
+    body: String,    // the instructions inside `main`
+    next_tmp: usize, // numbers the temporaries: %t0, %t1, …
+    next_id: usize,  // numbers string constants and variable slots
+    uses_integer_division: bool,
     uses_decimals: bool, // whether to add the decimal runtime
     vars: HashMap<String, Var>,
 }
@@ -96,14 +98,22 @@ impl Codegen {
             Stmt::Print { name } => {
                 let (kind, value) = self.load(name)?;
                 match kind {
-                    Kind::Int => self.emit(format!("call i32 (ptr, ...) @printf(ptr @.fmt_int, i32 {value})")),
-                    Kind::Str => self.emit(format!("call i32 (ptr, ...) @printf(ptr @.fmt_str, ptr {value})")),
+                    Kind::Int => self.emit(format!(
+                        "call i32 (ptr, ...) @printf(ptr @.fmt_int, i32 {value})"
+                    )),
+                    Kind::Str => self.emit(format!(
+                        "call i32 (ptr, ...) @printf(ptr @.fmt_str, ptr {value})"
+                    )),
                     Kind::Dec => self.emit(format!("call void @mini_print_dec(i64 {value})")),
                     Kind::Bool => {
                         // choose the text "true" or "false", then print it
                         let text = self.tmp();
-                        self.emit(format!("{text} = select i1 {value}, ptr @.true, ptr @.false"));
-                        self.emit(format!("call i32 (ptr, ...) @printf(ptr @.fmt_str, ptr {text})"));
+                        self.emit(format!(
+                            "{text} = select i1 {value}, ptr @.true, ptr @.false"
+                        ));
+                        self.emit(format!(
+                            "call i32 (ptr, ...) @printf(ptr @.fmt_str, ptr {text})"
+                        ));
                     }
                 }
             }
@@ -132,9 +142,13 @@ impl Codegen {
                         self.emit(format!("{result} = sub {} 0, {value}", kind.llvm_type()))
                     }
                     // flipping a bit: true xor true is false, false xor true is true
-                    (UnaryOp::Not, Kind::Bool) => self.emit(format!("{result} = xor i1 {value}, true")),
+                    (UnaryOp::Not, Kind::Bool) => {
+                        self.emit(format!("{result} = xor i1 {value}, true"))
+                    }
                     (UnaryOp::Neg, _) => bail!("type error: cannot negate a {}", kind.name()),
-                    (UnaryOp::Not, _) => bail!("type error: `not` needs a boolean, found a {}", kind.name()),
+                    (UnaryOp::Not, _) => {
+                        bail!("type error: `not` needs a boolean, found a {}", kind.name())
+                    }
                 }
                 Ok((kind, result))
             }
@@ -162,8 +176,20 @@ impl Codegen {
         let result = self.tmp();
         let result_kind = match (op, kind) {
             // whole numbers: one machine instruction each
-            (Add | Sub | Mul | Div, Kind::Int) => {
-                let instr = match op { Add => "add", Sub => "sub", Mul => "mul", _ => "sdiv" }; // sdiv: signed division
+            (Div, Kind::Int) => {
+                self.uses_integer_division = true;
+                self.emit(format!(
+                    "{result} = call i32 @mini_int_div(i32 {left}, i32 {right})"
+                ));
+                Kind::Int
+            }
+            (Add | Sub | Mul, Kind::Int) => {
+                let instr = match op {
+                    Add => "add",
+                    Sub => "sub",
+                    Mul => "mul",
+                    _ => "sdiv",
+                }; // sdiv: signed division
                 self.emit(format!("{result} = {instr} i32 {left}, {right}"));
                 Kind::Int
             }
@@ -174,13 +200,27 @@ impl Codegen {
                 Kind::Dec
             }
             (Mul | Div, Kind::Dec) => {
-                let helper = if op == Mul { "mini_dec_mul" } else { "mini_dec_div" };
-                self.emit(format!("{result} = call i64 @{helper}(i64 {left}, i64 {right})"));
+                let helper = if op == Mul {
+                    "mini_dec_mul"
+                } else {
+                    "mini_dec_div"
+                };
+                self.emit(format!(
+                    "{result} = call i64 @{helper}(i64 {left}, i64 {right})"
+                ));
                 Kind::Dec
             }
             // comparisons give a boolean; `icmp` compares integers, `s` means signed
-            (Eq | Ne, Kind::Int | Kind::Dec | Kind::Bool) | (Lt | Le | Gt | Ge, Kind::Int | Kind::Dec) => {
-                let cond = match op { Eq => "eq", Ne => "ne", Lt => "slt", Le => "sle", Gt => "sgt", _ => "sge" };
+            (Eq | Ne, Kind::Int | Kind::Dec | Kind::Bool)
+            | (Lt | Le | Gt | Ge, Kind::Int | Kind::Dec) => {
+                let cond = match op {
+                    Eq => "eq",
+                    Ne => "ne",
+                    Lt => "slt",
+                    Le => "sle",
+                    Gt => "sgt",
+                    _ => "sge",
+                };
                 self.emit(format!("{result} = icmp {cond} {ty} {left}, {right}"));
                 Kind::Bool
             }
@@ -190,14 +230,21 @@ impl Codegen {
                 self.emit(format!("{result} = {instr} i1 {left}, {right}"));
                 Kind::Bool
             }
-            _ => bail!("type error: cannot use `{}` on {}s", op.symbol(), kind.name()),
+            _ => bail!(
+                "type error: cannot use `{}` on {}s",
+                op.symbol(),
+                kind.name()
+            ),
         };
         Ok((result_kind, result))
     }
 
     /// Load a variable's current value from its stack slot.
     fn load(&mut self, name: &str) -> Result<(Kind, String)> {
-        let var = self.vars.get(name).ok_or_else(|| anyhow!("undefined variable `{name}`"))?;
+        let var = self
+            .vars
+            .get(name)
+            .ok_or_else(|| anyhow!("undefined variable `{name}`"))?;
         let (kind, slot) = (var.kind, var.slot.clone());
         let value = self.tmp();
         self.emit(format!("{value} = load {}, ptr {slot}", kind.llvm_type()));
@@ -233,6 +280,7 @@ impl Codegen {
             "; Mini program, compiled to LLVM IR\n\n\
              {}{}{}{}{}\n\
              declare i32 @printf(ptr, ...)\n\n\
+             declare void @llvm.trap()\n\n\
              define i32 @main() {{\n\
              entry:\n\
              {}  ret i32 0\n\
@@ -243,7 +291,15 @@ impl Codegen {
             global_string("@.false", "false"),
             self.globals,
             self.body,
-            if self.uses_decimals { format!("\n{RUNTIME}") } else { String::new() },
+            format_args!(
+                "{}{}",
+                if self.uses_integer_division {
+                    INTEGER_RUNTIME
+                } else {
+                    ""
+                },
+                if self.uses_decimals { RUNTIME } else { "" }
+            ),
         )
     }
 }
@@ -273,7 +329,9 @@ mod tests {
     }
 
     fn type_error(src: &str) -> String {
-        generate(&Parser::parse(src).unwrap()).unwrap_err().to_string()
+        generate(&Parser::parse(src).unwrap())
+            .unwrap_err()
+            .to_string()
     }
 
     #[test]
@@ -282,16 +340,23 @@ mod tests {
         assert!(ir.contains("%t0 = mul i32 3, 4"));
         assert!(ir.contains("%t1 = add i32 2, %t0"));
         assert!(ir.contains("@printf(ptr @.fmt_int"));
-        assert!(!ir.contains("mini_dec_mul"), "no decimals, so no decimal runtime");
+        assert!(
+            !ir.contains("mini_dec_mul"),
+            "no decimals, so no decimal runtime"
+        );
     }
 
     #[test]
     fn decimals_and_booleans() {
-        let ir = ir("let price = 2.5 * 3.0;\nlet cheap = price < 10.0 and not false;\nprint cheap;");
+        let ir =
+            ir("let price = 2.5 * 3.0;\nlet cheap = price < 10.0 and not false;\nprint cheap;");
         assert!(ir.contains("call i64 @mini_dec_mul(i64 2500000, i64 3000000)"));
         assert!(ir.contains("icmp slt i64"));
         assert!(ir.contains("xor i1 false, true"));
-        assert!(ir.contains("define private i64 @mini_dec_mul"), "the decimal runtime is included");
+        assert!(
+            ir.contains("define private i64 @mini_dec_mul"),
+            "the decimal runtime is included"
+        );
     }
 
     #[test]
@@ -305,7 +370,8 @@ mod tests {
     #[test]
     fn errors_are_reported() {
         assert!(type_error("print y;").contains("undefined variable `y`"));
-        assert!(type_error("let s = \"a\";\nlet n = s * 2;").contains("cannot use `*` on a string and a number"));
+        assert!(type_error("let s = \"a\";\nlet n = s * 2;")
+            .contains("cannot use `*` on a string and a number"));
         assert!(type_error("let n = 1 + 2.5;").contains("cannot use `+` on a number and a decimal"));
         assert!(type_error("let b = true + true;").contains("cannot use `+` on booleans"));
         assert!(type_error("let b = 1 and 2;").contains("cannot use `and` on numbers"));

@@ -25,10 +25,10 @@ timestamp,sensor,value,unit
 2024-09-10 12:45,B22,750,mHg                  ← a typo in the unit
 2024-09-10 12:00,A12,23.5,Celsius             ← the same row again
 2024-09-10 12:50,C33,7.1,pH
-2024-09-10 12:55,C33,15.2,pH                  ← pH only goes from 0 to 14
+2024-09-10 12:55,C33,15.2,pH                  ← outside this dataset's accepted pH range, 0–14
 2024-09-10 13:00,C33,6.9,PH                   ← different capitalisation
 2024-09-10 12:30,B22,765,mmHg                 ← same sensor and time as line 9, different value
-2024-09-10 13:05,C33,inf,pH                   ← "infinity": parses as a number, but isn't one
+2024-09-10 13:05,C33,inf,pH                   ← "infinity": parses as an infinite float, not a finite measurement
 ```
 
 ## The result: every row accounted for
@@ -46,10 +46,10 @@ Fixed along the way (5):
 Rejected (8):
     line  5: the value is missing
     line  6: the value is missing
-    line  7: -300 Celsius is impossible (allowed: ≥ -273.15, absolute zero)
+    line  7: -300 Celsius is outside the accepted range (≥ -273.15, absolute zero)
     line 11: expected 4 fields, found 3
     line 12: unknown unit `mHg`
-    line 15: 15.2 pH is impossible (allowed: 0 to 14)
+    line 15: 15.2 pH is outside the accepted range (0 to 14)
     line 17: conflicts with line 9: 765 here, 760 there (kept the first)
     line 18: `inf` is not a valid number
 
@@ -83,17 +83,17 @@ After this, the unit is an `enum Unit`, not a string. A typo like `mHg` can't sn
 
 Watch out for `NaN` and `inf`, too. Rust's `"NaN".parse::<f64>()` and `"inf".parse::<f64>()` **succeed**. And infinity even passes a check like `value >= -273.15`. So the cleaner accepts only finite numbers: `.filter(|v| v.is_finite())`.
 
-### 3. Validate: is the value even possible?
+### 3. Validate: is the value accepted?
 
-A value can parse perfectly and still be impossible:
+A value can parse perfectly and still fall outside the application's accepted range:
 
-| Unit | Possible values | Why |
+| Unit | Accepted values | Why |
 |---|---|---|
 | Celsius | ≥ -273.15 | nothing is colder than absolute zero |
-| mmHg | > 0 | pressure can't be negative |
-| pH | 0 to 14 | the scale ends there |
+| mmHg | > 0 | this dataset's rule: our sensors can't measure a perfect vacuum |
+| pH | 0 to 14 | this dataset's rule; very strong acids and bases can go beyond it |
 
-An impossible value means a broken sensor or a typo. Physical limits are the minimum check; real projects often add tighter ones, like "this room is always between 10 and 40 °C".
+Only absolute zero is a law of nature. The other two ranges are **rules for this dataset**, chosen for its sensors. Either way, an out-of-range value needs a person to look at it: it may be a sensor fault, a typo, or a real but unusual measurement.
 
 ### 4. Remove duplicates *after* cleaning, and catch conflicts
 
@@ -147,7 +147,7 @@ Rejecting is visible; **fixing** can be invisible, and that's dangerous. If the 
 | an unknown unit or a typo (`mHg`) | rejected: never guessed | `each_problem_is_named` |
 | no value: empty, `n/a`, `NA`, `-` | rejected as missing, never turned into 0 | same |
 | `NaN`, `inf` | rejected: they parse as `f64`, but aren't measurements | same |
-| a physically impossible value | rejected with the allowed range | same |
+| a value outside the accepted range | rejected with the allowed range | same |
 | a missing column | rejected with the count | same |
 | an exact duplicate row | dropped and counted | `duplicates_and_conflicts_are_told_apart` |
 | a **conflicting** duplicate (same key, different value) | reported as a problem, never dropped silently | same |
@@ -156,6 +156,13 @@ Rejecting is visible; **fixing** can be invisible, and that's dangerous. If the 
 | **every** row | ends up kept, rejected or counted as a duplicate | `the_messy_file_is_fully_accounted_for` |
 
 Not handled here: a decimal **comma** (`23,5`, common in many European countries) collides with the CSV separator. It produces the wrong number of fields, so it's rejected, never misread. Files from such systems usually use `;` as the separator, and a parser needs to be told which one.
+
+## Two more checks
+
+- **Check again after converting.** A number can be fine before conversion and not after: `1e308 kPa` becomes infinity when it's converted to another unit. So the cleaner checks that the value is finite *after* converting too.
+- **Same time, different units is a conflict, not a duplicate.** `20 °C` and `20 mmHg` from the same sensor at the same moment can't both be right. Only identical values in the same unit count as a repeat. The first valid reading is kept, and the conflict is reported for a person to check.
+
+The 0–14 range for pH is this example's own rule for its sensors, not part of pH's [official definition](https://goldbook.iupac.org/terms/view/P04524).
 
 ## Run it
 

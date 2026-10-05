@@ -26,8 +26,8 @@ pub(crate) async fn function_handler(event: Request) -> Result<Response<Body>, E
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use lambda_http::{Request, RequestExt};
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_generic_http_handler() {
@@ -50,8 +50,7 @@ mod tests {
         let mut query_string_parameters: HashMap<String, String> = HashMap::new();
         query_string_parameters.insert("name".into(), "aws-lambda-example-hello-world".into());
 
-        let request = Request::default()
-            .with_query_string_parameters(query_string_parameters);
+        let request = Request::default().with_query_string_parameters(query_string_parameters);
 
         let response = function_handler(request).await.unwrap();
         assert_eq!(response.status(), 200);
@@ -68,15 +67,24 @@ mod tests {
     #[tokio::test]
     async fn html_in_the_name_is_never_served_as_html() {
         let attack = "<script>alert('hi')</script>";
-        let request = Request::default().with_query_string_parameters(HashMap::from([("name".to_string(), attack.to_string())]));
+        let request = Request::default().with_query_string_parameters(HashMap::from([(
+            "name".to_string(),
+            attack.to_string(),
+        )]));
         let response = function_handler(request).await.unwrap();
         // Plain text: the browser displays these characters, it doesn't run them.
-        assert_eq!(response.headers()["content-type"], "text/plain; charset=utf-8");
+        assert_eq!(
+            response.headers()["content-type"],
+            "text/plain; charset=utf-8"
+        );
     }
 
     #[tokio::test]
     async fn very_long_names_are_cut_short() {
-        let request = Request::default().with_query_string_parameters(HashMap::from([("name".to_string(), "x".repeat(10_000))]));
+        let request = Request::default().with_query_string_parameters(HashMap::from([(
+            "name".to_string(),
+            "x".repeat(10_000),
+        )]));
         let response = function_handler(request).await.unwrap();
         assert!(response.body().len() < 200);
     }

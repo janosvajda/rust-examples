@@ -93,8 +93,13 @@ fn main() {
     println!("    {expr:?} = {}", eval(&expr));
 
     println!("\n2. Different types in one Vec");
-    let shapes: Vec<Box<dyn Shape>> =
-        vec![Box::new(Circle { radius: 1.0 }), Box::new(Rectangle { width: 2.0, height: 3.0 })];
+    let shapes: Vec<Box<dyn Shape>> = vec![
+        Box::new(Circle { radius: 1.0 }),
+        Box::new(Rectangle {
+            width: 2.0,
+            height: 3.0,
+        }),
+    ];
     for shape in &shapes {
         println!("    {} has area {:.2}", shape.name(), shape.area());
     }
@@ -104,7 +109,9 @@ fn main() {
     // Box::new builds the value first (usually on the stack), then moves it to
     // the heap: for 1 MB that's fine. For values too big for the stack, build
     // them on the heap from the start, e.g. vec![0u8; n].into_boxed_slice().
-    let mut image: Box<Image> = Box::new(Image { pixels: [0; 1_000_000] });
+    let mut image: Box<Image> = Box::new(Image {
+        pixels: [0; 1_000_000],
+    });
     image.pixels[123] = 200; // a Box is used just like the value it points to
     println!("    size of Image:      {} bytes", size_of::<Image>());
     println!("    size of Box<Image>: {} bytes", size_of::<Box<Image>>());
@@ -123,8 +130,16 @@ mod tests {
 
     #[test]
     fn trait_objects_in_one_vec() {
-        let shapes: Vec<Box<dyn Shape>> =
-            vec![Box::new(Rectangle { width: 2.0, height: 3.0 }), Box::new(Rectangle { width: 1.0, height: 4.0 })];
+        let shapes: Vec<Box<dyn Shape>> = vec![
+            Box::new(Rectangle {
+                width: 2.0,
+                height: 3.0,
+            }),
+            Box::new(Rectangle {
+                width: 1.0,
+                height: 4.0,
+            }),
+        ];
         assert_eq!(total_area(&shapes), 10.0);
     }
 

@@ -70,7 +70,7 @@ impl From<ConfigError> for AppError {
     fn from(error: ConfigError) -> Self { AppError::Config(error) }
 }
 
-fn start_server(path: &str) -> Result<ServerConfig, AppError> {
+fn start_server(path: impl AsRef<std::path::Path>) -> Result<ServerConfig, AppError> {
     let text = std::fs::read_to_string(path)?;   // io::Error   → AppError::Io
     let config = load_config(&text)?;            // ConfigError → AppError::Config
     Ok(config)
@@ -111,6 +111,8 @@ For that, the type needs `Debug`, which every error type should have anyway.
 ## That's a lot of code
 
 Two `Display` implementations, two `Error` implementations and two `From` implementations, about 60 lines of boilerplate for two small enums. Lesson 4 shows how the `thiserror` crate writes all of it for you from a few attributes, with exactly the same result.
+
+`start_server` in the demo only loads and checks the configuration; it doesn't really start a network server.
 
 ## Run it
 

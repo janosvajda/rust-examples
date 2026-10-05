@@ -30,6 +30,14 @@ enum Instruction {
 use Instruction::*;
 
 impl Instruction {
+    const fn encoded_len(self) -> u8 {
+        match self {
+            Halt => 1,
+            Jump { .. } | Print { .. } => 2,
+            _ => 3,
+        }
+    }
+
     /// The instruction as machine code: the bytes the CPU actually reads.
     fn encode(self) -> Vec<u8> {
         match self {
@@ -145,7 +153,7 @@ impl Cpu {
 
     /// Step 3: EXECUTE one instruction. Returns false after HALT.
     fn execute(&mut self, instruction: Instruction) -> bool {
-        let next = self.pc.wrapping_add(instruction.encode().len() as u8);
+        let next = self.pc.wrapping_add(instruction.encoded_len());
         let r = &mut self.registers;
         match instruction {
             Halt => return false,
@@ -189,6 +197,14 @@ impl Cpu {
 /// Puts a program at address 0 of a fresh memory. Returns the memory and the
 /// address where each instruction starts.
 fn assemble(program: &[Instruction]) -> ([u8; 256], Vec<u8>) {
+    assert!(
+        program
+            .iter()
+            .map(|i| usize::from(i.encoded_len()))
+            .sum::<usize>()
+            <= 256,
+        "program must fit in 256-byte memory"
+    );
     let mut memory = [0u8; 256];
     let mut starts = Vec::new();
     let mut address = 0usize;

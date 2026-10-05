@@ -135,7 +135,7 @@ A processor's parts work in step with a **clock** that ticks billions of times p
 
 The compiler can choose instructions cleverly too. An `if` in Rust may become a jump like our `JNZ`, or a **conditional select**: a single instruction that picks one of two values without jumping. If the compiler can prove the answer in advance, it may produce no instruction at all. [Lesson 5](../05-real-machine-code/) shows a real example.
 
-Our emulator is a teaching machine. Real processors also have memory protection ([lesson 7](../07-virtual-memory/)), caches ([lesson 6](../06-the-cache/)), **interrupts** (notifications, for example from a keyboard or a timer, that make the processor handle an event), and several **cores**: complete processors on one chip, running different programs at the same time.
+Our emulator implements the instruction set described above. Many real processors include additional features: memory protection ([lesson 7](../07-virtual-memory/)), caches ([lesson 6](../06-the-cache/)), **interrupts** (notifications, for example from a keyboard or a timer, that make the processor handle an event), and sometimes several **cores**: complete processors on one chip, running different programs at the same time.
 
 ## Words to remember
 

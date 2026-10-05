@@ -17,12 +17,36 @@ struct Sale {
 
 fn sales() -> Vec<Sale> {
     vec![
-        Sale { product: "coffee", region: "north", amount: 120 },
-        Sale { product: "tea", region: "south", amount: 80 },
-        Sale { product: "coffee", region: "south", amount: 200 },
-        Sale { product: "cake", region: "north", amount: 50 },
-        Sale { product: "tea", region: "north", amount: 30 },
-        Sale { product: "coffee", region: "north", amount: 90 },
+        Sale {
+            product: "coffee",
+            region: "north",
+            amount: 120,
+        },
+        Sale {
+            product: "tea",
+            region: "south",
+            amount: 80,
+        },
+        Sale {
+            product: "coffee",
+            region: "south",
+            amount: 200,
+        },
+        Sale {
+            product: "cake",
+            region: "north",
+            amount: 50,
+        },
+        Sale {
+            product: "tea",
+            region: "north",
+            amount: 30,
+        },
+        Sale {
+            product: "coffee",
+            region: "north",
+            amount: 90,
+        },
     ]
 }
 
@@ -43,8 +67,15 @@ fn main() {
     println!("    result {result:?} after steps {steps:?}");
 
     println!("\n2. Transforming: map, filter, filter_map, flat_map");
-    let big: Vec<u32> = sales.iter().map(|s| s.amount).filter(|&a| a >= 100).collect();
-    let numbers: Vec<i32> = ["3", "x", "7"].iter().filter_map(|s| s.parse().ok()).collect();
+    let big: Vec<u32> = sales
+        .iter()
+        .map(|s| s.amount)
+        .filter(|&a| a >= 100)
+        .collect();
+    let numbers: Vec<i32> = ["3", "x", "7"]
+        .iter()
+        .filter_map(|s| s.parse().ok())
+        .collect();
     let letters: Vec<char> = ["ab", "cd"].iter().flat_map(|s| s.chars()).collect();
     println!("    amounts ≥ 100: {big:?}; parsed: {numbers:?}; letters: {letters:?}");
 
@@ -60,12 +91,19 @@ fn main() {
     println!("    zip: {paired:?}");
     println!("    day-to-day change (windows): {changes:?}; batches (chunks): {batches:?}");
     // array_windows: the same windows, as fixed-size arrays you can destructure
-    let rising: Vec<bool> = visitors.array_windows().map(|[before, after]| after > before).collect();
+    let rising: Vec<bool> = visitors
+        .array_windows()
+        .map(|[before, after]| after > before)
+        .collect();
     println!("    visitors went up (array_windows): {rising:?}");
 
     println!("\n4. Cutting the stream: take, skip, take_while, skip_while, step_by");
     let evens: Vec<u32> = (0..).step_by(2).take(5).collect(); // an endless range, cut short
-    let until_big: Vec<u32> = sales.iter().map(|s| s.amount).take_while(|&a| a < 150).collect();
+    let until_big: Vec<u32> = sales
+        .iter()
+        .map(|s| s.amount)
+        .take_while(|&a| a < 150)
+        .collect();
     println!("    first five evens: {evens:?}; amounts until the first ≥ 150: {until_big:?}");
 
     println!("\n5. Answering questions: sum, count, min/max, any/all, find, position");
@@ -75,11 +113,18 @@ fn main() {
     let any_huge = sales.iter().any(|s| s.amount > 500);
     let all_positive = sales.iter().all(|s| s.amount > 0);
     let first_tea = sales.iter().position(|s| s.product == "tea");
-    println!("    total {total}, coffee sales {coffee_sales}, biggest {} {}", biggest.product, biggest.amount);
-    println!("    any > 500: {any_huge}, all > 0: {all_positive}, first tea at index {first_tea:?}");
+    println!(
+        "    total {total}, coffee sales {coffee_sales}, biggest {} {}",
+        biggest.product, biggest.amount
+    );
+    println!(
+        "    any > 500: {any_huge}, all > 0: {all_positive}, first tea at index {first_tea:?}"
+    );
 
     println!("\n6. Building up a result: fold");
-    let (count, sum) = sales.iter().fold((0, 0), |(c, s), sale| (c + 1, s + sale.amount));
+    let (count, sum) = sales
+        .iter()
+        .fold((0, 0), |(c, s), sale| (c + 1, s + sale.amount));
     println!("    fold → {count} sales, average {}", sum / count);
 
     println!("\n7. collect into many kinds of collection");
@@ -92,9 +137,16 @@ fn main() {
     let shouted: String = sentence.chars().map(|c| c.to_ascii_uppercase()).collect();
     let (north, south): (Vec<&Sale>, Vec<&Sale>) = sales.iter().partition(|s| s.region == "north");
     println!("    unique products: {}", products.len());
-    println!("    total by region: north {}, south {}", by_region["north"], by_region["south"]);
+    println!(
+        "    total by region: north {}, south {}",
+        by_region["north"], by_region["south"]
+    );
     println!("    String from chars: {shouted}");
-    println!("    partition: {} north, {} south", north.len(), south.len());
+    println!(
+        "    partition: {} north, {} south",
+        north.len(),
+        south.len()
+    );
     // `collect` needs to know WHAT to build:
     //     let doubled = v.iter().map(|x| x * 2).collect();
     //     error[E0283]: type annotations needed
@@ -109,9 +161,16 @@ fn main() {
     }
 
     println!("\n9. Taking items out of a collection: retain, extract_if");
-    let mut queue = vec!["urgent: server down", "lunch?", "urgent: invoice", "newsletter"];
+    let mut queue = vec![
+        "urgent: server down",
+        "lunch?",
+        "urgent: invoice",
+        "newsletter",
+    ];
     // extract_if removes the matching items AND gives them to you, in one pass
-    let urgent: Vec<&str> = queue.extract_if(.., |message| message.starts_with("urgent")).collect();
+    let urgent: Vec<&str> = queue
+        .extract_if(.., |message| message.starts_with("urgent"))
+        .collect();
     println!("    handled first: {urgent:?}");
     println!("    still queued:  {queue:?}");
     queue.retain(|message| *message != "newsletter"); // retain keeps matches and drops the rest
@@ -174,7 +233,10 @@ mod tests {
 
     #[test]
     fn array_windows_destructures_each_window() {
-        let sums: Vec<i32> = [1, 2, 3, 4].array_windows().map(|[a, b, c]| a + b + c).collect();
+        let sums: Vec<i32> = [1, 2, 3, 4]
+            .array_windows()
+            .map(|[a, b, c]| a + b + c)
+            .collect();
         assert_eq!(sums, [6, 9]);
     }
 

@@ -69,24 +69,41 @@ mod better {
     /// Return a borrowed `&str`: no copying at all. `None` for an empty list,
     /// which is different from a list whose longest name is "".
     pub fn longest_name(names: &[String]) -> Option<&str> {
-        names.iter().max_by_key(|name| name.len()).map(String::as_str)
+        names
+            .iter()
+            .max_by_key(|name| name.len())
+            .map(String::as_str)
     }
 
     /// Bad input is normal for a config file, so return an error that says what's wrong.
     pub fn parse_port(line: &str) -> Result<u16, String> {
-        let (key, value) = line.split_once('=').ok_or(format!("expected `port=<number>`, got `{line}`"))?;
+        let (key, value) = line
+            .split_once('=')
+            .ok_or(format!("expected `port=<number>`, got `{line}`"))?;
         if key.trim() != "port" {
             return Err(format!("expected the key `port`, got `{}`", key.trim()));
         }
-        value.trim().parse().map_err(|_| format!("`{}` is not a port number (0-65535)", value.trim()))
+        value
+            .trim()
+            .parse()
+            .map_err(|_| format!("`{}` is not a port number (0-65535)", value.trim()))
     }
 }
 
 fn main() {
     println!("1. Average");
-    println!("    plausible: average of [1, 2] = {}", plausible::average(&[1, 2]));
-    println!("    better:    average of [1, 2] = {:?}", better::average(&[1, 2]));
-    println!("    better:    average of []     = {:?}", better::average(&[]));
+    println!(
+        "    plausible: average of [1, 2] = {}",
+        plausible::average(&[1, 2])
+    );
+    println!(
+        "    better:    average of [1, 2] = {:?}",
+        better::average(&[1, 2])
+    );
+    println!(
+        "    better:    average of []     = {:?}",
+        better::average(&[])
+    );
     println!("    (plausible::average(&[]) would panic: attempt to divide by zero)");
 
     println!("\n2. Duplicates: the same answer, a very different amount of work");
@@ -101,22 +118,48 @@ fn main() {
         assert_eq!(slow, fast);
         println!("    {n:>6} values: plausible {slow_time:>10.2?}   better {fast_time:>10.2?}");
     }
-    println!("    Doubling the input makes the plausible version about 4x slower, the better one about 2x.");
+    println!(
+        "    Doubling the input makes the plausible version about 4x slower, the better one about 2x."
+    );
 
     println!("\n3. Longest name");
-    let names = vec![String::from("Ada"), String::from("Grace"), String::from("Linus")];
-    println!("    plausible: {:?} (a new copy of the text)", plausible::longest_name(&names));
-    println!("    better:    {:?} (borrowed, no copy)", better::longest_name(&names));
-    println!("    \"Grace\" and \"Linus\" are equally long: one version keeps the first, the other the last.");
+    let names = vec![
+        String::from("Ada"),
+        String::from("Grace"),
+        String::from("Linus"),
+    ];
+    println!(
+        "    plausible: {:?} (a new copy of the text)",
+        plausible::longest_name(&names)
+    );
+    println!(
+        "    better:    {:?} (borrowed, no copy)",
+        better::longest_name(&names)
+    );
+    println!(
+        "    \"Grace\" and \"Linus\" are equally long: one version keeps the first, the other the last."
+    );
     println!("    Which is right? Only the specification can say, and nobody wrote one.");
-    println!("    empty list: plausible {:?}, better {:?}", plausible::longest_name(&[]), better::longest_name(&[]));
+    println!(
+        "    empty list: plausible {:?}, better {:?}",
+        plausible::longest_name(&[]),
+        better::longest_name(&[])
+    );
 
     println!("\n4. Parsing a config line");
-    println!("    plausible::parse_port(\"port=8080\") = {}", plausible::parse_port("port=8080"));
+    println!(
+        "    plausible::parse_port(\"port=8080\") = {}",
+        plausible::parse_port("port=8080")
+    );
     for line in ["port=8080", "port = 8080", "port=abc", "port"] {
-        println!("    better::parse_port({line:?}) = {:?}", better::parse_port(line));
+        println!(
+            "    better::parse_port({line:?}) = {:?}",
+            better::parse_port(line)
+        );
     }
-    println!("    plausible::parse_port works only for the first one; it panics on the other three.");
+    println!(
+        "    plausible::parse_port works only for the first one; it panics on the other three."
+    );
 }
 
 #[cfg(test)]
@@ -140,7 +183,10 @@ mod tests {
     fn better_average() {
         assert_eq!(better::average(&[1, 2]), Some(1.5));
         assert_eq!(better::average(&[]), None);
-        assert_eq!(better::average(&[i32::MAX, i32::MAX]), Some(i32::MAX as f64)); // no overflow
+        assert_eq!(
+            better::average(&[i32::MAX, i32::MAX]),
+            Some(i32::MAX as f64)
+        ); // no overflow
     }
 
     // ---- 2. duplicates ----
@@ -148,7 +194,10 @@ mod tests {
     #[test]
     fn both_duplicate_checks_agree() {
         for values in [vec![], vec![1], vec![1, 2, 3], vec![1, 2, 1], vec![7, 7]] {
-            assert_eq!(plausible::has_duplicates(&values), better::has_duplicates(&values));
+            assert_eq!(
+                plausible::has_duplicates(&values),
+                better::has_duplicates(&values)
+            );
         }
     }
 
@@ -180,9 +229,17 @@ mod tests {
     fn better_parse_handles_real_input() {
         assert_eq!(better::parse_port("port=8080"), Ok(8080));
         assert_eq!(better::parse_port("port = 8080"), Ok(8080));
-        assert!(better::parse_port("port=abc").unwrap_err().contains("not a port number"));
+        assert!(
+            better::parse_port("port=abc")
+                .unwrap_err()
+                .contains("not a port number")
+        );
         assert!(better::parse_port("port=70000").is_err()); // too big for a port
-        assert!(better::parse_port("host=example.com").unwrap_err().contains("expected the key `port`"));
+        assert!(
+            better::parse_port("host=example.com")
+                .unwrap_err()
+                .contains("expected the key `port`")
+        );
         assert!(better::parse_port("port").is_err());
     }
 }

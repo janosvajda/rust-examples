@@ -65,13 +65,13 @@ impl Add for Money {
 impl Mul<i64> for Money { … }                  // the right-hand side can be another type
 ```
 
-Now `price * 3 + Money::from(5)` works. Overload operators only where the meaning is obvious, like adding money or multiplying vectors.
+Now `price * 3 + Money::from(500)` works. Overload operators only where the meaning is obvious, like adding money or multiplying vectors.
 
 ## Conversions: `From`, `Into`, `TryFrom`
 
 ```rust
-impl From<i64> for Money { … }       // Money::from(5)
-let ten: Money = 10.into();          // Into comes for free, in the other direction
+impl From<i64> for Money { … }       // Money::from(500)
+let ten: Money = 1000.into();          // Into comes for free, in the same conversion direction
 
 impl TryFrom<&str> for Money {       // can fail, so it returns a Result
     type Error = String;
@@ -104,7 +104,7 @@ error[E0277]: the trait bound `Id: Hash` is not satisfied
 
 ## `Copy` has a strict rule
 
-A type can only be `Copy` if copying its bytes is a complete copy, which means nothing owned on the heap:
+A type can implement `Copy` only if all its fields are `Copy` and it does not implement `Drop`. An owned `String` does not satisfy that rule:
 
 ```text
 #[derive(Clone, Copy)] struct User { name: String }
@@ -120,6 +120,14 @@ let settings = Settings { volume: 80, ..Default::default() };
 ```
 
 `..Default::default()` fills every field you didn't mention with its default. That's handy for configuration structs with many fields.
+
+## How `Money` stays exact
+
+`Money` stores a whole number of **cents** in an `i64`, never a float. `Money::from(500)` means €5.00.
+
+Parsing text works in **euros**: `"12.5"` becomes 1,250 cents and `"-€0.50"` becomes −50 cents. Anything that would lose precision or doesn't fit, such as `"3.999"`, `"4."` or `"€-2"`, returns an error instead of being rounded silently.
+
+Adding, multiplying and negating use checked arithmetic and panic with a clear message on overflow, in debug and release builds alike. A real financial library would return a `Result` instead; here the operators show how the standard operator traits work.
 
 ## Run it
 

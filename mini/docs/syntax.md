@@ -76,7 +76,7 @@ let below_zero = -15;
 ```
 
 - Whole numbers have no fractional part.
-- They are **32-bit**, so they range from **−2,147,483,648 to 2,147,483,647**. A number literal larger than 2,147,483,647 is an error.
+- They are **32-bit**, so they range from **−2,147,483,648 to 2,147,483,647**. A positive literal larger than 2,147,483,647 is an error; the special negative literal `-2147483648` is accepted.
 - If a calculation goes past the largest value, it **wraps around** to the smallest one: `2147483647 + 1` gives `-2147483648`. This is how the processor's 32-bit arithmetic works.
 
 ### Decimals
@@ -92,7 +92,7 @@ let ratio = 0.125;
 - They range up to about **±9,223,372,036,854** (nine trillion).
 - `print` writes no unnecessary zeros: `2.50` prints as `2.5`, and the decimal two prints as `2.0`.
 
-> **Why exact?** Many languages store fractional numbers as binary *floating point*, where `0.1 + 0.2` is `0.30000000000000004`, because 0.1 can't be written exactly in binary. Mini stores a decimal as a whole number of **millionths** instead: `2.5` is stored as 2,500,000 millionths. Whole numbers are always exact, so decimals are too. Banking and accounting software uses the same trick.
+> **Why exact?** Many languages store fractional numbers as binary *floating point*, where `0.1 + 0.2` is `0.30000000000000004`, because 0.1 can't be written exactly in binary. Mini stores a decimal as a whole number of **millionths** instead: `2.5` is stored as 2,500,000 millionths. Representable millionths are exact, but multiplication/division may discard fractional millionths and overflow can wrap. Banking and accounting software uses the same trick.
 
 ### Booleans
 
@@ -176,7 +176,7 @@ Arithmetic works on **whole numbers** and on **decimals**:
 - Whole numbers keep only the whole part, rounding towards zero: `7 / 2` is `3`, and `-7 / 2` is `-3`.
 - Decimals keep 6 digits after the point and cut off the rest: `1.0 / 3.0` is `0.333333`, and `2.0 / 3.0` is `0.666666`.
 
-**Never divide by zero.** Mini doesn't check for it, and the result is undefined: depending on the computer, the program may crash or print a wrong number.
+**Invalid division traps.** A zero divisor terminates the generated program. Integer `-2147483648 / -1` also traps because its result does not fit `i32`. These checks run before LLVM division; the language does not expose a recoverable runtime error.
 
 ## Comparisons
 
@@ -303,3 +303,5 @@ escape      = "\n" | "\t" | "\"" | "\\"
 ## What Mini doesn't have yet
 
 Mini has no `if`, no loops and no functions yet. See the roadmap in the [Mini README](../README.md).
+
+An expression may contain at most 256 tokens. This bounds recursive parsing and code generation; longer expressions return an error. Boolean `and` and `or` evaluate both operands from left to right. They do **not** short-circuit, so `false and (1 / 0 == 0)` still traps.

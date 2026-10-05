@@ -81,9 +81,15 @@
 ///
 /// `T: Ord` means the values must be comparable with `<`, `>` and so on.
 /// That's the only thing a heap needs to know about its values.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MinHeap<T: Ord> {
     data: Vec<T>,
+}
+
+impl<T: Ord> Default for MinHeap<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: Ord> MinHeap<T> {

@@ -1,9 +1,9 @@
 // Lesson 2: big files, streaming.
 //
 // `fs::read_to_string` loads a whole file into memory. That's fine for a
-// config file, and impossible for a 50 GB log. Streaming reads ONE line at a
-// time, updates a small summary, and forgets the line. Memory stays the same
-// whether the file has a thousand lines or a billion.
+// config file, and can require too much memory for a 50 GB log. Streaming reads ONE line at a
+// time, updates a small summary, and forgets the line. Memory depends on the line limit and distinct sensors, not the number
+// of readings for a fixed set of sensors.
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -17,23 +17,29 @@ struct SensorStats {
     count: u64,
     min: f64,
     max: f64,
-    sum: f64,
+    mean: f64,
 }
 
 impl SensorStats {
     fn new(value: f64) -> Self {
-        SensorStats { count: 1, min: value, max: value, sum: value }
+        SensorStats {
+            count: 1,
+            min: value,
+            max: value,
+            mean: value,
+        }
     }
 
     fn add(&mut self, value: f64) {
         self.count += 1;
         self.min = self.min.min(value);
         self.max = self.max.max(value);
-        self.sum += value;
+        // A running mean: move the mean a fraction of the way towards the new value.
+        self.mean += (value - self.mean) / self.count as f64;
     }
 
     fn mean(&self) -> f64 {
-        self.sum / self.count as f64
+        self.mean
     }
 }
 
@@ -47,10 +53,18 @@ fn generate_log(path: &Path, lines: u64) -> io::Result<()> {
     let mut seed: u64 = 42;
     writeln!(out, "timestamp,sensor,value")?;
     for i in 0..lines {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let sensor = sensors[(seed >> 33) as usize % sensors.len()];
         let value = 15.0 + (seed >> 40) as f64 / (1u64 << 24) as f64 * 15.0; // 15.0 to 30.0
-        writeln!(out, "2024-09-10T{:02}:{:02}:{:02},{sensor},{value:.2}", i / 3600 % 24, i / 60 % 60, i % 60)?;
+        writeln!(
+            out,
+            "2024-09-10T{:02}:{:02}:{:02},{sensor},{value:.2}",
+            i / 3600 % 24,
+            i / 60 % 60,
+            i % 60
+        )?;
     }
     out.flush()
 }
@@ -68,7 +82,8 @@ struct Summary {
     bad_lines: u64,
 }
 
-/// Reads the next line as raw bytes into `buf`, at most `MAX_LINE_BYTES` of it.
+/// Reads up to `MAX_LINE_BYTES + 1` bytes, using one extra byte to detect overflow.
+/// The limit includes the line ending when present.
 /// Returns `None` at the end of the input, and `Some(false)` for a line that was
 /// too long (skipped in chunks, never stored whole).
 fn next_line(input: &mut impl BufRead, buf: &mut Vec<u8>) -> io::Result<Option<bool>> {
@@ -76,8 +91,11 @@ fn next_line(input: &mut impl BufRead, buf: &mut Vec<u8>) -> io::Result<Option<b
     if Read::take(&mut *input, MAX_LINE_BYTES as u64 + 1).read_until(b'\n', buf)? == 0 {
         return Ok(None);
     }
-    if buf.ends_with(b"\n") || buf.len() <= MAX_LINE_BYTES {
+    if buf.len() <= MAX_LINE_BYTES {
         return Ok(Some(true));
+    }
+    if buf.ends_with(b"\n") {
+        return Ok(Some(false)); // oversized line, already consumed in full
     }
     loop {
         // too long: throw away the rest of this line, a chunk at a time
@@ -96,7 +114,7 @@ fn next_line(input: &mut impl BufRead, buf: &mut Vec<u8>) -> io::Result<Option<b
 }
 
 /// Summarises any `BufRead` source: a file, standard input, or bytes in a test.
-/// One buffer is reused for every line, so memory doesn't grow with the file.
+/// Reuses one line buffer; the sensor map grows with the distinct sensor IDs.
 fn summarize(mut input: impl BufRead) -> io::Result<Summary> {
     let mut summary = Summary::default();
     let mut buf = Vec::with_capacity(MAX_LINE_BYTES + 1);
@@ -104,12 +122,18 @@ fn summarize(mut input: impl BufRead) -> io::Result<Summary> {
     while let Some(complete) = next_line(&mut input, &mut buf)? {
         // Raw bytes, then text: one line of invalid UTF-8 is a bad line, not the
         // end of the whole run (`BufRead::lines()` would return an error here).
-        let parsed = std::str::from_utf8(&buf).ok().filter(|_| complete).and_then(|line| {
-            let mut fields = line.trim_end().split(',');
-            let (_time, sensor, value) = (fields.next()?, fields.next()?, fields.next()?);
-            let value = value.parse::<f64>().ok().filter(|v| v.is_finite())?; // "NaN" parses!
-            Some((sensor, value))
-        });
+        let parsed = std::str::from_utf8(&buf)
+            .ok()
+            .filter(|_| complete)
+            .and_then(|line| {
+                let mut fields = line.trim_end().split(',');
+                let (time, sensor, value) = (fields.next()?, fields.next()?, fields.next()?);
+                if time.is_empty() || sensor.trim().is_empty() || fields.next().is_some() {
+                    return None;
+                }
+                let value = value.parse::<f64>().ok().filter(|v| v.is_finite())?; // "NaN" parses!
+                Some((sensor, value))
+            });
         let Some((sensor, value)) = parsed else {
             summary.bad_lines += 1; // counted, never silently dropped
             continue;
@@ -117,7 +141,9 @@ fn summarize(mut input: impl BufRead) -> io::Result<Summary> {
         match summary.sensors.get_mut(sensor) {
             Some(s) => s.add(value),
             None => {
-                summary.sensors.insert(sensor.to_string(), SensorStats::new(value));
+                summary
+                    .sensors
+                    .insert(sensor.to_string(), SensorStats::new(value));
             }
         }
     }
@@ -131,15 +157,29 @@ fn main() -> io::Result<()> {
     println!("1. Generating a log with {lines} lines…");
     generate_log(&path, lines)?;
     let size = std::fs::metadata(&path)?.len();
-    println!("    {} ({:.1} MB)", path.display(), size as f64 / 1_000_000.0);
+    println!(
+        "    {} ({:.1} MB)",
+        path.display(),
+        size as f64 / 1_000_000.0
+    );
 
     println!("\n2. Streaming it, one line at a time");
     let start = Instant::now();
     let summary = summarize(BufReader::new(File::open(&path)?))?;
-    println!("    took {:.2?}; memory used: one line buffer + {} small summaries", start.elapsed(), summary.sensors.len());
+    println!(
+        "    took {:.2?}; memory used: one line buffer + {} small summaries",
+        start.elapsed(),
+        summary.sensors.len()
+    );
     println!("    sensor     count     min     max    mean");
     for (sensor, s) in &summary.sensors {
-        println!("    {sensor:<6} {:>9} {:>7.2} {:>7.2} {:>7.2}", s.count, s.min, s.max, s.mean());
+        println!(
+            "    {sensor:<6} {:>9} {:>7.2} {:>7.2} {:>7.2}",
+            s.count,
+            s.min,
+            s.max,
+            s.mean()
+        );
     }
 
     println!("    bad lines: {}", summary.bad_lines);
@@ -150,7 +190,10 @@ fn main() -> io::Result<()> {
     for (sensor, s) in &summary.sensors {
         println!("    {sensor}: readings {}, mean {}", s.count, s.mean());
     }
-    println!("    bad lines: {} (garbage, NaN, invalid UTF-8)", summary.bad_lines);
+    println!(
+        "    bad lines: {} (garbage, NaN, invalid UTF-8)",
+        summary.bad_lines
+    );
 
     std::fs::remove_file(&path)?;
     Ok(())
@@ -164,7 +207,15 @@ mod tests {
     fn summarizes_per_sensor() {
         let input = "timestamp,sensor,value\nt,A,1.0\nt,B,10.0\nt,A,3.0\n";
         let stats = summarize(input.as_bytes()).unwrap().sensors;
-        assert_eq!(stats["A"], SensorStats { count: 2, min: 1.0, max: 3.0, sum: 4.0 });
+        assert_eq!(
+            stats["A"],
+            SensorStats {
+                count: 2,
+                min: 1.0,
+                max: 3.0,
+                mean: 2.0
+            }
+        );
         assert_eq!(stats["A"].mean(), 2.0);
         assert_eq!(stats["B"].count, 1);
     }
@@ -198,7 +249,10 @@ mod tests {
     #[test]
     fn empty_input_gives_an_empty_summary() {
         assert_eq!(summarize("".as_bytes()).unwrap(), Summary::default());
-        assert_eq!(summarize("header only\n".as_bytes()).unwrap(), Summary::default());
+        assert_eq!(
+            summarize("header only\n".as_bytes()).unwrap(),
+            Summary::default()
+        );
     }
 
     #[test]
@@ -211,5 +265,30 @@ mod tests {
         assert_eq!(stats.values().map(|s| s.count).sum::<u64>(), 1_000);
         assert!(stats.values().all(|s| s.min >= 15.0 && s.max <= 30.0));
         std::fs::remove_file(&path).unwrap();
+    }
+    #[test]
+    fn rows_with_an_empty_or_extra_field_are_bad_lines() {
+        assert_eq!(
+            summarize(b"h\nt,,20\nt,A,20,extra\n".as_slice())
+                .unwrap()
+                .bad_lines,
+            2
+        );
+    }
+
+    #[test]
+    fn line_limit_includes_the_newline_and_preserves_the_next_line() {
+        let mut bytes = vec![b'x'; MAX_LINE_BYTES - 1];
+        bytes.push(b'\n');
+        bytes.extend(std::iter::repeat_n(b'x', MAX_LINE_BYTES));
+        bytes.extend_from_slice(b"\nx\n");
+        let mut input = bytes.as_slice();
+        let mut buffer = Vec::new();
+        assert_eq!(next_line(&mut input, &mut buffer).unwrap(), Some(true));
+        assert_eq!(buffer.len(), MAX_LINE_BYTES);
+        assert_eq!(next_line(&mut input, &mut buffer).unwrap(), Some(false));
+        assert_eq!(next_line(&mut input, &mut buffer).unwrap(), Some(true));
+        assert_eq!(buffer, b"x\n");
+        assert_eq!(next_line(&mut input, &mut buffer).unwrap(), None);
     }
 }

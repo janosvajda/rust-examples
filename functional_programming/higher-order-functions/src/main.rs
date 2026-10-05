@@ -45,7 +45,10 @@ fn main() {
 
     // Using a regular function as an argument to the higher-order function
     let result_regular = apply_function_regular(num, double);
-    println!("Double of {} using regular function: {}", num, result_regular);
+    println!(
+        "Double of {} using regular function: {}",
+        num, result_regular
+    );
 
     // Using a closure as an argument to the higher-order function
     let result_closure = apply_function_closure(num, |x| x * 2);
@@ -53,12 +56,18 @@ fn main() {
 
     // Using a function pointer as an argument to the higher-order function
     let result_pointer = apply_function_pointer(num, double);
-    println!("Double of {} using function pointer: {}", num, result_pointer);
+    println!(
+        "Double of {} using function pointer: {}",
+        num, result_pointer
+    );
 
     // Using trait objects as arguments to the higher-order function
     let double = Double;
     let result_trait_double = apply_function_trait_object(&double, num);
-    println!("Double of {} using trait object: {}", num, result_trait_double);
+    println!(
+        "Double of {} using trait object: {}",
+        num, result_trait_double
+    );
 }
 
 #[cfg(test)]

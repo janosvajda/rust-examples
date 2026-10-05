@@ -28,7 +28,7 @@ struct Reading {
 
 /// Only these units are accepted. Anything else is an error, not a string to
 /// check later. In the JSON they're written in lower case.
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 enum Unit {
     Celsius,
@@ -36,7 +36,7 @@ enum Unit {
     Ph,
 }
 
-/// What we write back out: a summary per sensor.
+/// What we write back out: a summary per sensor and measurement unit.
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SensorSummary {
@@ -50,15 +50,18 @@ struct SensorSummary {
 }
 
 fn summarize(readings: &[Reading]) -> Vec<SensorSummary> {
-    let mut groups: BTreeMap<&str, Vec<&Reading>> = BTreeMap::new();
+    let mut groups: BTreeMap<(&str, Unit), Vec<&Reading>> = BTreeMap::new();
     for reading in readings {
-        groups.entry(&reading.sensor_id).or_default().push(reading);
+        groups
+            .entry((&reading.sensor_id, reading.unit))
+            .or_default()
+            .push(reading);
     }
     groups
         .into_iter()
-        .map(|(sensor_id, rs)| SensorSummary {
+        .map(|((sensor_id, unit), rs)| SensorSummary {
             sensor_id: sensor_id.to_string(),
-            unit: rs[0].unit,
+            unit,
             readings: rs.len(),
             average: rs.iter().map(|r| r.value).sum::<f64>() / rs.len() as f64,
             notes: rs.iter().filter_map(|r| r.note.clone()).collect(),
@@ -108,7 +111,8 @@ mod tests {
 
     #[test]
     fn camel_case_json_becomes_a_struct() {
-        let json = r#"{ "sensorId": "A1", "takenAt": "t", "value": 2.5, "unit": "ph", "location": "L" }"#;
+        let json =
+            r#"{ "sensorId": "A1", "takenAt": "t", "value": 2.5, "unit": "ph", "location": "L" }"#;
         let r: Reading = serde_json::from_str(json).unwrap();
         assert_eq!(r.sensor_id, "A1");
         assert_eq!(r.unit, Unit::Ph);
@@ -119,19 +123,34 @@ mod tests {
     #[test]
     fn unknown_units_and_wrong_types_are_rejected() {
         let bad_unit = r#"{ "sensorId": "A1", "takenAt": "t", "value": 1, "unit": "kelvin", "location": "L" }"#;
-        assert!(serde_json::from_str::<Reading>(bad_unit).unwrap_err().to_string().contains("unknown variant `kelvin`"));
-        let bad_value = r#"{ "sensorId": "A1", "takenAt": "t", "value": "x", "unit": "ph", "location": "L" }"#;
+        assert!(
+            serde_json::from_str::<Reading>(bad_unit)
+                .unwrap_err()
+                .to_string()
+                .contains("unknown variant `kelvin`")
+        );
+        let bad_value =
+            r#"{ "sensorId": "A1", "takenAt": "t", "value": "x", "unit": "ph", "location": "L" }"#;
         assert!(serde_json::from_str::<Reading>(bad_value).is_err());
     }
 
     #[test]
     fn tricky_json_is_rejected_with_a_reason() {
         let base = r#""sensorId": "A1", "takenAt": "t", "unit": "ph", "location": "L""#;
-        let error = |json: String| serde_json::from_str::<Reading>(&json).unwrap_err().to_string();
+        let error = |json: String| {
+            serde_json::from_str::<Reading>(&json)
+                .unwrap_err()
+                .to_string()
+        };
         assert!(error(format!("{{ {base}, \"value\": NaN }}")).contains("expected value")); // JSON has no NaN
         assert!(error(format!("{{ {base}, \"value\": 1e400 }}")).contains("number out of range"));
-        assert!(error(format!("{{ {base}, \"value\": 1, \"value\": 2 }}")).contains("duplicate field"));
-        assert!(error(format!("{{ {base}, \"value\": 1, \"calibrate\": true }}")).contains("unknown field `calibrate`"));
+        assert!(
+            error(format!("{{ {base}, \"value\": 1, \"value\": 2 }}")).contains("duplicate field")
+        );
+        assert!(
+            error(format!("{{ {base}, \"value\": 1, \"calibrate\": true }}"))
+                .contains("unknown field `calibrate`")
+        );
         assert!(error(format!("{{ {base}, \"value\": 1 }} extra")).contains("trailing characters"));
     }
 
@@ -151,15 +170,29 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let readings: Vec<Reading> = serde_json::from_str(include_str!("../data/readings.json")).unwrap();
-        let again: Vec<Reading> = serde_json::from_str(&serde_json::to_string(&readings).unwrap()).unwrap();
+        let readings: Vec<Reading> =
+            serde_json::from_str(include_str!("../data/readings.json")).unwrap();
+        let again: Vec<Reading> =
+            serde_json::from_str(&serde_json::to_string(&readings).unwrap()).unwrap();
         assert_eq!(readings, again);
     }
 
     #[test]
     fn empty_notes_are_left_out_of_the_output() {
-        let readings: Vec<Reading> = serde_json::from_str(include_str!("../data/readings.json")).unwrap();
+        let readings: Vec<Reading> =
+            serde_json::from_str(include_str!("../data/readings.json")).unwrap();
         let json = serde_json::to_string(&summarize(&readings)).unwrap();
         assert_eq!(json.matches("notes").count(), 1); // only C33 has a note
+    }
+    #[test]
+    fn different_units_do_not_share_a_summary() {
+        let rows: Vec<Reading> = serde_json::from_value(serde_json::json!([
+            {"sensorId":"A", "takenAt":"t", "value":20.0, "unit":"celsius", "location":"L"},
+            {"sensorId":"A", "takenAt":"t", "value":760.0, "unit":"mmhg", "location":"L"}
+        ]))
+        .unwrap();
+        let summaries = summarize(&rows);
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(summaries.iter().map(|s| s.readings).sum::<usize>(), 2);
     }
 }

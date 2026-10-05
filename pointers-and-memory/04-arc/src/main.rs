@@ -38,7 +38,10 @@ fn sum_in_threads(numbers: Arc<Vec<i32>>, thread_count: usize) -> i32 {
             })
         })
         .collect();
-    handles.into_iter().map(|h| h.join().expect("a worker panicked")).sum()
+    handles
+        .into_iter()
+        .map(|h| h.join().expect("a worker panicked"))
+        .sum()
 }
 
 // ---- 3. Data that changes: Arc<Mutex<T>> --------------------------------------------------
@@ -76,10 +79,15 @@ fn read_while_one_writes() -> Vec<String> {
     let readers: Vec<_> = (0..3)
         .map(|i| {
             let settings = Arc::clone(&settings);
-            thread::spawn(move || format!("reader {i} sees {}", settings.read().expect("not poisoned")))
+            thread::spawn(move || {
+                format!("reader {i} sees {}", settings.read().expect("not poisoned"))
+            })
         })
         .collect();
-    readers.into_iter().map(|r| r.join().expect("a reader panicked")).collect()
+    readers
+        .into_iter()
+        .map(|r| r.join().expect("a reader panicked"))
+        .collect()
 }
 
 fn main() {
@@ -125,6 +133,10 @@ mod tests {
 
     #[test]
     fn every_reader_sees_the_written_value() {
-        assert!(read_while_one_writes().iter().all(|line| line.ends_with("dark mode")));
+        assert!(
+            read_while_one_writes()
+                .iter()
+                .all(|line| line.ends_with("dark mode"))
+        );
     }
 }

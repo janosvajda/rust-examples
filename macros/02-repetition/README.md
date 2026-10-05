@@ -69,8 +69,9 @@ let capitals = hashmap! {
 macro_rules! max {
     ( $x:expr ) => { $x };                       // one value: that's the max
     ( $x:expr, $( $rest:expr ),+ ) => {{         // several: compare the first with the max of the rest
+        let first = $x;
         let rest = max!( $( $rest ),+ );
-        if $x > rest { $x } else { rest }
+        if first > rest { first } else { rest }
     }};
 }
 ```
@@ -87,6 +88,10 @@ The same technique counts arguments: `count!(a b c d e)` becomes `1 + 1 + 1 + 1 
 | `println!("{} {}", a, b)` | the arguments after the format string |
 | `assert_eq!(a, b, "msg {}", x)` | an optional message with its own arguments |
 | `matches!(value, A \| B)` | one or more patterns |
+
+## Every argument runs exactly once
+
+`max!` follows the same rule as `square!` in lesson 1: each expression is evaluated once, from left to right. For `max!({ log.push(1); 9 }, { log.push(2); 3 })`, the result is 9 and the log is `[1, 2]`. Recursion has a limit, though: a very long list of arguments can reach the compiler's recursion limit.
 
 ## Run it
 

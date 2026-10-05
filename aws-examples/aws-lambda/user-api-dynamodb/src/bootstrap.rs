@@ -7,20 +7,14 @@
 //! mode—and block until the tables become `ACTIVE`. They are intentionally
 //! deterministic so that the runtime and the CloudFormation template stay in sync.
 
-// These functions return the AWS SDK's own `aws_sdk_dynamodb::Error`, which is
-// larger than Clippy's default limit for error types. They run once at startup
-// to create tables, so the size has no practical cost, and boxing the error
-// would mean converting it at every `?`.
-#![allow(clippy::result_large_err)]
-
 use aws_sdk_dynamodb::{
+    Client,
     types::{
         AttributeDefinition, BillingMode, GlobalSecondaryIndex, KeySchemaElement, KeyType,
         Projection, ProjectionType, ScalarAttributeType, TableStatus,
     },
-    Client,
 };
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 /// Ensure the three DynamoDB tables the application depends on exist.
 ///
@@ -33,16 +27,19 @@ pub async fn ensure_tables(
     user_table: &str,
     credentials_table: &str,
     refresh_table: &str,
-) -> Result<(), aws_sdk_dynamodb::Error> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     ensure_user_table(client, user_table).await?;
     ensure_credentials_table(client, credentials_table).await?;
     ensure_refresh_table(client, refresh_table).await?;
     Ok(())
 }
 
-async fn ensure_user_table(client: &Client, table: &str) -> Result<(), aws_sdk_dynamodb::Error> {
+async fn ensure_user_table(
+    client: &Client,
+    table: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if table_exists(client, table).await? {
-        return Ok(());
+        return wait_for_active(client, table).await;
     }
 
     client
@@ -154,9 +151,9 @@ async fn ensure_user_table(client: &Client, table: &str) -> Result<(), aws_sdk_d
 async fn ensure_credentials_table(
     client: &Client,
     table: &str,
-) -> Result<(), aws_sdk_dynamodb::Error> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if table_exists(client, table).await? {
-        return Ok(());
+        return wait_for_active(client, table).await;
     }
 
     client
@@ -183,9 +180,12 @@ async fn ensure_credentials_table(
     wait_for_active(client, table).await
 }
 
-async fn ensure_refresh_table(client: &Client, table: &str) -> Result<(), aws_sdk_dynamodb::Error> {
+async fn ensure_refresh_table(
+    client: &Client,
+    table: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     if table_exists(client, table).await? {
-        return Ok(());
+        return wait_for_active(client, table).await;
     }
 
     client
@@ -269,7 +269,10 @@ async fn ensure_refresh_table(client: &Client, table: &str) -> Result<(), aws_sd
     wait_for_active(client, table).await
 }
 
-async fn table_exists(client: &Client, table: &str) -> Result<bool, aws_sdk_dynamodb::Error> {
+async fn table_exists(
+    client: &Client,
+    table: &str,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let mut last_evaluated = None;
     loop {
         let mut req = client.list_tables();
@@ -295,7 +298,10 @@ async fn table_exists(client: &Client, table: &str) -> Result<bool, aws_sdk_dyna
     Ok(false)
 }
 
-async fn wait_for_active(client: &Client, table: &str) -> Result<(), aws_sdk_dynamodb::Error> {
+async fn wait_for_active(
+    client: &Client,
+    table: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     for _ in 0..20 {
         let resp = client.describe_table().table_name(table).send().await?;
         if resp
@@ -307,5 +313,9 @@ async fn wait_for_active(client: &Client, table: &str) -> Result<(), aws_sdk_dyn
         }
         sleep(Duration::from_millis(200)).await;
     }
-    Ok(())
+    Err(std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
+        format!("table {table} did not become ACTIVE within 20 polls"),
+    )
+    .into())
 }

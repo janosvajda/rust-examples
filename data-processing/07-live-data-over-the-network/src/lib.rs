@@ -28,7 +28,10 @@ pub fn start_server(faults: bool, last_seq: Option<u64>, max_clients: usize) -> 
     let address = listener.local_addr().expect("has an address");
     let config = server::ServerConfig {
         tokens: HashMap::from([
-            (String::from("demo-token"), vec![String::from("A12"), String::from("B22")]),
+            (
+                String::from("demo-token"),
+                vec![String::from("A12"), String::from("B22")],
+            ),
             (String::from("guest-token"), vec![String::from("B22")]),
         ]),
         max_clients,
@@ -42,7 +45,12 @@ pub fn start_server(faults: bool, last_seq: Option<u64>, max_clients: usize) -> 
 }
 
 /// Client settings for the demo and tests: short timeouts, so failures show quickly.
-pub fn demo_client(address: SocketAddr, token: &str, sensor: &str, stop_after_seq: u64) -> client::ClientConfig {
+pub fn demo_client(
+    address: SocketAddr,
+    token: &str,
+    sensor: &str,
+    stop_after_seq: u64,
+) -> client::ClientConfig {
     client::ClientConfig {
         address,
         token: token.to_string(),
@@ -68,8 +76,16 @@ mod end_to_end {
     fn a_clean_stream_arrives_completely() {
         let address = start_server(false, None, 4);
         let mut state = State::default();
-        run(&demo_client(address, "demo-token", "A12", 49), &mut state, |_| {}).unwrap();
-        assert_eq!((state.next_seq, state.accepted, state.lost, state.duplicates), (50, 50, 0, 0));
+        run(
+            &demo_client(address, "demo-token", "A12", 49),
+            &mut state,
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(
+            (state.next_seq, state.accepted, state.lost, state.duplicates),
+            (50, 50, 0, 0)
+        );
     }
 
     #[test]
@@ -77,7 +93,12 @@ mod end_to_end {
         let address = start_server(true, None, 4);
         let mut state = State::default();
         let mut events = Vec::new();
-        run(&demo_client(address, "demo-token", "A12", 39), &mut state, |e| events.push(e)).unwrap();
+        run(
+            &demo_client(address, "demo-token", "A12", 39),
+            &mut state,
+            |e| events.push(e),
+        )
+        .unwrap();
 
         // Every sequence number 0..=39 ends up exactly once as accepted, rejected
         // with its number (the NaN at 13, the impossible value at 36) or lost (33).
@@ -86,19 +107,39 @@ mod end_to_end {
         assert_eq!(state.lost, 1);
         assert!(events.contains(&Event::Lost { from: 33, to: 33 }));
         // the messy lines were all recognised
-        for why in [Rejection::Malformed, Rejection::NotUtf8, Rejection::TooLong, Rejection::NotFinite, Rejection::OutOfRange] {
+        for why in [
+            Rejection::Malformed,
+            Rejection::NotUtf8,
+            Rejection::TooLong,
+            Rejection::NotFinite,
+            Rejection::OutOfRange,
+        ] {
             assert!(state.rejected.contains_key(&why), "{why:?} wasn't seen");
         }
-        assert!(state.duplicates >= 3, "the double send and the resends after reconnecting");
-        assert!(state.reconnects >= 2, "once for the dropped connection, once for the stall");
-        assert!(events.iter().any(|e| matches!(e, Event::Disconnected(why) if why.contains("stalled"))));
+        assert!(
+            state.duplicates >= 3,
+            "the double send and the resends after reconnecting"
+        );
+        assert!(
+            state.reconnects >= 2,
+            "once for the dropped connection, once for the stall"
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::Disconnected(why) if why.contains("stalled")))
+        );
     }
 
     #[test]
     fn a_wrong_token_is_refused_without_retrying() {
         let address = start_server(false, None, 4);
         let mut state = State::default();
-        let result = run(&demo_client(address, "stolen-token", "A12", 5), &mut state, |_| {});
+        let result = run(
+            &demo_client(address, "stolen-token", "A12", 5),
+            &mut state,
+            |_| {},
+        );
         assert_eq!(result, Err(ClientError::Unauthenticated));
         assert_eq!(state.reconnects, 0);
     }
@@ -106,22 +147,36 @@ mod end_to_end {
     #[test]
     fn a_valid_token_cannot_read_another_sensor() {
         let address = start_server(false, None, 4);
-        let result = run(&demo_client(address, "guest-token", "A12", 5), &mut State::default(), |_| {});
+        let result = run(
+            &demo_client(address, "guest-token", "A12", 5),
+            &mut State::default(),
+            |_| {},
+        );
         assert_eq!(result, Err(ClientError::Forbidden));
     }
 
     #[test]
     fn an_unavailable_server_is_retried_then_given_up() {
         // Bind and immediately drop a listener: now nothing listens on that port.
-        let address = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let address = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
         let mut state = State::default();
         let mut retries = 0;
-        let result = run(&demo_client(address, "demo-token", "A12", 5), &mut state, |e| {
-            if matches!(e, Event::Retrying { .. }) {
-                retries += 1;
-            }
-        });
-        assert!(matches!(result, Err(ClientError::GaveUp { attempts: 5, .. })));
+        let result = run(
+            &demo_client(address, "demo-token", "A12", 5),
+            &mut state,
+            |e| {
+                if matches!(e, Event::Retrying { .. }) {
+                    retries += 1;
+                }
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(ClientError::GaveUp { attempts: 5, .. })
+        ));
         assert_eq!(retries, 4);
     }
 
@@ -144,6 +199,9 @@ mod end_to_end {
         let mut silent = TcpStream::connect(address).unwrap(); // connects, never says HELLO
         let mut line = String::new();
         let n = BufReader::new(&mut silent).read_line(&mut line).unwrap();
-        assert_eq!(n, 0, "the server closed the connection after its 2 s timeout");
+        assert_eq!(
+            n, 0,
+            "the server closed the connection after its 2 s timeout"
+        );
     }
 }

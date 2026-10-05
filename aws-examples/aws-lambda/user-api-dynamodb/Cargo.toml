@@ -8,7 +8,7 @@ aws-config = "1"
 aws-sdk-dynamodb = "1"
 aws-sdk-ssm = "1"
 lambda_http = "0.17"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
@@ -23,6 +23,7 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 jsonwebtoken = "9"
 
 [dev-dependencies]
+futures-util = "0.3"
 anyhow = "1"
 aws-credential-types = "1"
 serial_test = "3"

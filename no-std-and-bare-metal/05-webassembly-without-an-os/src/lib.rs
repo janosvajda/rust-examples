@@ -41,7 +41,9 @@ pub extern "C" fn count_primes(limit: u32) -> u32 {
 }
 
 fn is_prime(n: u32) -> bool {
-    (2..).take_while(|d| d * d <= n).all(|d| !n.is_multiple_of(d))
+    (2..)
+        .take_while(|d| d * d <= n)
+        .all(|d| !n.is_multiple_of(d))
 }
 
 // ---- Passing text: through shared memory ----------------------------------------

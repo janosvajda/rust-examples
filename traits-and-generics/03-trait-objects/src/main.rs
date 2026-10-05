@@ -82,11 +82,16 @@ fn print_dynamic(shape: &dyn Shape) -> String {
 fn parse_shape(text: &str) -> Option<Box<dyn Shape>> {
     let mut parts = text.split_whitespace();
     let kind = parts.next()?;
-    let numbers: Vec<f64> = parts.filter_map(|p| p.parse().ok()).collect();
+    let numbers: Vec<f64> = parts
+        .map(|p| p.parse().ok().filter(|n: &f64| n.is_finite() && *n >= 0.0))
+        .collect::<Option<_>>()?;
     match (kind, numbers.as_slice()) {
         ("circle", [r]) => Some(Box::new(Circle { radius: *r })),
         ("square", [s]) => Some(Box::new(Square { side: *s })),
-        ("triangle", [b, h]) => Some(Box::new(Triangle { base: *b, height: *h })),
+        ("triangle", [b, h]) => Some(Box::new(Triangle {
+            base: *b,
+            height: *h,
+        })),
         _ => None,
     }
 }
@@ -138,7 +143,10 @@ fn main() {
     let shapes: Vec<Box<dyn Shape>> = vec![
         Box::new(Circle { radius: 1.0 }),
         Box::new(Square { side: 2.0 }),
-        Box::new(Triangle { base: 3.0, height: 4.0 }),
+        Box::new(Triangle {
+            base: 3.0,
+            height: 4.0,
+        }),
     ];
     for shape in &shapes {
         println!("    {}", shape.describe());
@@ -159,13 +167,25 @@ fn main() {
     }
 
     println!("\n4. What a trait object is made of");
-    println!("    &Square:    {} bytes (one pointer)", size_of::<&Square>());
-    println!("    &dyn Shape: {} bytes (pointer to the data + pointer to the vtable)", size_of::<&dyn Shape>());
+    println!(
+        "    &Square:    {} bytes (one pointer)",
+        size_of::<&Square>()
+    );
+    println!(
+        "    &dyn Shape: {} bytes (pointer to the data + pointer to the vtable)",
+        size_of::<&dyn Shape>()
+    );
 
     println!("\n5. Upcasting: a dyn Paintable can be used as a dyn Shape");
     let painted: Vec<Box<dyn Paintable>> = vec![
-        Box::new(ColouredSquare { side: 1.0, colour: "red" }),
-        Box::new(ColouredSquare { side: 2.0, colour: "blue" }),
+        Box::new(ColouredSquare {
+            side: 1.0,
+            colour: "red",
+        }),
+        Box::new(ColouredSquare {
+            side: 2.0,
+            colour: "blue",
+        }),
     ];
     for item in &painted {
         println!("    {}", paint_and_describe(item.as_ref()));
@@ -183,7 +203,10 @@ mod tests {
     fn mixed_collection() {
         let shapes: Vec<Box<dyn Shape>> = vec![
             Box::new(Square { side: 2.0 }),
-            Box::new(Triangle { base: 2.0, height: 2.0 }),
+            Box::new(Triangle {
+                base: 2.0,
+                height: 2.0,
+            }),
         ];
         assert_eq!(total_area(&shapes), 6.0);
     }
@@ -210,8 +233,14 @@ mod tests {
 
     #[test]
     fn upcasting_to_the_supertrait() {
-        let painted: Box<dyn Paintable> = Box::new(ColouredSquare { side: 3.0, colour: "green" });
-        assert_eq!(paint_and_describe(painted.as_ref()), "green coloured square with area 9.00");
+        let painted: Box<dyn Paintable> = Box::new(ColouredSquare {
+            side: 3.0,
+            colour: "green",
+        });
+        assert_eq!(
+            paint_and_describe(painted.as_ref()),
+            "green coloured square with area 9.00"
+        );
         let shape: Box<dyn Shape> = painted; // Box<dyn Paintable> → Box<dyn Shape>
         assert_eq!(shape.area(), 9.0);
     }

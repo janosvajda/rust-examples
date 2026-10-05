@@ -114,6 +114,8 @@ It works with every pointer type: `&`, `&mut`, `Box`, `Rc`, `Arc`. It's cheap: t
 
 The other direction doesn't work this way. A `&dyn Shape` can't become a `&dyn Paintable`, because not every shape is paintable. Going "down" to a specific type needs the `Any` trait and a check that can fail (`downcast_ref`).
 
+The shape parser rejects a number it can't read, instead of skipping it: skipping would shift the next number into the wrong place. Sizes must be finite and not negative; zero is allowed.
+
 ## Run it
 
 ```bash

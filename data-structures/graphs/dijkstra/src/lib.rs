@@ -37,8 +37,9 @@
 //!
 //! ## Complexity
 //!
-//! **O((V + E) log V)** with a binary heap, where V is the number of nodes and
-//! E the number of edges.
+//! **O(V + E log(E + 1))** for this lazy binary heap, where V counts nodes
+//! and E counts edges, including parallel edges. For simple graphs this is
+//! commonly written O((V + E) log V).
 //!
 //! ## Example
 //!
@@ -52,13 +53,36 @@
 //! graph.add_edge(2, 3, 1);
 //! graph.add_edge(3, 1, 1);
 //!
-//! let (cost, path) = graph.shortest_path(0, 1).unwrap();
+//! let (cost, path) = graph.shortest_path(0, 1).unwrap().unwrap();
 //! assert_eq!(cost, 3);              // A → C → D → B
 //! assert_eq!(path, vec![0, 2, 3, 1]);
 //! ```
 
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathError {
+    InvalidNode { node: usize, node_count: usize },
+    CostOverflow,
+}
+
+impl fmt::Display for PathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidNode { node, node_count } => {
+                write!(f, "node {node} is outside 0..{node_count}")
+            }
+            Self::CostOverflow => write!(f, "a route cost exceeds u64::MAX"),
+        }
+    }
+}
+
+impl std::error::Error for PathError {}
+
+/// Distances and predecessor nodes, both indexed by node number.
+pub type SearchResult = (Vec<Option<u64>>, Vec<Option<usize>>);
 
 /// An edge to `to` with the given `cost`.
 #[derive(Debug, Clone, Copy)]
@@ -91,20 +115,31 @@ impl WeightedGraph {
 
     /// Connects `a` and `b` in both directions with the given `cost`.
     pub fn add_edge(&mut self, a: usize, b: usize, cost: u32) {
+        assert!(
+            a < self.node_count() && b < self.node_count(),
+            "both endpoints must exist"
+        );
         self.adjacency[a].push(Edge { to: b, cost });
         self.adjacency[b].push(Edge { to: a, cost });
     }
 
-    /// Runs Dijkstra from `start`.
+    /// Runs Dijkstra from `start`. Totals use u64 even though individual edges use u32.
+    /// Returns an error for an invalid start or a total that overflows u64.
     ///
     /// Returns two lists, indexed by node:
     /// - `distances[n]`: the lowest total cost from `start` to `n`, or `None`
     ///   if `n` is unreachable.
     /// - `previous[n]`: the node before `n` on that cheapest path. Follow
     ///   these links back to `start` to rebuild the path.
-    pub fn dijkstra(&self, start: usize) -> (Vec<Option<u32>>, Vec<Option<usize>>) {
+    pub fn dijkstra(&self, start: usize) -> Result<SearchResult, PathError> {
         let n = self.node_count();
-        let mut distances: Vec<Option<u32>> = vec![None; n]; // None = infinity
+        if start >= n {
+            return Err(PathError::InvalidNode {
+                node: start,
+                node_count: n,
+            });
+        }
+        let mut distances: Vec<Option<u64>> = vec![None; n]; // None = infinity
         let mut previous: Vec<Option<usize>> = vec![None; n];
 
         // std's BinaryHeap is a *max*-heap. Wrapping the entries in `Reverse`
@@ -113,7 +148,7 @@ impl WeightedGraph {
         let mut heap = BinaryHeap::new();
 
         distances[start] = Some(0);
-        heap.push(Reverse((0u32, start)));
+        heap.push(Reverse((0u64, start)));
 
         while let Some(Reverse((distance, node))) = heap.pop() {
             // We never remove old entries when a node's distance improves. We
@@ -125,7 +160,9 @@ impl WeightedGraph {
             }
 
             for edge in &self.adjacency[node] {
-                let new_distance = distance + edge.cost;
+                let new_distance = distance
+                    .checked_add(u64::from(edge.cost))
+                    .ok_or(PathError::CostOverflow)?;
                 // Relax the edge: is going through `node` cheaper?
                 let is_better = match distances[edge.to] {
                     None => true,
@@ -139,14 +176,27 @@ impl WeightedGraph {
             }
         }
 
-        (distances, previous)
+        Ok((distances, previous))
     }
 
     /// Returns the total cost and the list of nodes on the cheapest path from
-    /// `from` to `to`, or `None` if `to` is unreachable.
-    pub fn shortest_path(&self, from: usize, to: usize) -> Option<(u32, Vec<usize>)> {
-        let (distances, previous) = self.dijkstra(from);
-        let cost = distances[to]?;
+    /// `from` to `to`, or `Ok(None)` if `to` is unreachable.
+    /// Invalid nodes and unrepresentable costs return an error.
+    pub fn shortest_path(
+        &self,
+        from: usize,
+        to: usize,
+    ) -> Result<Option<(u64, Vec<usize>)>, PathError> {
+        if to >= self.node_count() {
+            return Err(PathError::InvalidNode {
+                node: to,
+                node_count: self.node_count(),
+            });
+        }
+        let (distances, previous) = self.dijkstra(from)?;
+        let Some(cost) = distances[to] else {
+            return Ok(None);
+        };
 
         let mut path = vec![to];
         let mut current = to;
@@ -156,7 +206,7 @@ impl WeightedGraph {
         }
         path.reverse();
 
-        Some((cost, path))
+        Ok(Some((cost, path)))
     }
 }
 
@@ -180,26 +230,29 @@ mod tests {
         graph.add_edge(0, 2, 10);
         graph.add_edge(0, 1, 2);
         graph.add_edge(1, 2, 3);
-        assert_eq!(graph.shortest_path(0, 2), Some((5, vec![0, 1, 2])));
+        assert_eq!(graph.shortest_path(0, 2).unwrap(), Some((5, vec![0, 1, 2])));
     }
 
     #[test]
     fn distances_to_all_nodes() {
-        let (distances, _) = example_graph().dijkstra(0);
+        let (distances, _) = example_graph().dijkstra(0).unwrap();
         assert_eq!(distances, vec![Some(0), Some(3), Some(1), Some(2)]);
     }
 
     #[test]
     fn path_to_start_is_just_start() {
-        assert_eq!(example_graph().shortest_path(2, 2), Some((0, vec![2])));
+        assert_eq!(
+            example_graph().shortest_path(2, 2).unwrap(),
+            Some((0, vec![2]))
+        );
     }
 
     #[test]
     fn unreachable_node() {
         let mut graph = WeightedGraph::new(3);
         graph.add_edge(0, 1, 1);
-        assert_eq!(graph.shortest_path(0, 2), None);
-        let (distances, _) = graph.dijkstra(0);
+        assert_eq!(graph.shortest_path(0, 2).unwrap(), None);
+        let (distances, _) = graph.dijkstra(0).unwrap();
         assert_eq!(distances[2], None);
     }
 
@@ -208,6 +261,25 @@ mod tests {
         let mut graph = WeightedGraph::new(3);
         graph.add_edge(0, 1, 0);
         graph.add_edge(1, 2, 0);
-        assert_eq!(graph.shortest_path(0, 2), Some((0, vec![0, 1, 2])));
+        assert_eq!(graph.shortest_path(0, 2).unwrap(), Some((0, vec![0, 1, 2])));
+    }
+    #[test]
+    fn costs_larger_than_u32_do_not_wrap_or_create_a_predecessor_cycle() {
+        let mut graph = WeightedGraph::new(3);
+        graph.add_edge(0, 1, u32::MAX);
+        graph.add_edge(1, 2, 1);
+        assert_eq!(
+            graph.shortest_path(0, 2),
+            Ok(Some((u64::from(u32::MAX) + 1, vec![0, 1, 2])))
+        );
+        assert!(matches!(
+            graph.dijkstra(3),
+            Err(PathError::InvalidNode { .. })
+        ));
+        assert!(matches!(
+            graph.shortest_path(0, 3),
+            Err(PathError::InvalidNode { .. })
+        ));
+        assert!(WeightedGraph::new(0).dijkstra(0).is_err());
     }
 }

@@ -1,8 +1,16 @@
 use dijkstra::WeightedGraph;
 
-fn main() {
+fn main() -> Result<(), dijkstra::PathError> {
     // Driving times in minutes between some Hungarian cities (rounded, for illustration).
-    let cities = ["Budapest", "Győr", "Székesfehérvár", "Veszprém", "Kecskemét", "Szeged", "Pécs"];
+    let cities = [
+        "Budapest",
+        "Győr",
+        "Székesfehérvár",
+        "Veszprém",
+        "Kecskemét",
+        "Szeged",
+        "Pécs",
+    ];
     let roads = [
         (0, 1, 80),  // Budapest – Győr
         (0, 2, 50),  // Budapest – Székesfehérvár
@@ -21,9 +29,10 @@ fn main() {
 
     println!("Fastest routes from Budapest:");
     for (destination, name) in cities.iter().enumerate().skip(1) {
-        if let Some((minutes, path)) = graph.shortest_path(0, destination) {
+        if let Some((minutes, path)) = graph.shortest_path(0, destination)? {
             let route: Vec<&str> = path.iter().map(|&n| cities[n]).collect();
             println!("  {name:<15} {minutes:>3} min  via {}", route.join(" → "));
         }
     }
+    Ok(())
 }

@@ -4,111 +4,205 @@
 
 ## The idea in one sentence
 
-Almost everyone hits the same five problems when starting with async Rust. Each one has a clear symptom and a standard fix.
+**Async works well when tasks return control promptly, ownership is clear, and background work has a managed lifetime.**
 
-## 1. Blocking the runtime
+A waiter who blocks the restaurant doorway for 200 ms stops other waiters using that doorway. Giving that waiter an “async” badge does not remove the blockage.
 
-An async task gives its thread back **only at an `.await`**. Code that runs for a long time without awaiting holds the thread, and every other task on that thread is stuck waiting. That includes `std::thread::sleep`, a heavy calculation, or a synchronous file or database call.
+## 1. Blocking inside async code
 
-The demo runs four 200 ms jobs on a single-threaded runtime, two ways:
+A task only pauses at an `.await` that has to wait. Code that runs for a long time *between* awaits, a big calculation or a blocking call like `std::thread::sleep`, keeps the thread busy, and every other task on that thread waits until it finishes.
 
-```text
-blocking inside async:   810 ms     ← the four jobs ran one after another
-moved to spawn_blocking: 205 ms     ← the four jobs ran at the same time
-```
-
-**Fix:** move blocking work off the async threads with **`tokio::task::spawn_blocking`**, which runs it on a separate pool of threads meant for blocking. For waiting, use the async versions: `tokio::time::sleep`, not `std::thread::sleep`; `tokio::fs`, not `std::fs` in hot paths.
-
-**There's no compiler error for this one.** The program just becomes mysteriously slow under load. If async code is slow, look for blocking calls first.
-
-## 2. Holding a `std` Mutex lock across `.await`
+The demo's `heavy_calculation` actually calls `std::thread::sleep` for 200 ms. It **simulates blocking work**, rather than measuring CPU calculations. Four joined calls on a current-thread runtime take roughly 800 ms of blocking waits. Offloading them can overlap those waits, but elapsed time depends on scheduling and available resources.
 
 ```rust
-let mut guard = counter.lock().unwrap();   // std::sync::Mutex
-some_call().await;                          // the task may move to another thread here
-*guard += 1;
+let answer = tokio::task::spawn_blocking(|| {
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    42
+}).await.unwrap();
+assert_eq!(answer, 42);
 ```
 
-Inside `tokio::spawn`:
+`spawn_blocking` uses a separate blocking thread pool, including when the async runtime has only one scheduler thread. It is suitable for finite synchronous work. A started closure cannot be interrupted by `abort()`; it must finish or cooperate with its own stop mechanism.
 
-```text
-error: future cannot be sent between threads safely
-```
+For an async timer use `tokio::time::sleep`. For ordinary files, `tokio::fs` exposes async APIs but currently performs blocking file operations on Tokio's blocking pool. It does not make the underlying disk operation vanish.
 
-A `std` lock guard must be released on the same thread that took it, but `tokio::spawn` may move the task to another thread at the `.await`. Even on one thread, holding a lock while waiting blocks everyone else who needs it.
+For many CPU-heavy jobs, bound concurrency or use a suitable CPU pool such as Rayon. Spawning huge numbers of CPU jobs onto the blocking pool can overload the machine. For long-lived blocking workers, a dedicated thread can be a better fit.
 
-**Fix:** release the lock before awaiting, by putting it in its own block:
+There is usually **no compiler error** for accidentally blocking the runtime. Our tests verify task progress through coordination, not a claim that every computer finishes within 600 ms.
+
+## 2. A standard mutex guard across an await
+
+This example **does not compile** because its future is passed to `tokio::spawn`:
 
 ```rust
-{
+use std::sync::{Arc, Mutex};
+
+let counter = Arc::new(Mutex::new(0_u32));
+tokio::spawn(async move {
     let mut guard = counter.lock().unwrap();
+    tokio::task::yield_now().await;
     *guard += 1;
-}                                           // lock released here
-some_call().await;
-```
-
-Or, if you really must hold it across the `.await`, use `tokio::sync::Mutex` (lesson 4).
-
-## 3. `Rc` and other non-`Send` types in spawned tasks
-
-```rust
-let shared = Rc::new(5);
-tokio::spawn(async move { ….await; println!("{shared}") });
+});
 ```
 
 ```text
 error: future cannot be sent between threads safely
 ```
 
-Same cause: a spawned task may move between threads at any `.await`, so everything it holds across an `.await` must be `Send` (ownership course, lesson 8). **Fix:** `Arc` instead of `Rc`, `Mutex` instead of `RefCell`.
+`std::sync::MutexGuard` is not `Send`: its lock must be released on the acquiring thread. The spawned future retains that guard across a possible suspension, so it cannot satisfy `tokio::spawn`'s `Send` requirement.
 
-## 4. Recursion needs a box
+Release it before awaiting:
 
 ```rust
-async fn countdown(n: u32) { if n > 0 { countdown(n - 1).await } }
+use std::sync::{Arc, Mutex};
+
+let counter = Arc::new(Mutex::new(0_u32));
+let task = tokio::spawn(async move {
+    {
+        let mut guard = counter.lock().unwrap();
+        *guard += 1;
+    }
+    tokio::task::yield_now().await;
+});
+task.await.unwrap();
+```
+
+A block makes the guard's lifetime clear. If you need a guard across an await, choose an appropriate async mutex and still think about lock contention and deadlocks. Local non-`Send` code can compile with a standard guard across an await; compiling does not make that design deadlock-free.
+
+## 3. Send is a property of the whole spawned future
+
+This example **does not compile**:
+
+```rust
+tokio::spawn(async {
+    let shared = std::rc::Rc::new(5);
+    tokio::task::yield_now().await;
+    println!("{shared}");
+});
+```
+
+```text
+error: future cannot be sent between threads safely
+```
+
+`tokio::spawn` requires the task's future, and its result, to be `Send + 'static`: the task may move to another thread, even if this runtime happens to have only one. Everything the task captures, and every variable still alive at an `.await`, is part of the future, so it must all be `Send`.
+
+An `Rc` created inside the task can be used if it is gone before any suspension:
+
+```rust
+let task = tokio::spawn(async {
+    {
+        let local = std::rc::Rc::new(5);
+        println!("{local}");
+    }
+    tokio::task::yield_now().await;
+});
+task.await.unwrap();
+```
+
+For shared ownership between threads, consider `Arc`. **`RefCell<T>` can itself be `Send` when `T: Send`**, but it is not `Sync`; sharing one through `Arc<RefCell<T>>` does not make it thread-safe. Moving a value and sharing references to it are different operations.
+
+When a task genuinely needs non-`Send` state across awaits, use a **`LocalSet`** and `spawn_local`:
+
+```rust
+let local = tokio::task::LocalSet::new();
+local.run_until(async {
+    let shared = std::rc::Rc::new(5);
+    let task = tokio::task::spawn_local(async move {
+        tokio::task::yield_now().await;
+        *shared
+    });
+    assert_eq!(task.await.unwrap(), 5);
+}).await;
+```
+
+These tasks stay on the thread driving the local set. `spawn_local` still requires `'static`; it does not allow arbitrary short-lived captured borrows. Keep driving or awaiting local tasks when their completion matters.
+
+## 4. Recursive futures need indirection
+
+This example **does not compile**:
+
+```rust
+async fn countdown(n: u32) {
+    if n > 0 {
+        countdown(n - 1).await;
+    }
+}
 ```
 
 ```text
 error[E0733]: recursion in an async fn requires boxing
 ```
 
-A future stores everything it needs across its `.await`s **inside itself**. A future that contains a call to itself would contain itself, which contains itself… and would be infinitely large. **Fix:** put the recursive call on the heap with `Box::pin`:
+A generated future needs space for the inner future it awaits. Direct recursion would require a type containing itself without an end: a box inside a box inside a box…
+
+Heap indirection gives the stored recursive future a finite-size pointer:
 
 ```rust
-let mut rest = Box::pin(countdown(n - 1)).await;
+const MAX_COUNTDOWN_DEPTH: u32 = 256;
+
+async fn countdown(n: u32) -> Result<Vec<u32>, &'static str> {
+    if n > MAX_COUNTDOWN_DEPTH { return Err("recursive countdown exceeds 256 steps"); }
+    async fn append(n: u32, output: &mut Vec<u32>) {
+        if n == 0 { return; }
+        output.push(n);
+        Box::pin(append(n - 1, output)).await;
+    }
+    let mut output = Vec::with_capacity(n as usize);
+    append(n, &mut output).await;
+    Ok(output)
+}
+assert_eq!(countdown(3).await.unwrap(), [3, 2, 1]);
 ```
 
-## 5. Forgetting `.await`
+`Box::pin` puts the inner future on the heap, so the outer future only holds a pointer to it: a fixed size, however deep the recursion goes. Boxing fixes the **type's size**, but deep recursion can still use a lot of stack, so the example refuses more than 256 steps.
+
+For this particular countdown, an ordinary iterator is simpler: `(1..=n).rev().collect::<Vec<_>>()`. More complex algorithms may need recursion, an explicit work stack or another design.
+
+## 5. Creating an operation but forgetting to drive it
 
 ```rust
-save_to_disk();          // looks like a call; does nothing at all
+async fn save_note() {
+    println!("simulated save"); // no real file is written
+}
+save_note(); // deliberate unused-Future warning; body never runs
 ```
 
 ```text
 warning: unused implementer of `Future` that must be used
-  = note: futures do nothing unless you `.await` or poll them
 ```
 
-Futures are lazy (lesson 1). Treat this warning as an error: it always means a bug.
+When you intend to perform the operation:
 
-## The course in one table
+```rust
+save_note().await;
+```
 
-| You want to… | Use |
+Investigate unused-future warnings. If discarding an operation is deliberate, `drop(future)` makes that explicit. Not every future means “unstarted work”: discarding a spawned task's `JoinHandle` detaches the already-scheduled task rather than cancelling it.
+
+## Choose a tool
+
+| You want to… | Consider |
 |---|---|
-| wait for something without blocking a thread | `.await` |
-| run several futures at once and wait for all | `join!`, `try_join!` |
-| start independent background work | `tokio::spawn`, `JoinSet` |
-| take whichever finishes first | `select!` |
-| give up after a while | `timeout` |
-| send work or events between tasks | `mpsc` (and `oneshot` for replies) |
-| share data between tasks | `Arc<Mutex<T>>` |
-| run blocking or CPU-heavy code | `spawn_blocking` |
+| await an async operation | `.await`; it may continue immediately if ready |
+| collect several concurrent results | `join!` or `try_join!` |
+| schedule and manage independent tasks | `tokio::spawn` with retained handles, or `JoinSet` |
+| choose a ready branch | `select!` |
+| limit waiting time | `timeout`, with cooperative operations |
+| send work and receive replies | `mpsc` and `oneshot` |
+| coordinate shared access | an appropriate mutex, or a service owning the data |
+| offload finite blocking work | `spawn_blocking` |
+| run non-`Send` local tasks | `LocalSet` and `spawn_local` |
 
-## Run it
+## Try it
+
+Guess whether `spawn_blocking` still uses extra threads when the async scheduler is single-threaded, then run:
 
 ```bash
 cargo run
 cargo test
 ```
+
+[Blocking pool](https://docs.rs/tokio/latest/tokio/task/fn.spawn_blocking.html), [spawn and Send](https://docs.rs/tokio/latest/tokio/task/fn.spawn.html), [LocalSet](https://docs.rs/tokio/latest/tokio/task/struct.LocalSet.html), [Tokio file I/O](https://docs.rs/tokio/latest/tokio/fs/index.html), [Pin](https://doc.rust-lang.org/std/pin/index.html)
 
 Previous: [Lesson 4: Channels and shared state](../04-channels-and-shared-state/) · Back to the [course overview](../)

@@ -43,7 +43,16 @@ pub enum MoveError {
 
 /// The 8 lines that win: 3 rows, 3 columns, 2 diagonals. Cells are numbered
 /// 0–8, left to right, top to bottom.
-const LINES: [[usize; 3]; 8] = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+const LINES: [[usize; 3]; 8] = [
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+    [0, 4, 8],
+    [2, 4, 6],
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Board {
@@ -103,12 +112,19 @@ pub enum Difficulty {
 
 /// Chooses the computer's move. `pick(n)` must return a number below `n`; it's
 /// passed in so the game itself has no randomness, and tests can control it.
-pub fn computer_move(board: &Board, me: Player, difficulty: Difficulty, pick: &mut impl FnMut(usize) -> usize) -> usize {
+pub fn computer_move(
+    board: &Board,
+    me: Player,
+    difficulty: Difficulty,
+    pick: &mut impl FnMut(usize) -> usize,
+) -> usize {
     let free: Vec<usize> = board.free_cells().collect();
     let any = |pick: &mut dyn FnMut(usize) -> usize| free[pick(free.len()) % free.len()];
     match difficulty {
         Difficulty::Easy => any(pick),
-        Difficulty::Normal => winning_move(board, me).or_else(|| winning_move(board, me.other())).unwrap_or_else(|| any(pick)),
+        Difficulty::Normal => winning_move(board, me)
+            .or_else(|| winning_move(board, me.other()))
+            .unwrap_or_else(|| any(pick)),
         Difficulty::Hard => best_move(board, me),
     }
 }
@@ -156,7 +172,12 @@ fn minimax(board: &Board, to_move: Player, me: Player, depth: i32) -> i32 {
         after.cells[cell] = Some(to_move);
         minimax(&after, to_move.other(), me, depth + 1)
     });
-    if to_move == me { scores.max() } else { scores.min() }.unwrap_or(0)
+    if to_move == me {
+        scores.max()
+    } else {
+        scores.min()
+    }
+    .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -177,8 +198,14 @@ mod tests {
 
     #[test]
     fn wins_draws_and_unfinished_games() {
-        assert_eq!(board("XXX ... ...").outcome(), Some(Outcome::Win(Player::X)));
-        assert_eq!(board("O.. .O. ..O").outcome(), Some(Outcome::Win(Player::O)));
+        assert_eq!(
+            board("XXX ... ...").outcome(),
+            Some(Outcome::Win(Player::X))
+        );
+        assert_eq!(
+            board("O.. .O. ..O").outcome(),
+            Some(Outcome::Win(Player::O))
+        );
         assert_eq!(board("XOX XOO OXX").outcome(), Some(Outcome::Draw));
         assert_eq!(board("XO. ... ...").outcome(), None);
     }
@@ -195,16 +222,37 @@ mod tests {
     fn normal_wins_first_then_blocks() {
         let mut never = |_| unreachable!("no random move needed");
         // O can win at 2, and X threatens 6: winning comes first
-        assert_eq!(computer_move(&board("OO. X.. .X."), Player::O, Difficulty::Normal, &mut never), 2);
+        assert_eq!(
+            computer_move(
+                &board("OO. X.. .X."),
+                Player::O,
+                Difficulty::Normal,
+                &mut never
+            ),
+            2
+        );
         // no win for O, so block X's row at 2
-        assert_eq!(computer_move(&board("XX. .O. ..."), Player::O, Difficulty::Normal, &mut never), 2);
+        assert_eq!(
+            computer_move(
+                &board("XX. .O. ..."),
+                Player::O,
+                Difficulty::Normal,
+                &mut never
+            ),
+            2
+        );
     }
 
     #[test]
     fn hard_sees_a_fork_coming() {
         // X has opposite corners. Taking a corner now loses to a fork;
         // the only safe move is an edge.
-        let reply = computer_move(&board("X.. .O. ..X"), Player::O, Difficulty::Hard, &mut |_| 0);
+        let reply = computer_move(
+            &board("X.. .O. ..X"),
+            Player::O,
+            Difficulty::Hard,
+            &mut |_| 0,
+        );
         assert!([1, 3, 5, 7].contains(&reply), "chose {reply}");
     }
 

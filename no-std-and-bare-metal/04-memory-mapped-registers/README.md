@@ -18,7 +18,7 @@ A chip's peripherals (serial ports, timers, GPIO pins, ADCs) each appear as a sm
   0x4000_100C    UART baud        clock frequency ÷ baud rate
 ```
 
-Reading or writing those addresses doesn't touch RAM. It talks to the hardware. This lesson writes a real-style serial port (UART) driver. The only difference from real firmware is that the "hardware" is simulated in ordinary memory, so the program runs on your computer. On a real chip, the registers are found like this:
+Reading or writing those addresses doesn't touch RAM. It talks to the hardware. This lesson writes a real-style serial port (UART) driver. The registers and wire are fictional and simulated in ordinary memory, so the program runs on your computer. Real drivers must follow their target's datasheet, including register permissions, reset behavior, baud calculation and interrupt rules. On a real chip, the registers are found like this:
 
 ```rust
 const UART0: *const UartRegisters = 0x4000_1000 as *const UartRegisters;
@@ -63,7 +63,7 @@ after clearing PARITY: 0b00000011
 The rest of the program never touches registers or bits. It uses the `Uart` driver:
 
 ```rust
-let uart = Uart::enable(&registers, 115_200, false);   // configure, then enable
+let uart = Uart::enable(&registers, 115_200, false).unwrap();   // configure, then enable
 uart.try_send(b'H')    // Ok(()), or Err(WouldBlock) while the hardware is busy
 ```
 
@@ -72,6 +72,16 @@ uart.try_send(b'H')    // Ok(()), or Err(WouldBlock) while the hardware is busy
 ## In real projects
 
 Nobody writes register structs by hand for a whole chip. Chip vendors publish a machine-readable description (an SVD file), and the `svd2rust` tool generates a **Peripheral Access Crate** with a type-safe API for every register and bit, like `stm32f4` or `rp2040-pac`. On top of that sit **HAL crates** with drivers like this lesson's `Uart`. The ideas, volatile access, exact layout and bit fields, are exactly the ones here.
+
+## When the UART says no
+
+Real drivers must handle failure, so this one does too:
+
+- `Uart::enable` returns a `Result`. It rejects a baud rate of zero, and one faster than the simulated UART's clock.
+- `try_send` fails with `NotEnabled` if the UART or its transmitter is switched off, and with `WouldBlock` if it's still busy sending the previous byte.
+- `send_message` waits and tries again only for `WouldBlock`; any other error is passed on, so a message is never silently lost.
+
+One warning: to simulate the hardware, the program writes the "ready" flag itself. On a real chip that flag is usually read-only, so don't copy those writes into a real driver. And `volatile` only makes sure each access really happens; it doesn't make the register safe to share between threads.
 
 ## Run it
 

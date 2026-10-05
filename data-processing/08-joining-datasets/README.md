@@ -4,7 +4,7 @@
 
 ## The idea in one sentence
 
-When data is split across tables, a **join** combines them through a shared key, and the two things that matter most are what happens to the rows that **don't** match, and using an index (a `HashMap`) instead of a loop inside a loop.
+When data is split across tables, a **join** combines them through a shared key. Two things matter most: what happens to the rows that **don't** match, and using an index (a `HashMap`) instead of a loop inside a loop.
 
 ## Two tables, one key
 
@@ -84,8 +84,10 @@ Both are real problems a person should look at. X99 might be a new sensor someon
 ## 4. After the join: group by the other table's columns
 
 ```text
-readings per room:
+4. Group by a column from the other table: readings per room
     Lab 1 / Microscopy: 3
+    Lab 2 / Pressure chamber: 1
+    Lab 3 / Chemistry: 2
     Lab 4 / Cold room: 2
 ```
 
@@ -101,7 +103,7 @@ Without an index, the obvious way to join is a loop inside a loop: for every rea
     hash join:        200,000 lookups,       2.88ms
 ```
 
-The timings are from an Apple M2 with `cargo run --release`, so yours will differ. The **number of comparisons** won't: it's the real story. The nested loop does about `readings × sensors ÷ 2` comparisons, so doubling both tables makes it **4× slower**. The hash join does about `readings + sensors` steps, so doubling both makes it about **2× slower**. This is the O(n·m) vs O(n + m) difference from [Why you still need to know](../../software-engineering-with-ai/04-why-you-still-need-to-know/), and why every database builds an index for joins.
+The timings are from an Apple M2 with `cargo run --release`, so yours will differ. The **number of comparisons** won't: it's the real story. The nested loop does about `readings × sensors ÷ 2` comparisons, so doubling both sizes gives roughly four times as many comparisons for this distribution. The hash join does about `readings + sensors` steps, so doubling both sizes only doubles the work. This is the O(n·m) vs O(n + m) difference from [Why you still need to know](../../software-engineering-with-ai/04-why-you-still-need-to-know/), and it's why databases use indexes and hash joins.
 
 ## Edge cases
 
@@ -112,12 +114,18 @@ The timings are from an Apple M2 with `cargo run --release`, so yours will diffe
 | the **same key twice** in the lookup table | an error listing the ids, instead of silently keeping the last | `a_sensor_registered_twice_is_an_error` |
 | stray spaces around keys (`"A12 "`) | trimmed, so they still match | `keys_with_stray_spaces_still_match` |
 | an empty table | joins to nothing; the left join still keeps every reading | `empty_tables_join_to_nothing` |
-| `NaN` or `inf` readings | skipped when parsing | (in `parse_readings`) |
+| malformed or non-finite readings | a line-numbered parsing error | `malformed_rows_are_errors_with_line_numbers` |
 | big tables | a hash join: about `n + m` steps instead of `n × m` | `nested_loops_and_hash_join_agree` |
 
 Two more that matter in real data, and aren't in this example:
 - **Different spellings of the same key** (`a12` vs `A12`, `A-12` vs `A12`). Normalise both tables the same way **before** joining ([lesson 3](../03-cleaning-and-validation/)). A join only matches keys that are exactly equal.
 - **Many-to-many joins.** If the key is unique on neither side, each match combines with every other match: 1,000 rows × 1,000 rows on the same key give 1,000,000 output rows. When a join's output is unexpectedly huge, check whether the key really is unique where it should be.
+
+## Check the rows before joining
+
+The parsers return a `Result`. They require the exact headers `sensor,lab,room` and `time,sensor,value`, three non-empty fields per row, and readings that are finite numbers. A malformed row is an **error with its line number**, not a row that silently disappears. The files use simple comma-separated fields, without quoting ([lesson 1](../01-csv-by-hand/) shows quoting).
+
+Rejecting a broken row is different from an inner join leaving out a reading that has no match. The demo reports both, so neither goes unnoticed.
 
 ## Run it
 
