@@ -118,7 +118,10 @@ struct HeatAlert {
 impl Observer for HeatAlert {
     fn update(&self, reading: &Reading) {
         if reading.temperature_c >= self.threshold_c {
-            println!("  [ALERT]    heat warning: {:.1} °C!", reading.temperature_c);
+            println!(
+                "  [ALERT]    heat warning: {:.1} °C!",
+                reading.temperature_c
+            );
         }
     }
 }
@@ -134,9 +137,18 @@ fn main() {
     let alert_id = station.subscribe(Rc::new(HeatAlert { threshold_c: 30.0 }));
 
     let readings = [
-        Reading { temperature_c: 22.5, humidity_percent: 60.0 },
-        Reading { temperature_c: 31.0, humidity_percent: 40.0 },
-        Reading { temperature_c: 27.0, humidity_percent: 55.0 },
+        Reading {
+            temperature_c: 22.5,
+            humidity_percent: 60.0,
+        },
+        Reading {
+            temperature_c: 31.0,
+            humidity_percent: 40.0,
+        },
+        Reading {
+            temperature_c: 27.0,
+            humidity_percent: 55.0,
+        },
     ];
 
     for reading in readings {
@@ -147,7 +159,10 @@ fn main() {
     // Observers can come and go while the program runs.
     station.unsubscribe(alert_id);
     println!("\nHeat alert unsubscribed. New reading:");
-    station.publish(Reading { temperature_c: 35.0, humidity_percent: 30.0 });
+    station.publish(Reading {
+        temperature_c: 35.0,
+        humidity_percent: 30.0,
+    });
 
     if let Some((min, max)) = stats.min_max() {
         println!("\nStatistics kept by the display: min {min:.1} °C, max {max:.1} °C");
@@ -177,8 +192,14 @@ mod tests {
         }
     }
 
-    const MILD: Reading = Reading { temperature_c: 20.0, humidity_percent: 50.0 };
-    const HOT: Reading = Reading { temperature_c: 33.0, humidity_percent: 20.0 };
+    const MILD: Reading = Reading {
+        temperature_c: 20.0,
+        humidity_percent: 50.0,
+    };
+    const HOT: Reading = Reading {
+        temperature_c: 33.0,
+        humidity_percent: 20.0,
+    };
 
     #[test]
     fn every_observer_is_notified() {

@@ -69,8 +69,8 @@ fn record_max(highest: &AtomicU64, value: u64) {
     let mut current = highest.load(Ordering::Relaxed);
     while value > current {
         match highest.compare_exchange(current, value, Ordering::Relaxed, Ordering::Relaxed) {
-            Ok(_) => return,                     // we won: it was still `current`
-            Err(actual) => current = actual,     // someone changed it: try again
+            Ok(_) => return,                 // we won: it was still `current`
+            Err(actual) => current = actual, // someone changed it: try again
         }
     }
 }
@@ -127,13 +127,22 @@ fn publish_and_read() -> u64 {
 
 fn main() {
     println!("1. A lock-free counter");
-    println!("    8 threads × 100,000 increments = {}", count_with_atomic(8, 100_000));
+    println!(
+        "    8 threads × 100,000 increments = {}",
+        count_with_atomic(8, 100_000)
+    );
 
     println!("\n2. A stop flag");
-    println!("    3 workers did {} units of work before being stopped", run_until_stopped());
+    println!(
+        "    3 workers did {} units of work before being stopped",
+        run_until_stopped()
+    );
 
     println!("\n3. compare_exchange");
-    println!("    highest reading across 4 threads: {}", highest_reading());
+    println!(
+        "    highest reading across 4 threads: {}",
+        highest_reading()
+    );
 
     println!("\n4. Release / Acquire");
     println!("    the reader saw {}", publish_and_read());

@@ -106,7 +106,10 @@ fn main() {
     // Execute the commands
     invoker.execute_commands(&mut rover);
 
-    println!("Rover Position: ({}, {}), Direction: {:?}", rover.x, rover.y, rover.direction);
+    println!(
+        "Rover Position: ({}, {}), Direction: {:?}",
+        rover.x, rover.y, rover.direction
+    );
 }
 
 #[cfg(test)]
@@ -134,6 +137,13 @@ mod tests {
         // Execute the commands
         invoker.execute_commands(&mut rover);
 
-        assert_eq!(rover, Rover { x: 2, y: 3, direction: Direction::North });
+        assert_eq!(
+            rover,
+            Rover {
+                x: 2,
+                y: 3,
+                direction: Direction::North
+            }
+        );
     }
 }

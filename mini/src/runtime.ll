@@ -26,6 +26,12 @@ entry:
 ; Digits after the sixth place are cut off, like whole-number division.
 define private i64 @mini_dec_div(i64 %a, i64 %b) {
 entry:
+  %zero = icmp eq i64 %b, 0
+  br i1 %zero, label %trap, label %divide
+trap:
+  call void @llvm.trap()
+  unreachable
+divide:
   %a128 = sext i64 %a to i128
   %b128 = sext i64 %b to i128
   %a_scaled = mul i128 %a128, 1000000

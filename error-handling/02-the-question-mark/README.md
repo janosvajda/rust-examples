@@ -84,7 +84,7 @@ Convert with `.ok_or(…)` first.
 ## Different error types: `Box<dyn Error>`
 
 ```rust
-fn read_number(path: &str) -> Result<i32, Box<dyn Error>> {
+fn read_number(path: impl AsRef<std::path::Path>) -> Result<i32, Box<dyn Error>> {
     let text = std::fs::read_to_string(path)?;   // can fail with io::Error
     let number = text.trim().parse::<i32>()?;    // can fail with ParseIntError
     Ok(number)
@@ -123,6 +123,10 @@ Error: ParseIntError { kind: InvalidDigit }
 ```
 
 Tests can return `Result` too, so you can use `?` inside them. An `Err` fails the test.
+
+## A number can parse and still not fit
+
+`"2147483647"` parses fine as an `i32`, and so does `"1"`, but their sum doesn't fit. So `add_strings` has two different errors: `AddError::Parse` for text that isn't a number, and `AddError::Overflow` for a sum that's too big, found with `checked_add`. Thanks to `From<ParseIntError>`, `?` turns a parse error into `AddError::Parse` automatically; the overflow is checked separately.
 
 ## Run it
 

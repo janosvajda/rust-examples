@@ -56,11 +56,16 @@ fn read_line(input: &mut impl BufRead) -> io::Result<Option<String>> {
     Ok(Some(line.trim().to_string()))
 }
 
-fn ask_difficulty(input: &mut impl BufRead, out: &mut impl Write) -> io::Result<Option<Difficulty>> {
+fn ask_difficulty(
+    input: &mut impl BufRead,
+    out: &mut impl Write,
+) -> io::Result<Option<Difficulty>> {
     loop {
         write!(out, "Difficulty: 1 easy, 2 normal, 3 hard (unbeatable): ")?;
         out.flush()?;
-        let Some(answer) = read_line(input)? else { return Ok(None) };
+        let Some(answer) = read_line(input)? else {
+            return Ok(None);
+        };
         match answer.as_str() {
             "1" => return Ok(Some(Difficulty::Easy)),
             "2" => return Ok(Some(Difficulty::Normal)),
@@ -93,7 +98,9 @@ fn play_game(
         write!(out, "Your move ({}), 1–9: ", style.mark(Player::X))?;
         out.flush()?;
 
-        let Some(answer) = read_line(input)? else { return Ok(None) };
+        let Some(answer) = read_line(input)? else {
+            return Ok(None);
+        };
         let cell = match answer.parse::<usize>() {
             Ok(n @ 1..=9) => n - 1,
             _ => {
@@ -108,7 +115,9 @@ fn play_game(
         message.clear();
         if board.outcome().is_none() {
             let reply = computer_move(&board, Player::O, difficulty, pick);
-            board.play(reply, Player::O).expect("the computer only picks free cells");
+            board
+                .play(reply, Player::O)
+                .expect("the computer only picks free cells");
             message = format!("The computer played {}.", reply + 1);
         }
     }
@@ -122,12 +131,19 @@ fn random_below(n: usize) -> usize {
 }
 
 fn main() -> io::Result<()> {
-    let style = Style { terminal: io::stdout().is_terminal() };
+    let style = Style {
+        terminal: io::stdout().is_terminal(),
+    };
     let mut input = io::stdin().lock();
     let mut out = io::stdout().lock();
-    writeln!(out, "Tic-tac-toe: you are X, the computer is O. Ctrl+D quits at any time.")?;
+    writeln!(
+        out,
+        "Tic-tac-toe: you are X, the computer is O. Ctrl+D quits at any time."
+    )?;
 
-    let Some(difficulty) = ask_difficulty(&mut input, &mut out)? else { return writeln!(out) };
+    let Some(difficulty) = ask_difficulty(&mut input, &mut out)? else {
+        return writeln!(out);
+    };
     loop {
         match play_game(&mut input, &mut out, &style, difficulty, &mut random_below)? {
             Some(Outcome::Win(Player::X)) => writeln!(out, "You win!")?,
@@ -152,7 +168,14 @@ mod tests {
     fn play(typed: &str, difficulty: Difficulty) -> (Option<Outcome>, String) {
         let mut out = Vec::new();
         let style = Style { terminal: false };
-        let outcome = play_game(&mut typed.as_bytes(), &mut out, &style, difficulty, &mut |_| 0).unwrap();
+        let outcome = play_game(
+            &mut typed.as_bytes(),
+            &mut out,
+            &style,
+            difficulty,
+            &mut |_| 0,
+        )
+        .unwrap();
         (outcome, String::from_utf8(out).unwrap())
     }
 
@@ -191,6 +214,9 @@ mod tests {
     #[test]
     fn the_board_shows_the_numbers_to_type() {
         let style = Style { terminal: false };
-        assert_eq!(render(&Board::default(), &style), " 1 │ 2 │ 3\n───┼───┼───\n 4 │ 5 │ 6\n───┼───┼───\n 7 │ 8 │ 9\n");
+        assert_eq!(
+            render(&Board::default(), &style),
+            " 1 │ 2 │ 3\n───┼───┼───\n 4 │ 5 │ 6\n───┼───┼───\n 7 │ 8 │ 9\n"
+        );
     }
 }

@@ -4,7 +4,7 @@
 
 ## The idea in one sentence
 
-A smart pointer is just a struct that implements two traits: **`Deref`**, so it can be used like the value it points to, and **`Drop`**, so it can clean up when it goes away. With `Drop`, any resource can clean up after itself, automatically and reliably.
+A smart pointer is just a struct that implements two traits: **`Deref`**, so it can be used like the value it points to, and **`Drop`**, so it can clean up when it goes away. With `Drop`, any resource can clean up after itself, when the owning value is dropped.
 
 ## `Deref`: behave like the value inside
 
@@ -14,7 +14,7 @@ This lesson's `Tracked<T>` owns a value on the heap, like a `Box`, and counts ho
 impl<T> Deref for Tracked<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        self.reads.set(self.reads.get() + 1);
+        self.reads.set(self.reads.get().saturating_add(1));
         &self.value
     }
 }
@@ -57,7 +57,7 @@ impl Drop for Noisy<'_> {
 ["early", "— end of scope —", "second", "first"]
 ```
 
-- At the end of a scope, values are dropped in the **reverse** order of creation: `second` before `first`. Later values may depend on earlier ones, so they go first.
+- At the end of a scope, values are dropped in the **reverse** order of declaration within that scope: `second` before `first`. Later values may depend on earlier ones, so they go first.
 - `drop(value)` ends a value early, as `early` shows. Calling the method directly isn't allowed:
 
 ```text
@@ -73,24 +73,37 @@ This is how `Box` frees its heap memory, and how `Rc` decreases its count. The s
 The most useful thing `Drop` does is tie a **resource** to a **value**: the resource is released when the value goes away. The name comes from C++: *Resource Acquisition Is Initialisation*. In short: if you own it, you clean it up, automatically.
 
 ```rust
-pub struct TempFile { path: PathBuf }
+pub struct TempFile {
+    path: PathBuf,
+}
+
+impl TempFile {
+    pub fn create(contents: &str) -> std::io::Result<Self> {
+        let path = /* a new, unique name in the system's temporary folder */;
+        let mut file = OpenOptions::new().write(true).create_new(true).open(&path)?;
+        file.write_all(contents.as_bytes())?;
+        Ok(TempFile { path })
+    }
+}
 
 impl Drop for TempFile {
     fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
+        let _ = fs::remove_file(&self.path);   // the clean-up, in one place
     }
 }
 ```
 
-The temporary file is deleted whenever the `TempFile` value goes away, however that happens:
+Creating a `TempFile` creates the file; dropping it deletes the file. `create_new(true)` refuses to open a file that already exists, so a `TempFile` never takes over, and later deletes, someone else's file. The demo gives each file a unique name made of the process's id and a counter.
+
+The file is deleted whenever the `TempFile` value goes away:
 
 | How the function ends | File deleted? | Test |
 |---|---|---|
-| normally | yes | `the_temp_file_is_gone_on_every_path` |
+| normally | yes | `temporary_files_are_distinct_and_removed_on_drop` |
 | an early `return` (or `?`) | yes | same |
-| a **panic** | yes: `drop` runs while the panic unwinds the stack | `the_temp_file_is_gone_even_after_a_panic` |
+| an **unwinding panic** | yes: destructors run during unwinding | `the_temp_file_is_gone_even_after_a_panic` |
 
-Nobody has to remember to call `cleanup()` on every path, so nobody can forget. Rust uses this everywhere:
+The destructor runs on every normal way out, and while a panic unwinds. It doesn't run if the process is killed or aborts, or if the value is deliberately leaked with `mem::forget`. Rust uses this everywhere:
 
 | Type | What its `Drop` releases |
 |---|---|

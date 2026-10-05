@@ -130,7 +130,10 @@ fn main() {
 
     println!("\n2. Many results");
     let inputs = ["10", "x", "30", "y"];
-    println!("    stop at the first error: {:?}", parse_all(&inputs).map_err(|e| e.to_string()));
+    println!(
+        "    stop at the first error: {:?}",
+        parse_all(&inputs).map_err(|e| e.to_string())
+    );
     println!("    all good:                {:?}", parse_all(&["1", "2"]));
     let (good, problems) = parse_what_you_can(&inputs);
     println!("    keep going: good = {good:?}, problems = {problems:?}");
@@ -142,7 +145,10 @@ fn main() {
     println!("    {}", greeting(&users, 2));
     let settings = HashMap::from([("admin_port", "8443"), ("name", "demo")]);
     println!("    let chain, admin_port: {:?}", admin_port(&settings));
-    println!("    let chain, not set:    {:?}", admin_port(&HashMap::new()));
+    println!(
+        "    let chain, not set:    {:?}",
+        admin_port(&HashMap::new())
+    );
     for input in ["wait 5", "wait soon", "jump 3", "wait"] {
         println!("    if let guard: {input:>9} → {}", run_command(input));
     }
@@ -157,7 +163,11 @@ fn main() {
     println!("\n5. Retry");
     let result = retry(5, |attempt| {
         println!("    attempt {attempt}…");
-        if attempt < 3 { Err("server busy") } else { Ok("connected") }
+        if attempt < 3 {
+            Err("server busy")
+        } else {
+            Ok("connected")
+        }
     });
     println!("    result: {result:?}");
     let gave_up: Result<(), &str> = retry(2, |_| Err("still down"));
@@ -171,8 +181,16 @@ mod tests {
     #[test]
     fn combinators_chain_steps() {
         assert_eq!(parse_celsius_to_fahrenheit("100"), Ok(212.0));
-        assert!(parse_celsius_to_fahrenheit("-300").unwrap_err().contains("absolute zero"));
-        assert!(parse_celsius_to_fahrenheit("hot").unwrap_err().contains("not a temperature"));
+        assert!(
+            parse_celsius_to_fahrenheit("-300")
+                .unwrap_err()
+                .contains("absolute zero")
+        );
+        assert!(
+            parse_celsius_to_fahrenheit("hot")
+                .unwrap_err()
+                .contains("not a temperature")
+        );
     }
 
     #[test]
@@ -201,7 +219,10 @@ mod tests {
 
     #[test]
     fn let_chain_needs_every_step_to_succeed() {
-        assert_eq!(admin_port(&HashMap::from([("admin_port", "8443")])), Some(8443));
+        assert_eq!(
+            admin_port(&HashMap::from([("admin_port", "8443")])),
+            Some(8443)
+        );
         assert_eq!(admin_port(&HashMap::from([("admin_port", "80")])), None); // below 1024
         assert_eq!(admin_port(&HashMap::from([("admin_port", "high")])), None); // not a number
         assert_eq!(admin_port(&HashMap::new()), None); // missing
@@ -210,7 +231,10 @@ mod tests {
     #[test]
     fn if_let_guard_falls_through_to_the_next_arm() {
         assert_eq!(run_command("wait 5"), "waiting 5 s");
-        assert_eq!(run_command("wait soon"), "`soon` is not a number of seconds");
+        assert_eq!(
+            run_command("wait soon"),
+            "`soon` is not a number of seconds"
+        );
         assert_eq!(run_command("jump 3"), "unknown command `jump`");
         assert_eq!(run_command("wait"), "`wait` needs an argument");
     }

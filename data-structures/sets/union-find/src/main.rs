@@ -33,7 +33,10 @@ fn main() {
             total_cost += cost;
             println!("lay   {:>9} – {:<9} cost {cost:>2}", offices[a], offices[b]);
         } else {
-            println!("skip  {:>9} – {:<9} (already connected)", offices[a], offices[b]);
+            println!(
+                "skip  {:>9} – {:<9} (already connected)",
+                offices[a], offices[b]
+            );
         }
     }
 

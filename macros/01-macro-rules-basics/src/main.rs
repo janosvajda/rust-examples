@@ -15,9 +15,10 @@
 /// `($x:expr)` is the pattern: one expression, called `$x`.
 /// `{ $x * $x }` is the template that replaces the call.
 macro_rules! square {
-    ($x:expr) => {
-        $x * $x
-    };
+    ($x:expr) => {{
+        let value = $x;
+        value * value
+    }};
 }
 
 // ---- 2. Several rules: like `match` for code -------------------------------------------
@@ -138,5 +139,17 @@ mod tests {
     #[test]
     fn timed_returns_the_block_value() {
         assert_eq!(timed!("test", { 2 + 2 }), 4);
+    }
+    #[test]
+    fn square_evaluates_its_argument_once() {
+        let mut calls = 0;
+        assert_eq!(
+            square!({
+                calls += 1;
+                4
+            }),
+            16
+        );
+        assert_eq!(calls, 1);
     }
 }

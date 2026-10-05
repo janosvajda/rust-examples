@@ -76,7 +76,7 @@ Next, Mini works out what the pieces **mean together**, the way you understand a
 
 The tree says: "make a variable called `x`, and its value is 2 plus 3".
 
-This is also when Mini notices mistakes. If you forget the `;`, Mini tells you which line is wrong, like a teacher marking a spelling mistake.
+This is also when Mini notices mistakes. If you forget the `;`, Mini reports the line containing the syntax error.
 
 ### Step 3: check that it makes sense (the type check)
 
@@ -137,7 +137,7 @@ Think of building with LEGO. You built your own model, and the instructions say 
    from the library
 ```
 
-Mini doesn't need its own linker. Every computer that's set up for programming already has one, so Mini just asks it to do the joining.
+Mini uses an installed C toolchain for this step. On macOS and Linux it calls `cc`, the C compiler driver, which chooses the linker and adds the startup and library pieces. On Windows it calls `link.exe` from the MSVC toolchain. Installing Rust alone does not guarantee that these tools are available.
 
 ## Why do we need all of this?
 

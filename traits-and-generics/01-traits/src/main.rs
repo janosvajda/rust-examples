@@ -39,7 +39,12 @@ impl Summary for Article {
 
     /// Overrides the default with something more useful for articles.
     fn summarise(&self) -> String {
-        format!("{}, by {} ({} min read)", self.title, self.author, self.words / 200)
+        format!(
+            "{}, by {} ({} min read)",
+            self.title,
+            self.author,
+            self.words / 200
+        )
     }
 }
 
@@ -119,7 +124,9 @@ fn main() {
     println!("    post has {} likes and says: {}", post.likes, post.text);
 
     println!("\n4. derive");
-    let tag = Tag { name: String::from("rust") };
+    let tag = Tag {
+        name: String::from("rust"),
+    };
     let copy = tag.clone();
     println!("    {tag:?} == {copy:?}: {}", tag == copy);
 
@@ -135,13 +142,21 @@ mod tests {
 
     #[test]
     fn overridden_method_is_used() {
-        let a = Article { title: "T".into(), author: "A".into(), words: 400 };
+        let a = Article {
+            title: "T".into(),
+            author: "A".into(),
+            words: 400,
+        };
         assert_eq!(a.summarise(), "T, by A (2 min read)");
     }
 
     #[test]
     fn default_method_calls_the_required_one() {
-        let p = Post { username: "x".into(), text: String::new(), likes: 0 };
+        let p = Post {
+            username: "x".into(),
+            text: String::new(),
+            likes: 0,
+        };
         assert_eq!(p.summarise(), "(Read more from @x…)");
     }
 

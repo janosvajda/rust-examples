@@ -70,7 +70,11 @@ trait Vehicle {
     const MAX_SPEED_KMH: u32;
 
     fn describe() -> String {
-        format!("{} wheels, up to {} km/h", Self::WHEELS, Self::MAX_SPEED_KMH)
+        format!(
+            "{} wheels, up to {} km/h",
+            Self::WHEELS,
+            Self::MAX_SPEED_KMH
+        )
     }
 }
 
@@ -122,14 +126,21 @@ impl ConvertTo<Kelvin> for Celsius {
 
 fn main() {
     println!("1. Associated types: each container picks its item type");
-    let shelf = Shelf { books: vec![String::from("Dune"), String::from("Emma")] };
-    let thermometer = Thermometer { readings: [21.5, 22.0, 19.8] };
+    let shelf = Shelf {
+        books: vec![String::from("Dune"), String::from("Emma")],
+    };
+    let thermometer = Thermometer {
+        readings: [21.5, 22.0, 19.8],
+    };
     println!("    shelf.first():       {:?}", shelf.first());
     println!("    thermometer.get(2):  {:?}", thermometer.get(2));
 
     println!("\n2. Iterator's Item is an associated type");
     let launch: Vec<u32> = Countdown(5).collect();
-    println!("    countdown: {launch:?}, sum: {}", Countdown(5).sum::<u32>());
+    println!(
+        "    countdown: {launch:?}, sum: {}",
+        Countdown(5).sum::<u32>()
+    );
 
     println!("\n3. Associated constants");
     println!("    bicycle: {}", Bicycle::describe());
@@ -150,9 +161,13 @@ mod tests {
 
     #[test]
     fn associated_type_per_implementor() {
-        let shelf = Shelf { books: vec![String::from("A")] };
+        let shelf = Shelf {
+            books: vec![String::from("A")],
+        };
         assert_eq!(shelf.first(), Some(&String::from("A")));
-        let t = Thermometer { readings: [1.0, 2.0, 3.0] };
+        let t = Thermometer {
+            readings: [1.0, 2.0, 3.0],
+        };
         assert_eq!(t.get(5), None);
     }
 

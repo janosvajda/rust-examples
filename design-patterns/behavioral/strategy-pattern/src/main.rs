@@ -107,8 +107,14 @@ fn trip_minutes_with(legs: &[Route], estimate: impl Fn(&Route) -> f64) -> f64 {
 fn main() {
     // A trip to the office: a flat stretch, then a hilly one.
     let trip = [
-        Route { distance_km: 4.0, hills: 0 },
-        Route { distance_km: 6.0, hills: 3 },
+        Route {
+            distance_km: 4.0,
+            hills: 0,
+        },
+        Route {
+            distance_km: 6.0,
+            hills: 3,
+        },
     ];
 
     // The same planner, three different strategies.
@@ -129,7 +135,10 @@ fn main() {
         Box::new(ByBike)
     };
     planner.set_strategy(strategy);
-    println!("\nIt's raining, so the planner picked: {}", planner.describe(&trip));
+    println!(
+        "\nIt's raining, so the planner picked: {}",
+        planner.describe(&trip)
+    );
 
     // The closure version: an e-scooter strategy written inline.
     let scooter = |route: &Route| route.distance_km / 20.0 * 60.0 + route.hills as f64;
@@ -143,8 +152,14 @@ fn main() {
 mod tests {
     use super::*;
 
-    const FLAT_10KM: Route = Route { distance_km: 10.0, hills: 0 };
-    const HILLY_10KM: Route = Route { distance_km: 10.0, hills: 2 };
+    const FLAT_10KM: Route = Route {
+        distance_km: 10.0,
+        hills: 0,
+    };
+    const HILLY_10KM: Route = Route {
+        distance_km: 10.0,
+        hills: 2,
+    };
 
     #[test]
     fn each_strategy_calculates_differently() {

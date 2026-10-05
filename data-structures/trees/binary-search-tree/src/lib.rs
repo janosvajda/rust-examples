@@ -95,7 +95,7 @@ impl<T> Node<T> {
 }
 
 /// A binary search tree holding unique values (like a set).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BinarySearchTree<T: Ord> {
     root: Link<T>,
     len: usize,
@@ -228,62 +228,92 @@ impl<T: Ord> BinarySearchTree<T> {
     }
 }
 
-/// Visits left subtree, then the node, then the right subtree.
-/// Recursion matches the shape of the tree: each call handles one subtree.
-fn in_order_walk<'a, T>(link: &'a Link<T>, result: &mut Vec<&'a T>) {
-    if let Some(node) = link {
-        in_order_walk(&node.left, result);
-        result.push(&node.value);
-        in_order_walk(&node.right, result);
+impl<T: Ord> Default for BinarySearchTree<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-/// Height of a subtree: 1 for this node + the height of its taller child.
-fn height_of<T>(link: &Link<T>) -> usize {
-    match link {
-        None => 0,
-        Some(node) => 1 + height_of(&node.left).max(height_of(&node.right)),
-    }
-}
-
-/// Removes `value` from the subtree rooted at `link`. See [`BinarySearchTree::remove`].
-fn remove_from<T: Ord>(link: &mut Link<T>, value: &T) -> bool {
-    let Some(node) = link else {
-        return false; // reached an empty spot: the value isn't in the tree
-    };
-
-    match value.cmp(&node.value) {
-        Ordering::Less => remove_from(&mut node.left, value),
-        Ordering::Greater => remove_from(&mut node.right, value),
-        Ordering::Equal => {
-            match (node.left.take(), node.right.take()) {
-                // Case 1: no children.
-                (None, None) => *link = None,
-                // Case 2: one child, which replaces the node.
-                (Some(child), None) | (None, Some(child)) => *link = Some(child),
-                // Case 3: two children.
-                (Some(left), Some(right)) => {
-                    node.left = Some(left);
-                    node.right = Some(right);
-                    node.value = take_min(&mut node.right);
-                }
+impl<T: Ord> Drop for BinarySearchTree<T> {
+    fn drop(&mut self) {
+        // Rotate left children upward, then detach one childless node at a
+        // time. No recursive drop and no allocation during cleanup.
+        while let Some(mut node) = self.root.take() {
+            if let Some(mut left) = node.left.take() {
+                node.left = left.right.take();
+                left.right = Some(node);
+                self.root = Some(left);
+            } else {
+                self.root = node.right.take();
             }
-            true
         }
     }
 }
 
-/// Removes the smallest node of a non-empty subtree and returns its value.
-///
-/// The smallest node is the leftmost one. It has no left child, so it's
-/// always case 1 or 2 above: its right child (possibly `None`) takes its place.
-fn take_min<T>(link: &mut Link<T>) -> T {
-    let node = link.as_mut().expect("take_min called on an empty subtree");
-    if node.left.is_some() {
-        return take_min(&mut node.left);
+fn in_order_walk<'a, T>(link: &'a Link<T>, result: &mut Vec<&'a T>) {
+    let mut stack = Vec::new();
+    let mut current = link.as_deref();
+    loop {
+        while let Some(node) = current {
+            stack.push(node);
+            current = node.left.as_deref();
+        }
+        let Some(node) = stack.pop() else { break };
+        result.push(&node.value);
+        current = node.right.as_deref();
     }
-    let node = link.take().expect("checked above");
-    *link = node.right;
+}
+
+fn height_of<T>(link: &Link<T>) -> usize {
+    let Some(root) = link.as_deref() else {
+        return 0;
+    };
+    let mut stack = vec![(root, 1)];
+    let mut height = 0;
+    while let Some((node, depth)) = stack.pop() {
+        height = height.max(depth);
+        if let Some(left) = node.left.as_deref() {
+            stack.push((left, depth + 1));
+        }
+        if let Some(right) = node.right.as_deref() {
+            stack.push((right, depth + 1));
+        }
+    }
+    height
+}
+
+fn remove_from<T: Ord>(link: &mut Link<T>, value: &T) -> bool {
+    let mut current = link;
+    loop {
+        match current.as_ref().map(|node| value.cmp(&node.value)) {
+            None => return false,
+            Some(Ordering::Less) => current = &mut current.as_mut().unwrap().left,
+            Some(Ordering::Greater) => current = &mut current.as_mut().unwrap().right,
+            Some(Ordering::Equal) => {
+                let mut node = current.take().unwrap();
+                *current = match (node.left.take(), node.right.take()) {
+                    (None, None) => None,
+                    (Some(child), None) | (None, Some(child)) => Some(child),
+                    (Some(left), Some(right)) => {
+                        node.left = Some(left);
+                        node.right = Some(right);
+                        node.value = take_min(&mut node.right);
+                        Some(node)
+                    }
+                };
+                return true;
+            }
+        }
+    }
+}
+
+fn take_min<T>(link: &mut Link<T>) -> T {
+    let mut current = link;
+    while current.as_ref().expect("nonempty subtree").left.is_some() {
+        current = &mut current.as_mut().unwrap().left;
+    }
+    let node = current.take().unwrap();
+    *current = node.right;
     node.value
 }
 
@@ -388,5 +418,29 @@ mod tests {
         let degenerate = tree_from(&[1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(balanced.height(), 3);
         assert_eq!(degenerate.height(), 7);
+    }
+    #[test]
+    fn deep_tree_operations_and_drop_use_bounded_call_stack() {
+        std::thread::Builder::new()
+            .stack_size(128 * 1024)
+            .spawn(|| {
+                let mut root = None;
+                for value in (0..20_000).rev() {
+                    root = Some(Box::new(Node {
+                        value,
+                        left: None,
+                        right: root,
+                    }));
+                }
+                let mut tree = BinarySearchTree { root, len: 20_000 };
+                assert_eq!(tree.height(), 20_000);
+                assert_eq!(tree.in_order().len(), 20_000);
+                assert!(tree.remove(&19_999));
+                assert_eq!(tree.height(), 19_999);
+                drop(tree);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

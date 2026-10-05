@@ -1,33 +1,33 @@
 <img src="../../../rust-exampleslogo.png" alt="Rust Examples logo" width="96">
 
-# Builder Pattern
+# Builder pattern: assemble a spacecraft
 
-The Builder pattern is a creational design pattern that separates the construction of a complex object from its representation, allowing the same construction process to create different representations of the object. This pattern is particularly useful when dealing with complex objects that have multiple variations and configurations, as it provides a flexible and organized way to build such objects step-by-step.
+Imagine ordering a spacecraft: choose its type, equipment and assembler, then check the finished order. Named builder methods make those choices visible at the call site.
 
-In the Builder pattern, we have the following key components:
+```rust
+let ship = SpacecraftBuilder::new("Research Shuttle")
+    .equipment("Deep space telescope")
+    .assembler(Assembler::Nanorobots)
+    .build()?;
+```
 
-1. **Product**: Represents the complex object that we want to construct. It contains all the components and details that the Builder constructs.
+`new` starts an order with a spacecraft type, no equipment, and a human assembler. Each configuration method takes ownership of the builder and returns it, so methods chain naturally. `build(self)` validates required fields and **moves** the strings into the spacecraft. It returns `BuildError` for a blank type or missing/blank equipment.
 
-2. **Builder**: An abstract interface that declares methods for setting different parts of the Product. Concrete Builders implement this interface to provide specific implementations for building different variations of the Product.
+The same builder offers three presets: `shuttle()`, `battleship()` and `dreadnought()`. You can override a preset before building:
 
-3. **Director**: Responsible for managing the construction process. It works with the Builder to construct the Product step-by-step based on a specific algorithm or process.
+```rust
+let ship = SpacecraftBuilder::shuttle()
+    .equipment("Radar and a telescope")
+    .build()?;
+```
 
-4. **Concrete Builder**: Implements the Builder interface to build a specific variation of the Product. It contains methods for setting the attributes of the Product.
+## Where the pattern comes from
 
-The Builder pattern allows us to create complex objects by combining and configuring different components step-by-step, making it easier to manage complex object creation without exposing its internal representation.
+Builder was among the patterns described in the 1994 [*Design Patterns* book](https://www.informit.com/store/design-patterns-elements-of-reusable-object-oriented-software-9780201633610). A classic design can use a **director** to run a reusable sequence of construction steps against different builders. A director is optional. This Rust example uses a consuming builder with presets; its three spacecraft configurations share one implementation.
 
-# Example: Building Different Types of Spacecraft
+`Assembler` is an enum, so an unsupported assembler cannot slip through as a misspelled string. The strings describe the fictional spacecraft; the program does not manufacture hardware.
 
-In this example, we have demonstrated the Builder pattern to construct three different types of spacecraft: Space Shuttle, Battleship, and Dreadnought. Each type of spacecraft has its own set of equipment and an assembler responsible for constructing it.
-
-1. **SpaceShuttleBuilder**: Implements the Builder trait to construct a Space Shuttle spacecraft. It sets the spacecraft type to "Space Shuttle," default equipment to "Basic space equipment," and default assembler to "Human."
-
-2. **BattleshipBuilder**: Implements the Builder trait to construct a Battleship spacecraft. It sets the spacecraft type to "Battleship," default equipment to "Advanced space equipment," and default assembler to "Robot."
-
-3. **DreadnoughtBuilder**: Implements the Builder trait to construct a Dreadnought spacecraft. It sets the spacecraft type to "Dreadnought," default equipment to "Superior space equipment," and default assembler to "Nanorobots."
-
-The Director, represented by the `SpacecraftDirector` struct, is responsible for orchestrating the construction process. It takes a specific builder (e.g., `SpaceShuttleBuilder`, `BattleshipBuilder`, or `DreadnoughtBuilder`) as input and uses it to build the corresponding spacecraft step-by-step.
-
-Each builder sets the properties of the spacecraft and constructs it using the provided data. Finally, the constructed spacecraft is printed using the `print_details()` method of the `Spacecraft` struct.
-
-The example demonstrates how the Builder pattern allows us to construct different types of spacecraft with various attributes and configurations, providing a clear separation between the construction process and the resulting objects.
+```bash
+cargo run
+cargo test
+```

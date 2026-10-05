@@ -1,7 +1,9 @@
 //! The client: connects, proves who it is, processes readings as they arrive,
 //! and survives everything the network and the server can throw at it.
 
-use crate::protocol::{Bad, LineRead, MAX_LINE_BYTES, Message, Rejection, parse_message, read_line_limited};
+use crate::protocol::{
+    Bad, LineRead, MAX_LINE_BYTES, Message, Rejection, parse_message, read_line_limited,
+};
 use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 use std::io::{self, BufReader, Write};
@@ -30,14 +32,33 @@ pub struct ClientConfig {
 /// Everything that can happen, reported to the caller as it happens.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event {
-    Connected { resume_from: u64 },
-    Reading { seq: u64, time: String, celsius: f64, moving_average: f64 },
-    Alert { seq: u64, time: String, celsius: f64 },
+    Connected {
+        resume_from: u64,
+    },
+    Reading {
+        seq: u64,
+        time: String,
+        celsius: f64,
+        moving_average: f64,
+    },
+    Alert {
+        seq: u64,
+        time: String,
+        celsius: f64,
+    },
     Rejected(Rejection),
-    Duplicate { seq: u64 },
-    Lost { from: u64, to: u64 },
+    Duplicate {
+        seq: u64,
+    },
+    Lost {
+        from: u64,
+        to: u64,
+    },
     Disconnected(String),
-    Retrying { attempt: u32, after: Duration },
+    Retrying {
+        attempt: u32,
+        after: Duration,
+    },
 }
 
 /// Failures that end the whole run.
@@ -56,11 +77,23 @@ pub enum ClientError {
 impl fmt::Display for ClientError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ClientError::Unauthenticated => write!(f, "the server rejected our token (not retrying)"),
-            ClientError::Forbidden => write!(f, "this token may not read that sensor (not retrying)"),
-            ClientError::BadRequest => write!(f, "the server didn't understand the request (not retrying)"),
-            ClientError::GaveUp { attempts, last_error } => {
-                write!(f, "gave up after {attempts} attempts; last error: {last_error}")
+            ClientError::Unauthenticated => {
+                write!(f, "the server rejected our token (not retrying)")
+            }
+            ClientError::Forbidden => {
+                write!(f, "this token may not read that sensor (not retrying)")
+            }
+            ClientError::BadRequest => {
+                write!(f, "the server didn't understand the request (not retrying)")
+            }
+            ClientError::GaveUp {
+                attempts,
+                last_error,
+            } => {
+                write!(
+                    f,
+                    "gave up after {attempts} attempts; last error: {last_error}"
+                )
             }
         }
     }
@@ -124,7 +157,10 @@ impl State {
         }
         if seq > self.next_seq {
             self.lost += seq - self.next_seq;
-            on_event(Event::Lost { from: self.next_seq, to: seq - 1 });
+            on_event(Event::Lost {
+                from: self.next_seq,
+                to: seq - 1,
+            });
         }
         self.next_seq = seq + 1;
         true
@@ -133,6 +169,15 @@ impl State {
     /// Handle one validated message. Applying the same `seq` a second time
     /// changes nothing: that's what makes processing idempotent.
     pub fn apply(&mut self, m: Message, on_event: &mut impl FnMut(Event)) {
+        if m.seq == u64::MAX {
+            return self.reject(
+                Bad {
+                    seq: None,
+                    why: Rejection::SequenceExhausted,
+                },
+                on_event,
+            );
+        }
         if !self.arrived(m.seq, on_event) {
             return;
         }
@@ -143,19 +188,34 @@ impl State {
             // Reported, but kept out of the moving average, so one faulty
             // reading doesn't distort the trend.
             self.alerts += 1;
-            return on_event(Event::Alert { seq: m.seq, time: m.time, celsius: m.celsius });
+            return on_event(Event::Alert {
+                seq: m.seq,
+                time: m.time,
+                celsius: m.celsius,
+            });
         }
         if self.window.len() == WINDOW {
             self.window.pop_front();
         }
         self.window.push_back(m.celsius);
         let moving_average = self.window.iter().sum::<f64>() / self.window.len() as f64;
-        on_event(Event::Reading { seq: m.seq, time: m.time, celsius: m.celsius, moving_average });
+        on_event(Event::Reading {
+            seq: m.seq,
+            time: m.time,
+            celsius: m.celsius,
+            moving_average,
+        });
     }
 
     /// Handle a refused line. If its sequence number is known, that reading
     /// arrived (unusable, but not lost), and a resent copy is still a duplicate.
-    pub fn reject(&mut self, bad: Bad, on_event: &mut impl FnMut(Event)) {
+    pub fn reject(&mut self, mut bad: Bad, on_event: &mut impl FnMut(Event)) {
+        if bad.seq == Some(u64::MAX) {
+            bad = Bad {
+                seq: None,
+                why: Rejection::SequenceExhausted,
+            };
+        }
         if let Some(seq) = bad.seq
             && !self.arrived(seq, on_event)
         {
@@ -166,7 +226,10 @@ impl State {
     }
 
     fn done(&self, config: &ClientConfig) -> bool {
-        config.stop_after_seq.is_some_and(|last| self.next_seq > last)
+        self.next_seq == u64::MAX
+            || config
+                .stop_after_seq
+                .is_some_and(|last| self.next_seq > last)
     }
 }
 
@@ -182,34 +245,63 @@ enum SessionEnd {
     Fatal(ClientError),
 }
 
-fn session(config: &ClientConfig, state: &mut State, on_event: &mut impl FnMut(Event)) -> SessionEnd {
+fn session(
+    config: &ClientConfig,
+    state: &mut State,
+    on_event: &mut impl FnMut(Event),
+) -> SessionEnd {
     match try_session(config, state, on_event) {
         Ok(end) => end,
-        Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => {
-            SessionEnd::Retry(format!("no data for {:?}: the server seems stalled", config.read_timeout))
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+            ) =>
+        {
+            SessionEnd::Retry(format!(
+                "no data for {:?}: the server seems stalled",
+                config.read_timeout
+            ))
         }
         Err(error) => SessionEnd::Retry(error.to_string()),
     }
 }
 
-fn try_session(config: &ClientConfig, state: &mut State, on_event: &mut impl FnMut(Event)) -> io::Result<SessionEnd> {
+fn try_session(
+    config: &ClientConfig,
+    state: &mut State,
+    on_event: &mut impl FnMut(Event),
+) -> io::Result<SessionEnd> {
     let mut stream = TcpStream::connect_timeout(&config.address, config.connect_timeout)?;
     stream.set_read_timeout(Some(config.read_timeout))?;
     // Authenticate and say where to resume. A token belongs in a secure
     // channel (TLS) in real life: on plain TCP anyone on the network can read it.
-    writeln!(stream, "HELLO {} {} {}", config.token, config.sensor, state.next_seq)?;
+    writeln!(
+        stream,
+        "HELLO {} {} {}",
+        config.token, config.sensor, state.next_seq
+    )?;
 
     let mut reader = BufReader::new(stream);
     let mut buf = Vec::with_capacity(MAX_LINE_BYTES + 1);
     if read_line_limited(&mut reader, &mut buf, MAX_LINE_BYTES)? != LineRead::Line {
-        return Ok(SessionEnd::Retry(String::from("the server closed the connection before answering")));
+        return Ok(SessionEnd::Retry(String::from(
+            "the server closed the connection before answering",
+        )));
     }
     match &buf[..] {
-        b"OK" => on_event(Event::Connected { resume_from: state.next_seq }),
+        b"OK" => on_event(Event::Connected {
+            resume_from: state.next_seq,
+        }),
         b"ERR unauthenticated" => return Ok(SessionEnd::Fatal(ClientError::Unauthenticated)),
         b"ERR forbidden" => return Ok(SessionEnd::Fatal(ClientError::Forbidden)),
         b"ERR bad-request" => return Ok(SessionEnd::Fatal(ClientError::BadRequest)),
-        other => return Ok(SessionEnd::Retry(format!("server said {:?}", String::from_utf8_lossy(other)))),
+        other => {
+            return Ok(SessionEnd::Retry(format!(
+                "server said {:?}",
+                String::from_utf8_lossy(other)
+            )));
+        }
     }
 
     loop {
@@ -217,10 +309,26 @@ fn try_session(config: &ClientConfig, state: &mut State, on_event: &mut impl FnM
             return Ok(SessionEnd::Finished);
         }
         match read_line_limited(&mut reader, &mut buf, MAX_LINE_BYTES)? {
-            LineRead::Closed => return Ok(SessionEnd::Retry(String::from("the server closed the connection"))),
-            LineRead::TooLong => state.reject(Bad { seq: None, why: Rejection::TooLong }, on_event),
+            LineRead::Closed => {
+                return Ok(SessionEnd::Retry(String::from(
+                    "the server closed the connection",
+                )));
+            }
+            LineRead::TooLong => state.reject(
+                Bad {
+                    seq: None,
+                    why: Rejection::TooLong,
+                },
+                on_event,
+            ),
             LineRead::Line => match std::str::from_utf8(&buf) {
-                Err(_) => state.reject(Bad { seq: None, why: Rejection::NotUtf8 }, on_event),
+                Err(_) => state.reject(
+                    Bad {
+                        seq: None,
+                        why: Rejection::NotUtf8,
+                    },
+                    on_event,
+                ),
                 Ok(line) => match parse_message(line, &config.sensor) {
                     Ok(message) => state.apply(message, on_event),
                     Err(bad) => state.reject(bad, on_event),
@@ -234,7 +342,11 @@ fn try_session(config: &ClientConfig, state: &mut State, on_event: &mut impl FnM
 
 /// Runs until `stop_after_seq` is reached, or a fatal error, or the retries run out.
 /// `state` is kept across reconnects, so nothing is counted twice.
-pub fn run(config: &ClientConfig, state: &mut State, mut on_event: impl FnMut(Event)) -> Result<(), ClientError> {
+pub fn run(
+    config: &ClientConfig,
+    state: &mut State,
+    mut on_event: impl FnMut(Event),
+) -> Result<(), ClientError> {
     let mut failures_in_a_row = 0;
     loop {
         let seq_before = state.next_seq;
@@ -248,10 +360,16 @@ pub fn run(config: &ClientConfig, state: &mut State, mut on_event: impl FnMut(Ev
                 }
                 failures_in_a_row += 1;
                 if failures_in_a_row > config.max_retries {
-                    return Err(ClientError::GaveUp { attempts: failures_in_a_row, last_error: why });
+                    return Err(ClientError::GaveUp {
+                        attempts: failures_in_a_row,
+                        last_error: why,
+                    });
                 }
                 let delay = backoff(config, failures_in_a_row);
-                on_event(Event::Retrying { attempt: failures_in_a_row, after: delay });
+                on_event(Event::Retrying {
+                    attempt: failures_in_a_row,
+                    after: delay,
+                });
                 thread::sleep(delay);
                 state.reconnects += 1;
             }
@@ -264,11 +382,15 @@ pub fn run(config: &ClientConfig, state: &mut State, mut on_event: impl FnMut(Ev
 /// server; the randomness stops a thousand clients from all retrying at the
 /// same instant after an outage.
 pub fn backoff(config: &ClientConfig, attempt: u32) -> Duration {
-    let doubled = config.base_delay.saturating_mul(2u32.saturating_pow(attempt.saturating_sub(1)));
+    let doubled = config
+        .base_delay
+        .saturating_mul(2u32.saturating_pow(attempt.saturating_sub(1)));
     let capped = doubled.min(config.max_delay);
     // A little randomness without a crate: scramble the clock's nanoseconds.
     // (Some clocks only tick in microseconds, so the raw low digits are always 0.)
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos() as u64);
     let random = (nanos.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 11) as f64 / (1u64 << 53) as f64; // 0.0 to 1.0
     capped.mul_f64(0.5 + random / 2.0)
 }
@@ -277,10 +399,17 @@ pub fn backoff(config: &ClientConfig, attempt: u32) -> Duration {
 pub fn describe(event: &Event) -> String {
     match event {
         Event::Connected { resume_from } => format!("connected, resuming from seq {resume_from}"),
-        Event::Reading { seq, time, celsius, moving_average } => {
+        Event::Reading {
+            seq,
+            time,
+            celsius,
+            moving_average,
+        } => {
             format!("#{seq:<3} {time}  {celsius:>6.2} °C   moving average {moving_average:.2}")
         }
-        Event::Alert { seq, time, celsius } => format!("#{seq:<3} {time}  {celsius:>6.2} °C   ⚠ ALERT: above {ALERT_ABOVE}"),
+        Event::Alert { seq, time, celsius } => {
+            format!("#{seq:<3} {time}  {celsius:>6.2} °C   ⚠ ALERT: above {ALERT_ABOVE}")
+        }
         Event::Rejected(why) => format!("     rejected: {why}"),
         Event::Duplicate { seq } => format!("     duplicate #{seq} ignored"),
         Event::Lost { from, to } if from == to => format!("     ⚠ reading #{from} was lost"),
@@ -295,7 +424,12 @@ mod tests {
     use super::*;
 
     fn message(seq: u64, celsius: f64) -> Message {
-        Message { seq, time: String::from("t"), sensor: String::from("A12"), celsius }
+        Message {
+            seq,
+            time: String::from("t"),
+            sensor: String::from("A12"),
+            celsius,
+        }
     }
 
     #[test]
@@ -327,7 +461,13 @@ mod tests {
         let mut state = State::default();
         for seq in 0..1_000_000 {
             state.apply(message(seq, 20.0 + (seq % 7) as f64), &mut |_| {});
-            state.reject(Bad { seq: None, why: Rejection::Malformed }, &mut |_| {});
+            state.reject(
+                Bad {
+                    seq: None,
+                    why: Rejection::Malformed,
+                },
+                &mut |_| {},
+            );
         }
         assert_eq!(state.accepted, 1_000_000);
         assert_eq!(state.window_len(), WINDOW); // never more than 5 values
@@ -349,7 +489,26 @@ mod tests {
         };
         for (attempt, full) in [(1, 100), (2, 200), (3, 400), (4, 800), (5, 1000), (9, 1000)] {
             let delay = backoff(&config, attempt).as_millis();
-            assert!(delay >= full / 2 && delay <= full, "attempt {attempt}: {delay} ms");
+            assert!(
+                delay >= full / 2 && delay <= full,
+                "attempt {attempt}: {delay} ms"
+            );
         }
+    }
+    #[test]
+    fn untrusted_sequence_boundaries_never_wrap_state() {
+        let mut state = State::default();
+        state.apply(message(u64::MAX, 20.0), &mut |_| {});
+        assert_eq!(state.next_seq, 0);
+        state.reject(
+            Bad {
+                seq: Some(u64::MAX),
+                why: Rejection::Malformed,
+            },
+            &mut |_| {},
+        );
+        assert_eq!(state.next_seq, 0);
+        state.apply(message(u64::MAX - 1, 20.0), &mut |_| {});
+        assert_eq!(state.next_seq, u64::MAX);
     }
 }

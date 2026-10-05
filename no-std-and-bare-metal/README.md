@@ -2,7 +2,7 @@
 
 # `no_std` and Bare-Metal Rust
 
-Most Rust programs rely on the standard library, which relies on an operating system. This course is about Rust **without** them: the code that runs on microcontrollers, in kernels and firmware, and in tiny WebAssembly modules. Every lesson builds and runs on an ordinary computer, and each one teaches a skill that carries over directly to real embedded work.
+Most Rust programs rely on the standard library, which relies on an operating system. This course is about Rust **without** them: the code that runs on microcontrollers, in kernels and firmware, and in tiny WebAssembly modules. Every lesson builds and runs on an ordinary computer, and each one demonstrates techniques useful in embedded work.
 
 ## Rust's three layers
 

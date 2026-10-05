@@ -191,6 +191,12 @@ These matter in production. Each needs either a crate or a lot of code that woul
 | **rate limiting** | one client shouldn't be able to use all the server's capacity | a token bucket per client |
 | **many connections cheaply** | a thread per client costs memory; thousands of clients need async I/O | the [async course](../../async-await/) and tokio |
 
+## The very last sequence number
+
+Sequence numbers are `u64`s, and the client always expects `seq + 1` next. For the largest possible number, `u64::MAX`, that addition would overflow, so `u64::MAX` is never used for a reading: the parser and the client reject it, and the server stops before sending it.
+
+Two more details: a server connection gives its slot back even if its handler panics, so a crash can't use up the server's capacity; and the timeouts apply to each read or write, not to the whole session.
+
 ## Run it
 
 ```bash

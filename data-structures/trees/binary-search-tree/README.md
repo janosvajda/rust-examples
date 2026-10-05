@@ -25,6 +25,10 @@ cargo doc --open
 - Recursion over `Option<Box<Node<T>>>`
 - `let ... else` and `std::cmp::Ordering`
 
+## A tree can be very tall
+
+Inserting values that are already sorted turns this unbalanced tree into a long chain, and searching it becomes O(n), like a list. (The [AVL tree](../avl-tree/) fixes that.) A chain of a million nodes would overflow the call stack if every operation used recursion, so walking, measuring and dropping the tree use loops instead.
+
 ## Run it
 
 ```bash

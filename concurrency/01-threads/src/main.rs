@@ -35,7 +35,9 @@ fn main() {
 
     println!("\n2. Several threads at once");
     let start = Instant::now();
-    let handles: Vec<_> = (1..=4).map(|n| thread::spawn(move || slow_square(n))).collect();
+    let handles: Vec<_> = (1..=4)
+        .map(|n| thread::spawn(move || slow_square(n)))
+        .collect();
     let squares: Vec<u64> = handles.into_iter().map(|h| h.join().unwrap()).collect();
     println!(
         "    {squares:?}: four 200 ms jobs took {} ms, not 800",
@@ -60,7 +62,10 @@ fn main() {
         let b = s.spawn(|| high.iter().sum::<i32>());
         (a.join().unwrap(), b.join().unwrap())
     }); // every scoped thread has finished here, so borrowing was safe
-    println!("    halves: {sum_low} + {sum_high} = {}, and scores is still ours", sum_low + sum_high);
+    println!(
+        "    halves: {sum_low} + {sum_high} = {}, and scores is still ours",
+        sum_low + sum_high
+    );
 
     println!("\n5. A panic stays inside its thread");
     let crashing = thread::Builder::new()
@@ -75,7 +80,9 @@ fn main() {
     }
 
     println!("\n6. How many threads is sensible?");
-    let cores = thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+    let cores = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
     println!("    this machine can run {cores} threads in parallel");
 }
 
@@ -92,7 +99,9 @@ mod tests {
     #[test]
     fn threads_run_in_parallel() {
         let start = Instant::now();
-        let handles: Vec<_> = (1..=4).map(|n| thread::spawn(move || slow_square(n))).collect();
+        let handles: Vec<_> = (1..=4)
+            .map(|n| thread::spawn(move || slow_square(n)))
+            .collect();
         let results: Vec<u64> = handles.into_iter().map(|h| h.join().unwrap()).collect();
         assert_eq!(results, [1, 4, 9, 16]);
         // Sequentially this would take 800 ms. Allow plenty of slack.
@@ -103,7 +112,10 @@ mod tests {
     fn scoped_threads_borrow_local_data() {
         let data = [1, 2, 3, 4];
         let total: i32 = thread::scope(|s| {
-            let handles: Vec<_> = data.chunks(2).map(|c| s.spawn(move || c.iter().sum::<i32>())).collect();
+            let handles: Vec<_> = data
+                .chunks(2)
+                .map(|c| s.spawn(move || c.iter().sum::<i32>()))
+                .collect();
             handles.into_iter().map(|h| h.join().unwrap()).sum()
         });
         assert_eq!(total, 10);

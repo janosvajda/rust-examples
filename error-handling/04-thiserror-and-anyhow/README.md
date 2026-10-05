@@ -99,6 +99,8 @@ if let Some(config_error) = error.downcast_ref::<config::ConfigError>() { … }
 
 If you find yourself downcasting a lot, that part of the code probably wants a `thiserror` enum instead.
 
+The demo's rule that ports below 1024 are rejected is this example's own policy. Whether a real program may use such a port depends on the operating system and its settings.
+
 ## Run it
 
 ```bash

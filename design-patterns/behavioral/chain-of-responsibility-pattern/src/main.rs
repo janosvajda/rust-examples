@@ -116,9 +116,18 @@ fn main() {
     // Build the chain once. Order matters: cheapest decision-makers first.
     let chain = ApprovalChain::new()
         .then(PolicyCheck)
-        .then(Manager { title: "Team lead", limit_eur: 500 })
-        .then(Manager { title: "Department head", limit_eur: 5_000 })
-        .then(Manager { title: "Director", limit_eur: 50_000 });
+        .then(Manager {
+            title: "Team lead",
+            limit_eur: 500,
+        })
+        .then(Manager {
+            title: "Department head",
+            limit_eur: 5_000,
+        })
+        .then(Manager {
+            title: "Director",
+            limit_eur: 50_000,
+        });
 
     let expenses = [
         Expense::new("Team lunch", 180),
@@ -134,7 +143,10 @@ fn main() {
             Decision::Approved { by } => format!("approved by {by}"),
             Decision::Rejected { by, reason } => format!("REJECTED by {by}: {reason}"),
         };
-        println!("{:<32} {:>9} €  →  {outcome}", expense.description, expense.amount_eur);
+        println!(
+            "{:<32} {:>9} €  →  {outcome}",
+            expense.description, expense.amount_eur
+        );
     }
 }
 
@@ -145,8 +157,14 @@ mod tests {
     fn chain() -> ApprovalChain {
         ApprovalChain::new()
             .then(PolicyCheck)
-            .then(Manager { title: "Lead", limit_eur: 100 })
-            .then(Manager { title: "Boss", limit_eur: 1_000 })
+            .then(Manager {
+                title: "Lead",
+                limit_eur: 100,
+            })
+            .then(Manager {
+                title: "Boss",
+                limit_eur: 1_000,
+            })
     }
 
     fn approved_by(decision: Decision) -> String {
@@ -158,14 +176,26 @@ mod tests {
 
     #[test]
     fn the_first_link_that_can_decide_does() {
-        assert_eq!(approved_by(chain().submit(&Expense::new("pens", 20))), "Lead (limit 100 €)");
-        assert_eq!(approved_by(chain().submit(&Expense::new("chair", 500))), "Boss (limit 1000 €)");
+        assert_eq!(
+            approved_by(chain().submit(&Expense::new("pens", 20))),
+            "Lead (limit 100 €)"
+        );
+        assert_eq!(
+            approved_by(chain().submit(&Expense::new("chair", 500))),
+            "Boss (limit 1000 €)"
+        );
     }
 
     #[test]
     fn limits_are_inclusive() {
-        assert_eq!(approved_by(chain().submit(&Expense::new("x", 100))), "Lead (limit 100 €)");
-        assert_eq!(approved_by(chain().submit(&Expense::new("x", 101))), "Boss (limit 1000 €)");
+        assert_eq!(
+            approved_by(chain().submit(&Expense::new("x", 100))),
+            "Lead (limit 100 €)"
+        );
+        assert_eq!(
+            approved_by(chain().submit(&Expense::new("x", 101))),
+            "Boss (limit 1000 €)"
+        );
     }
 
     #[test]

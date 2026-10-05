@@ -1,63 +1,31 @@
 <img src="../../rust-exampleslogo.png" alt="Rust Examples logo" width="96">
 
-# Fibonacci Calculation example
+# Fibonacci: recursion and an iterative fold
 
-This code calculates Fibonacci numbers using both imperative and declarative paradigms.
+Start with `0, 1`. Each following number is the sum of the previous two:
 
-## What is Fibonacci?
-
-The Fibonacci sequence is a series of numbers in which each number is the sum of the two preceding ones. It typically starts with 0 and 1.
-
-## Paradigms
-
-### Imperative way
-
-The imperative way uses a recursive function to calculate Fibonacci numbers. It checks the input value and returns the corresponding Fibonacci number using conditional statements and function calls.
-
-\```rust
-fn fibonacci(n: u32) -> u32 {
-    if n == 0 {
-        0
-    } else if n == 1 {
-        1
-    } else {
-        fibonacci(n - 1) + fibonacci(n - 2)
-    }
-}
-\```
-
-### Declarative way
-
-The declarative way uses the `fold` function to calculate Fibonacci numbers. It operates on a range of numbers and applies a closure repeatedly to calculate the Fibonacci sequence. The `fold` function accumulates the result by passing the previous two Fibonacci numbers and returning the next one.
-
-```rust
-(0..=10).for_each(|i| println!("Fibonacci({}) = {}", i, if i < 2 { i } else { (2..=i).fold((0, 1), |(a, b), _| (b, a + b)).1 }));
+```text
+index:  0  1  2  3  4  5  6  7  8  9  10
+value:  0  1  1  2  3  5  8 13 21 34  55
 ```
 
-## Running the Code
+Leonardo of Pisa, known as Fibonacci, discussed the sequence in his 1202 book *Liber Abaci* through an idealized rabbit-population problem. The rabbit story is an idealized mathematical model. [Fibonacci biography and rabbit problem](https://mathshistory.st-andrews.ac.uk/Biographies/Fibonacci/)
 
-To run the code, follow these steps:
+## Compare two algorithms
 
-1. Ensure you have Rust installed on your system.
-2. Clone this repository or copy the code into a new Rust project.
-3. Open a terminal and navigate to the project directory.
-4. Run the following command to compile and execute the code:
+`fibonacci(n)` follows the recurrence with recursive calls. To calculate `F(5)`, it asks for `F(4)` and `F(3)`, then repeats many smaller calculations. Its running time grows exponentially and its call depth grows linearly. This version accepts only `0..=MAX_RECURSIVE_INDEX` (30); larger requests return an error before starting that expensive work.
 
-    ```
-   cargo run
-    ```
+`calculate_fibonacci(n)` keeps just the previous two values. Its `try_fold` advances them once per index: O(n) time for representable results and O(1) auxiliary memory. A checked addition ends the calculation with `None` if the next result does not fit `u64`.
 
-5. The program will calculate and display the Fibonacci numbers for the range defined in the code.
+```rust
+assert_eq!(calculate_fibonacci(10), Some(55));
+assert_eq!(calculate_fibonacci(93), Some(12_200_160_415_121_876_738));
+assert_eq!(calculate_fibonacci(94), None);
+```
 
-## Running the Tests
+The program prints both algorithms' answers for indices 0–10. A recursive function is not inherently “imperative”, and an iterator is not inherently better: the repeated work and overflow behavior are the differences that matter here.
 
-This code includes unit tests to verify the correctness of the Fibonacci calculation. To run the tests, follow these steps:
-
-1. Open a terminal and navigate to the project directory.
-2. Run the following command:
-
-   ```
-   cargo test
-   ```
-
-3. The tests will execute, and the results will be displayed in the terminal.
+```bash
+cargo run
+cargo test
+```

@@ -30,6 +30,7 @@ pub struct Message {
 /// Why an incoming line was refused. Every variant is counted, never a crash.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Rejection {
+    SequenceExhausted,
     TooLong,
     NotUtf8,
     Malformed,
@@ -43,6 +44,7 @@ pub enum Rejection {
 impl fmt::Display for Rejection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Rejection::SequenceExhausted => "sequence number leaves no room for a successor",
             Rejection::TooLong => "line too long",
             Rejection::NotUtf8 => "not valid UTF-8",
             Rejection::Malformed => "malformed line",
@@ -67,10 +69,25 @@ pub struct Bad {
 pub fn parse_message(line: &str, expected_sensor: &str) -> Result<Message, Bad> {
     let fields: Vec<&str> = line.split(',').collect();
     let [seq, time, sensor, value, unit] = fields[..] else {
-        return Err(Bad { seq: None, why: Rejection::Malformed });
+        return Err(Bad {
+            seq: None,
+            why: Rejection::Malformed,
+        });
     };
-    let seq: u64 = seq.parse().map_err(|_| Bad { seq: None, why: Rejection::Malformed })?;
-    let bad = |why| Bad { seq: Some(seq), why };
+    let seq: u64 = seq.parse().map_err(|_| Bad {
+        seq: None,
+        why: Rejection::Malformed,
+    })?;
+    if seq == u64::MAX {
+        return Err(Bad {
+            seq: None,
+            why: Rejection::SequenceExhausted,
+        });
+    }
+    let bad = |why| Bad {
+        seq: Some(seq),
+        why,
+    };
     if sensor != expected_sensor {
         return Err(bad(Rejection::WrongSensor));
     }
@@ -85,7 +102,12 @@ pub fn parse_message(line: &str, expected_sensor: &str) -> Result<Message, Bad> 
     if !(-50.0..=150.0).contains(&celsius) {
         return Err(bad(Rejection::OutOfRange));
     }
-    Ok(Message { seq, time: time.to_string(), sensor: sensor.to_string(), celsius })
+    Ok(Message {
+        seq,
+        time: time.to_string(),
+        sensor: sensor.to_string(),
+        celsius,
+    })
 }
 
 /// What `read_line_limited` found.
@@ -105,7 +127,11 @@ pub enum LineRead {
 /// `BufRead::read_line` would grow its buffer for as long as the peer keeps
 /// sending without a newline, so a single gigantic line could use up all our
 /// memory. This reads at most `max + 1` bytes, and discards anything beyond.
-pub fn read_line_limited(input: &mut impl BufRead, buf: &mut Vec<u8>, max: usize) -> io::Result<LineRead> {
+pub fn read_line_limited(
+    input: &mut impl BufRead,
+    buf: &mut Vec<u8>,
+    max: usize,
+) -> io::Result<LineRead> {
     buf.clear();
     let n = Read::take(&mut *input, max as u64 + 1).read_until(b'\n', buf)?;
     if n == 0 {
@@ -164,7 +190,10 @@ mod tests {
         assert_eq!(check("1,t,B22,21.5,C"), Rejection::WrongSensor);
         assert_eq!(check("1,t,A12,70.7,F"), Rejection::WrongUnit);
         // the sequence number survives when only the value is bad
-        assert_eq!(parse_message("9,t,A12,NaN,C", "A12").unwrap_err().seq, Some(9));
+        assert_eq!(
+            parse_message("9,t,A12,NaN,C", "A12").unwrap_err().seq,
+            Some(9)
+        );
         assert_eq!(parse_message("garbage", "A12").unwrap_err().seq, None);
     }
 
@@ -173,10 +202,16 @@ mod tests {
         let mut input: &[u8] = b"first\r\nsecond\nlast without newline";
         let mut buf = Vec::new();
         for expected in ["first", "second", "last without newline"] {
-            assert_eq!(read_line_limited(&mut input, &mut buf, 64).unwrap(), LineRead::Line);
+            assert_eq!(
+                read_line_limited(&mut input, &mut buf, 64).unwrap(),
+                LineRead::Line
+            );
             assert_eq!(buf, expected.as_bytes());
         }
-        assert_eq!(read_line_limited(&mut input, &mut buf, 64).unwrap(), LineRead::Closed);
+        assert_eq!(
+            read_line_limited(&mut input, &mut buf, 64).unwrap(),
+            LineRead::Closed
+        );
     }
 
     #[test]
@@ -186,9 +221,30 @@ mod tests {
         data.extend_from_slice(b"\nnext\n");
         let mut input = &data[..];
         let mut buf = Vec::new();
-        assert_eq!(read_line_limited(&mut input, &mut buf, 256).unwrap(), LineRead::TooLong);
-        assert!(buf.capacity() < 4096, "the buffer stayed small: {} bytes", buf.capacity());
-        assert_eq!(read_line_limited(&mut input, &mut buf, 256).unwrap(), LineRead::Line);
+        assert_eq!(
+            read_line_limited(&mut input, &mut buf, 256).unwrap(),
+            LineRead::TooLong
+        );
+        assert!(
+            buf.capacity() < 4096,
+            "the buffer stayed small: {} bytes",
+            buf.capacity()
+        );
+        assert_eq!(
+            read_line_limited(&mut input, &mut buf, 256).unwrap(),
+            LineRead::Line
+        );
         assert_eq!(buf, b"next"); // and reading continues normally afterwards
+    }
+    #[test]
+    fn the_largest_sequence_number_is_reserved_for_exhaustion() {
+        let bad = parse_message(&format!("{},t,A12,20,C", u64::MAX), "A12").unwrap_err();
+        assert_eq!(
+            bad,
+            Bad {
+                seq: None,
+                why: Rejection::SequenceExhausted
+            }
+        );
     }
 }

@@ -2,7 +2,7 @@
 // standard library (libc) for everything the operating system provides:
 // printing, memory allocation, sorting, environment variables.
 //
-//   #![no_std]   don't link Rust's `std`; only `core` is available
+//   #![no_std]   disable the implicit link to `std`; use `core` as the foundation
 //   #![no_main]  don't use Rust's normal startup code; we provide C's `main`
 //
 // Both only apply to the real program. `cargo test` builds with `std`, so
@@ -15,7 +15,7 @@ use core::ffi::{CStr, c_char, c_int, c_void};
 // ============================================================================
 // Safe wrappers around C functions
 //
-// Every call into C is `unsafe`: the compiler can't check what C code does.
+// The C functions used here require unsafe calls; Rust can't check their bodies.
 // The standard pattern is to keep each `unsafe` block small, check
 // everything C needs (non-null pointers, nul-terminated strings, valid
 // lengths), and expose a SAFE function the rest of the program can use.
@@ -80,17 +80,28 @@ pub fn sort_with_qsort(numbers: &mut [i32]) {
 /// heap memory is managed by hand, exactly as in C. Forgetting `free` leaks
 /// memory; using the buffer after `free` is undefined behaviour.
 pub fn sum_of_malloc_buffer(count: usize) -> Option<i64> {
+    if count == 0 {
+        return Some(0);
+    }
+    // Each stored number must fit in i32, and a Rust slice cannot exceed
+    // isize::MAX bytes. Check both before allocating or doing pointer arithmetic.
+    i32::try_from(count).ok()?;
+    let bytes = count
+        .checked_mul(size_of::<i32>())
+        .filter(|&n| n <= isize::MAX as usize)?;
     // SAFETY: malloc may return null, which we check before using it.
-    let buffer = unsafe { libc::malloc(count * size_of::<i32>()) }.cast::<i32>();
+    let buffer = unsafe { libc::malloc(bytes) }.cast::<i32>();
     if buffer.is_null() {
         return None;
     }
-    // SAFETY: the buffer is non-null and big enough for `count` i32s, and
-    // nothing else uses it while this slice exists.
-    let numbers = unsafe { core::slice::from_raw_parts_mut(buffer, count) };
-    for (i, slot) in numbers.iter_mut().enumerate() {
-        *slot = i as i32 + 1;
+    for i in 0..count {
+        // SAFETY: malloc provides aligned storage for count i32s. Initialize
+        // through raw pointers before creating any references to the values.
+        unsafe { buffer.add(i).write(i as i32 + 1) };
     }
+    // SAFETY: every element is now initialized, the checked size fits one
+    // allocation, and nothing else accesses this storage while we read it.
+    let numbers = unsafe { core::slice::from_raw_parts(buffer, count) };
     let total = numbers.iter().map(|&n| n as i64).sum();
     // SAFETY: allocated by malloc above, freed exactly once, and `numbers`
     // isn't used after this line.
@@ -177,7 +188,11 @@ mod program {
             };
 
             // 2. String length (%zu is the format code for size_t / usize)
-            libc::printf(c"2. strlen(\"%s\") = %zu\n".as_ptr(), haystack.as_ptr(), c_length(haystack));
+            libc::printf(
+                c"2. strlen(\"%s\") = %zu\n".as_ptr(),
+                haystack.as_ptr(),
+                c_length(haystack),
+            );
 
             // 3. Sorting with a Rust callback
             let mut numbers = [42, 7, 19, 3, 25];
@@ -193,7 +208,10 @@ mod program {
 
             // 4. Manual heap memory
             match sum_of_malloc_buffer(1000) {
-                Some(total) => libc::printf(c"4. malloc/free: 1 + 2 + ... + 1000 = %lld\n".as_ptr(), total),
+                Some(total) => libc::printf(
+                    c"4. malloc/free: 1 + 2 + ... + 1000 = %lld\n".as_ptr(),
+                    total,
+                ),
                 None => libc::printf(c"4. malloc failed\n".as_ptr()),
             };
 
@@ -204,13 +222,22 @@ mod program {
 
             // 6. The environment and the process
             match env_var_length(c"HOME") {
-                Some(len) => libc::printf(c"6. getenv: HOME is set (%zu characters)\n".as_ptr(), len),
+                Some(len) => {
+                    libc::printf(c"6. getenv: HOME is set (%zu characters)\n".as_ptr(), len)
+                }
                 None => libc::printf(c"6. getenv: HOME is not set\n".as_ptr()),
             };
-            libc::printf(c"   getpid: this process is %d, started with %d argument(s)\n".as_ptr(), libc::getpid(), argc);
+            libc::printf(
+                c"   getpid: this process is %d, started with %d argument(s)\n".as_ptr(),
+                libc::getpid(),
+                argc,
+            );
 
             // 7. A variadic function written in Rust, called like a C one
-            libc::printf(c"7. variadic Rust function: sum_ints(4, 10, 20, 30, 40) = %d\n".as_ptr(), sum_ints(4, 10, 20, 30, 40));
+            libc::printf(
+                c"7. variadic Rust function: sum_ints(4, 10, 20, 30, 40) = %d\n".as_ptr(),
+                sum_ints(4, 10, 20, 30, 40),
+            );
         }
         0 // the process exit code
     }
@@ -288,5 +315,11 @@ mod tests {
             assert_eq!(sum_ints(0), 0);
             assert_eq!(sum_ints(2, -5, 5), 0);
         }
+    }
+    #[test]
+    fn invalid_allocation_sizes_are_rejected_without_allocating() {
+        assert_eq!(sum_of_malloc_buffer(0), Some(0));
+        assert_eq!(sum_of_malloc_buffer(usize::MAX), None);
+        assert_eq!(sum_of_malloc_buffer(i32::MAX as usize + 1), None);
     }
 }

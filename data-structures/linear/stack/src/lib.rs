@@ -37,10 +37,16 @@
 ///
 /// It is generic over `T`, so it can hold any type: `Stack<i32>`,
 /// `Stack<String>`, `Stack<char>`, and so on.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Stack<T> {
     // The last element of the Vec is the top of the stack.
     items: Vec<T>,
+}
+
+impl<T> Default for Stack<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> Stack<T> {

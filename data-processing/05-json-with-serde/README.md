@@ -8,7 +8,7 @@ Describe your data's shape once as a Rust struct, add `#[derive(Deserialize, Ser
 
 ## Why a crate this time
 
-Lessons 1–4 used only the standard library. JSON is different: its rules (escapes, Unicode, nesting, numbers) are big enough that writing a parser yourself is a project of its own. **serde** is the standard answer in Rust: almost every Rust program that reads or writes JSON, TOML, YAML or many binary formats uses it. It's one of the dependencies worth having (see [Fewer dependencies](../../software-engineering-with-ai/08-fewer-dependencies/)).
+Lessons 1–4 use only the standard library. JSON is different: its rules (escapes, Unicode, nesting, numbers) are big enough that writing a parser yourself is a project of its own. **serde** is the standard answer in Rust: almost every Rust program that reads or writes JSON, TOML, YAML or many binary formats uses it. It's one of the dependencies worth having (see [Fewer dependencies](../../software-engineering-with-ai/08-fewer-dependencies/)).
 
 serde comes in two parts: `serde` describes **how** a type maps to data, and a format crate like `serde_json` handles the **format**.
 
@@ -113,7 +113,7 @@ It's flexible, but every access might find nothing (`Value::Null`), and the comp
 
 ## 5. JSON Lines: JSON you can stream
 
-A big JSON array has to be read as a whole: the closing `]` is at the very end. **JSON Lines** (`.jsonl`) puts one complete JSON object on each line instead:
+Reading into a `Vec<Reading>` keeps the whole array in memory at once. (serde can process a big array one element at a time, but it takes considerably more code.) **JSON Lines** (`.jsonl`) is the simple alternative: one complete JSON object on each line:
 
 ```text
 {"sensor":"A12","value":23.5}
@@ -141,6 +141,10 @@ Each line can be parsed on its own, so it streams exactly like [lesson 2](../02-
 | reading, writing and reading again | the same data | `round_trip` |
 
 **A trade-off with `deny_unknown_fields`:** it makes a program strict about what it accepts. When the sender adds a new field, a strict reader rejects every message until it's updated. Use it for input you control, such as config files and your own data. For data from systems that evolve independently, accept unknown fields, and log them instead.
+
+## Group by the unit, as well as the sensor
+
+Summaries are grouped by sensor **and unit**. If A12 reports both `20 celsius` and `760 mmhg`, you get two summaries: averaging them into "390" would mix two different physical quantities and mean nothing.
 
 ## Run it
 

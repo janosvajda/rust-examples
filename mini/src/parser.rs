@@ -37,14 +37,21 @@ impl Parser {
                 let name = caps[1].to_string();
                 let rhs = caps[2].trim();
                 if KEYWORDS.contains(&name.as_str()) {
-                    bail!("line {}: `{}` is a keyword and can't be a variable name", lineno + 1, name);
+                    bail!(
+                        "line {}: `{}` is a keyword and can't be a variable name",
+                        lineno + 1,
+                        name
+                    );
                 }
 
                 // string literal?
                 if rhs.starts_with('"') && rhs.ends_with('"') {
                     let s = parse_string(rhs)
                         .with_context(|| format!("line {} string literal", lineno + 1))?;
-                    stmts.push(Stmt::Let { name, expr: Expr::Str(s) });
+                    stmts.push(Stmt::Let {
+                        name,
+                        expr: Expr::Str(s),
+                    });
                     continue;
                 }
 
@@ -56,7 +63,9 @@ impl Parser {
             }
 
             if let Some(caps) = print_re.captures(line) {
-                stmts.push(Stmt::Print { name: caps[1].to_string() });
+                stmts.push(Stmt::Print {
+                    name: caps[1].to_string(),
+                });
                 continue;
             }
 
@@ -92,6 +101,7 @@ fn parse_expr(s: &str) -> Result<Expr> {
 
 #[derive(Debug, Clone, PartialEq)]
 enum Tok {
+    MinMagnitude, // 2147483648 is valid only immediately after unary minus
     Int(i32),
     Dec(i64),
     Ident(String),
@@ -128,20 +138,34 @@ fn tokenize(s: &str) -> Result<Vec<Tok>> {
         } else if c.is_ascii_digit() {
             // a number, or a decimal if a '.' and more digits follow (unary minus is handled by the parser)
             let start = i;
-            while i < chars.len() && chars[i].is_ascii_digit() { i += 1; }
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                i += 1;
+            }
             if i + 1 < chars.len() && chars[i] == '.' && chars[i + 1].is_ascii_digit() {
                 i += 1;
-                while i < chars.len() && chars[i].is_ascii_digit() { i += 1; }
+                while i < chars.len() && chars[i].is_ascii_digit() {
+                    i += 1;
+                }
                 let text: String = chars[start..i].iter().collect();
                 tokens.push(Tok::Dec(parse_decimal(&text)?));
             } else {
                 let text: String = chars[start..i].iter().collect();
-                let v = text.parse::<i32>().map_err(|_| anyhow!("number `{text}` is too large"))?;
-                tokens.push(Tok::Int(v));
+                let v = text
+                    .parse::<u32>()
+                    .map_err(|_| anyhow!("number `{text}` is too large"))?;
+                if v == i32::MAX as u32 + 1 {
+                    tokens.push(Tok::MinMagnitude);
+                } else {
+                    tokens.push(Tok::Int(
+                        i32::try_from(v).map_err(|_| anyhow!("number `{text}` is too large"))?,
+                    ));
+                }
             }
         } else if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
-            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') { i += 1; }
+            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
+                i += 1;
+            }
             let word: String = chars[start..i].iter().collect();
             tokens.push(match word.as_str() {
                 "true" => Tok::True,
@@ -171,6 +195,10 @@ fn tokenize(s: &str) -> Result<Vec<Tok>> {
             i += 1;
         }
     }
+    const MAX_EXPRESSION_TOKENS: usize = 256;
+    if tokens.len() > MAX_EXPRESSION_TOKENS {
+        bail!("expression exceeds {MAX_EXPRESSION_TOKENS} tokens; split it into several variables");
+    }
     Ok(tokens)
 }
 
@@ -196,7 +224,10 @@ fn parse_decimal(text: &str) -> Result<i64> {
     let too_large = || anyhow!("decimal `{text}` is too large");
     let whole: i64 = whole.parse().map_err(|_| too_large())?;
     let frac: i64 = frac.parse().unwrap();
-    whole.checked_mul(DECIMAL_SCALE).and_then(|w| w.checked_add(frac)).ok_or_else(too_large)
+    whole
+        .checked_mul(DECIMAL_SCALE)
+        .and_then(|w| w.checked_add(frac))
+        .ok_or_else(too_large)
 }
 
 /// Pratt-style precedence parser (a top-down operator-precedence algorithm).
@@ -213,6 +244,10 @@ fn parse_bp(it: &mut std::iter::Peekable<std::vec::IntoIter<Tok>>, min_bp: u8) -
         Tok::True => Expr::Bool(true),
         Tok::False => Expr::Bool(false),
         Tok::Ident(name) => Expr::Var(name),
+        Tok::Minus if matches!(it.peek(), Some(Tok::MinMagnitude)) => {
+            it.next();
+            Expr::Int(i32::MIN)
+        }
         Tok::Minus => Expr::Unary(UnaryOp::Neg, Box::new(parse_bp(it, 13)?)),
         // `not` binds looser than comparisons: `not a == b` means `not (a == b)`
         Tok::Not => Expr::Unary(UnaryOp::Not, Box::new(parse_bp(it, 5)?)),
@@ -258,7 +293,9 @@ fn parse_bp(it: &mut std::iter::Peekable<std::vec::IntoIter<Tok>>, min_bp: u8) -
 // Minimal escapes for our language's string literals: \n \t \" \\
 /// Parse and unescape the limited string literal syntax Mini supports.
 fn parse_string(mut s: &str) -> Result<String> {
-    if !(s.starts_with('"') && s.ends_with('"')) { bail!("not a string literal"); }
+    if s.len() < 2 || !(s.starts_with('"') && s.ends_with('"')) {
+        bail!("not a string literal");
+    }
     s = &s[1..s.len() - 1];
 
     let mut out = String::new();
@@ -293,7 +330,11 @@ mod tests {
     #[test]
     fn unknown_characters_are_errors() {
         // Before the fix, `%` and `;` silently ended the expression.
-        for src in ["let a = 2 % 3;", "let x = 5; let y = 6;", "let a = 2147483648;"] {
+        for src in [
+            "let a = 2 % 3;",
+            "let x = 5; let y = 6;",
+            "let a = 2147483648;",
+        ] {
             assert!(Parser::parse(src).is_err(), "{src} should be rejected");
         }
     }
@@ -310,7 +351,10 @@ mod tests {
     #[test]
     fn precedence_of_logic_and_comparisons() {
         // a or b and c  →  a or (b and c)
-        assert!(matches!(expr("a or b and c"), Expr::Binary(BinOp::Or, _, _)));
+        assert!(matches!(
+            expr("a or b and c"),
+            Expr::Binary(BinOp::Or, _, _)
+        ));
         // not a == b  →  not (a == b)
         assert!(matches!(expr("not a == b"), Expr::Unary(UnaryOp::Not, _)));
         // 1 + 2 < 4  →  (1 + 2) < 4
@@ -321,5 +365,12 @@ mod tests {
     fn keywords_are_not_variable_names() {
         assert!(Parser::parse("let and = 1;").is_err());
         assert!(Parser::parse("let x = 1 = 2;").is_err());
+    }
+    #[test]
+    fn malformed_quote_and_integer_boundaries_are_checked() {
+        assert!(Parser::parse("let x = \";").is_err());
+        assert!(Parser::parse("let x = 2147483648;").is_err());
+        assert!(Parser::parse("let x = -2147483648;").is_ok());
+        assert!(Parser::parse(&format!("let x = {}1;", "(".repeat(300))).is_err());
     }
 }

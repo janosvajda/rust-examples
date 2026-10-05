@@ -9,7 +9,7 @@ It compiles your source code into **native executables** using **LLVM**: Mini wr
 
 ## ✨ Features
 
-- Four types: whole numbers, **exact decimals** (`0.1 + 0.2` is `0.3`), booleans and text
+- Four types: whole numbers, **fixed-point decimals** (`0.1 + 0.2` is `0.3`), booleans and text
 - Variables (`let`)
 - `print` for variables
 - **Expressions with precedence** (`* /` over `+ -`), parentheses, and unary `-`
@@ -82,11 +82,13 @@ cargo install --path . --force
 mini examples/hello.mini ./hello
 ```
 
-Building Mini needs only Rust. **Running** Mini needs **any LLVM, version 16 or newer**, with its `llc` program on your `PATH`:
+Building Mini needs Rust. **Running** Mini needs LLVM 16 or newer with a backend for the host machine, and its `llc` program on your `PATH`:
 ```
 llc --version             # should say "LLVM version 16" or higher
 ```
 Install it with `brew install llvm` (macOS), `sudo apt install llvm` (Ubuntu) or the installer from llvm.org (Windows). If your `llc` has another name, such as `llc-18` on some Linux systems, tell Mini with `MINI_LLC=llc-18`.
+
+Linking also needs a C toolchain. On macOS, install Xcode Command Line Tools; on Linux, install GCC or Clang with the C runtime development files, and ensure `cc` is on `PATH`. Mini invokes `cc` so the compiler driver supplies the correct startup code, runtime libraries and linker options. On Windows, run from a Visual Studio developer shell with `link.exe` and the MSVC runtime libraries available. See [Clang's explanation of its driver and linking stages](https://clang.llvm.org/docs/CommandGuide/clang.html).
 
 ### How Mini uses LLVM
 
@@ -97,12 +99,12 @@ hello.mini → parser → codegen ──► hello.ll   LLVM IR, plain text you c
                                      ▼
                                   hello.o    real machine code
                                      │
-                              system linker  (ld / gcc / link.exe)
+                              cc → linker (Unix), link.exe (Windows)
                                      ▼
                                    hello     the executable
 ```
 
-Mini doesn't build LLVM into itself, so it doesn't care which LLVM version you have. It writes LLVM IR as text, which every LLVM 16+ understands, and runs that LLVM's `llc`. The `.ll` file stays next to the executable, so open it and see what your program became.
+Mini writes LLVM IR text using syntax supported by LLVM 16 and later. It checks the installed major version and invokes `llc`; backend targets, runtime helpers and linker availability must also match the platform. The `.ll` file stays next to the executable, so open it and see what your program became.
 
 ---
 
@@ -128,7 +130,7 @@ Mini doesn't build LLVM into itself, so it doesn't care which LLVM version you h
 - **v0.3** — **Refactor** into modules (`ast`, `parser`, `codegen`, `link`, `main`).
 - **v0.4** — Added **integer expressions**: `+ - * /`, parentheses, unary minus; variable reads in expressions.
 - **v0.5** — Works with **any installed LLVM 16+**: LLVM IR is written as text and compiled by the installed `llc`, so Mini no longer depends on an LLVM crate.
-- **v0.6** — New types: **exact decimals** (6 places, stored as millionths) and **booleans**, with comparisons and `and` / `or` / `not`. Unknown characters in expressions are now errors.
+- **v0.6** — New types: **fixed-point decimals** (6 places, stored as millionths) and **booleans**, with comparisons and `and` / `or` / `not`. Unknown characters in expressions are now errors.
 
 ---
 
@@ -165,3 +167,13 @@ Built with ❤️ and Rust by **Janos Vajda**
 ## 📜 License
 
 Free
+
+## Numeric behavior and checked failures
+
+Whole-number values use signed 32-bit storage. The literal `-2147483648` is accepted; positive `2147483648` is rejected. Integer addition, subtraction and multiplication wrap modulo 2³². Integer division truncates toward zero and traps for zero divisors or `-2147483648 / -1`, rather than emitting LLVM's undefined `sdiv` cases.
+
+Decimals store signed 64-bit millionths. Representable literals and addition/subtraction are exact within their range. Multiplication and division use wider intermediates and truncate toward zero to six decimal places; they do not provide unlimited precision. For example, `1.0 / 3.0` becomes `0.333333`. Decimal arithmetic wraps if the final stored integer exceeds its range, and decimal division by zero traps.
+
+Expressions are limited to 256 tokens to bound parser/AST recursion. This is a Mini language limit, not a Rust or LLVM limit. Malformed quotes and unsupported tokens return parser errors. Output paths are passed to linkers as native platform paths, without assuming UTF-8.
+
+`integer-runtime.ll` holds the guarded integer-division helper; `runtime.ll` holds decimal helpers. A trap terminates the generated program; Mini does not currently provide catchable runtime arithmetic errors. [LLVM division semantics](https://llvm.org/docs/LangRef.html#sdiv-instruction)

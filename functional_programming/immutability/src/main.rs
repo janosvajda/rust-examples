@@ -96,4 +96,3 @@ mod tests {
         assert_eq!(rest, &[2, 3, 4, 5]);
     }
 }
-

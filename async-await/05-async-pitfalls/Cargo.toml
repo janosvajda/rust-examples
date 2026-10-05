@@ -7,5 +7,5 @@ edition = "2024"
 tokio = { version = "1", features = ["full"] }
 
 [dev-dependencies]
-# Lets tests pause the clock: sleeps finish instantly and timing is exact.
+# Enables Tokio's paused test clock; OS time and blocking work are unchanged.
 tokio = { version = "1", features = ["full", "test-util"] }

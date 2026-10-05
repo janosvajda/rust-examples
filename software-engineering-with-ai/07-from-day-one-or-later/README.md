@@ -99,7 +99,7 @@ Two rules make the exception safe:
 
 ## Adding them to an existing project
 
-Maybe it's already six months later. Don't switch everything on at once: hundreds of failures at once teach people to ignore the tool. Go step by step:
+Maybe it's already six months later. Don't switch everything on at once: hundreds of failures at once can make the tool's output easy to ignore. Go step by step:
 
 1. **Fix the errors first.** Run `cargo clippy` and fix everything in the error ("correctness") group. Those are likely real bugs.
 2. **Stop new warnings, then reduce old ones.** Add `-D warnings` to CI so no *new* warning gets in. Where an old warning can't be fixed today, allow it right there, with a reason:

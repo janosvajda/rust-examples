@@ -84,4 +84,4 @@ Or from the repository root: `cargo run -p borrowing-rules`. The package names a
 
 To try a commented error example, uncomment its whole code block, including any `use` lines. Leave the diagnostic comments commented out. If it defines an alternative function with the same name, temporarily comment out the working definition. Then run `cargo build`.
 
-The ordinary demos build successfully. The deliberately failing examples teach what the compiler refuses and why.
+The ordinary demos build successfully. The deliberately failing examples show what the compiler refuses and why.

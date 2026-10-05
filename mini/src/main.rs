@@ -8,7 +8,7 @@ use mini::{codegen, link::link_exe, llvm, parser::Parser};
 
 fn main() -> anyhow::Result<()> {
     // CLI expects `<input.mini> <output-exe>` for simplicity.
-    let args = env::args().skip(1).collect::<Vec<_>>();
+    let args = env::args_os().skip(1).collect::<Vec<_>>();
     if args.len() != 2 {
         eprintln!("Usage: mini <input.mini> <output-exe>");
         std::process::exit(1);
@@ -41,6 +41,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Basic success message so users know where the binary landed.
-    println!("Built {} (LLVM IR: {})", out_exe.display(), ll_file.display());
+    println!(
+        "Built {} (LLVM IR: {})",
+        out_exe.display(),
+        ll_file.display()
+    );
     Ok(())
 }

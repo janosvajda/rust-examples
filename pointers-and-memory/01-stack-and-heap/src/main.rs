@@ -41,8 +41,14 @@ fn main() {
         ("&str (pointer + length)", size_of::<&str>()),
         ("String (pointer + length + capacity)", size_of::<String>()),
         ("Vec<u64> (the same three)", size_of::<Vec<u64>>()),
-        ("Box<[u8; 1000]> (just a pointer)", size_of::<Box<[u8; 1000]>>()),
-        ("Option<Box<i32>> (still one pointer)", size_of::<Option<Box<i32>>>()),
+        (
+            "Box<[u8; 1000]> (just a pointer)",
+            size_of::<Box<[u8; 1000]>>(),
+        ),
+        (
+            "Option<Box<i32>> (still one pointer)",
+            size_of::<Option<Box<i32>>>(),
+        ),
     ];
     for (name, size) in sizes {
         println!("    {name:<38} {size:>5}");
@@ -51,8 +57,16 @@ fn main() {
     println!("\n2. A String's size doesn't depend on its text");
     let short = String::from("hi");
     let long = "x".repeat(1_000_000);
-    println!("    \"hi\":        {} bytes on the stack, {} bytes of text on the heap", size_of_val(&short), short.len());
-    println!("    a million x: {} bytes on the stack, {} bytes of text on the heap", size_of_val(&long), long.len());
+    println!(
+        "    \"hi\":        {} bytes on the stack, {} bytes of text on the heap",
+        size_of_val(&short),
+        short.len()
+    );
+    println!(
+        "    a million x: {} bytes on the stack, {} bytes of text on the heap",
+        size_of_val(&long),
+        long.len()
+    );
 
     println!("\n3. Moving a String copies 24 bytes, never the text");
     let before = heap_address(&long);
@@ -64,7 +78,11 @@ fn main() {
     println!("\n4. Cloning copies the heap data too");
     let original = String::from("copy me");
     let copy = original.clone();
-    println!("    original text at {:p}, the clone's at {:p}", original.as_ptr(), copy.as_ptr());
+    println!(
+        "    original text at {:p}, the clone's at {:p}",
+        original.as_ptr(),
+        copy.as_ptr()
+    );
 }
 
 #[cfg(test)]

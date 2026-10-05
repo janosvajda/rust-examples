@@ -1,14 +1,16 @@
 // Lesson 3: select and timeouts.
 //
-// Sometimes you don't want ALL futures to finish, just the FIRST one:
+// Sometimes you want the first ready, matching branch rather than every result:
 //   tokio::select!   race several futures, continue with the winner
 //   timeout          give a future a deadline
-// The losers are DROPPED, and dropping a future cancels it.
+// Owned losing futures are dropped. Borrowed futures can remain alive outside
+// select!, and dropping a JoinHandle detaches its task rather than stopping it.
 
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::{Instant, interval, sleep, timeout};
 
+/// Simulates a reply with a timer; no network request is made.
 async fn ask_server(name: &str, millis: u64) -> String {
     sleep(Duration::from_millis(millis)).await;
     format!("answer from {name}")
@@ -22,26 +24,32 @@ async fn fastest_answer() -> String {
     }
 }
 
-/// Gives up if the server takes longer than `limit`.
+/// Gives up waiting after `limit`, as long as polling the operation yields.
 async fn ask_with_deadline(millis: u64, limit: Duration) -> Result<String, String> {
     timeout(limit, ask_server("slow server", millis))
         .await
         .map_err(|_| format!("no answer within {} ms", limit.as_millis()))
 }
 
-/// A worker that does periodic work until it's told to stop.
+/// A worker that stops on a message or when the stop sender is dropped.
+/// interval's first tick is immediate; the count saturates at u32::MAX.
 async fn worker(mut stop: oneshot::Receiver<()>) -> u32 {
     let mut ticker = interval(Duration::from_millis(100));
-    let mut ticks = 0;
+    let mut ticks = 0_u32;
     loop {
         tokio::select! {
-            _ = ticker.tick() => {
-                ticks += 1;
-                println!("    tick {ticks}");
-            }
-            _ = &mut stop => {
-                println!("    stop signal received, cleaning up");
+            // Prefer shutdown if both the stop signal and a tick are ready.
+            biased;
+            signal = &mut stop => {
+                match signal {
+                    Ok(()) => println!("    stop signal received, cleaning up"),
+                    Err(_) => println!("    stop sender dropped, cleaning up"),
+                }
                 return ticks;
+            }
+            _ = ticker.tick() => {
+                ticks = ticks.saturating_add(1);
+                println!("    tick {ticks}");
             }
         }
     }
@@ -49,14 +57,24 @@ async fn worker(mut stop: oneshot::Receiver<()>) -> u32 {
 
 #[tokio::main]
 async fn main() {
-    println!("1. select!: the first future to finish wins");
+    println!("1. select!: take the first ready, matching reply");
     let start = Instant::now();
-    println!("    {} after {} ms", fastest_answer().await, start.elapsed().as_millis());
+    println!(
+        "    {} after {} ms",
+        fastest_answer().await,
+        start.elapsed().as_millis()
+    );
     // The US mirror's future was dropped (cancelled) when Europe answered.
 
     println!("\n2. timeout: give up after a deadline");
-    println!("    {:?}", ask_with_deadline(100, Duration::from_millis(300)).await);
-    println!("    {:?}", ask_with_deadline(900, Duration::from_millis(300)).await);
+    println!(
+        "    {:?}",
+        ask_with_deadline(100, Duration::from_millis(300)).await
+    );
+    println!(
+        "    {:?}",
+        ask_with_deadline(900, Duration::from_millis(300)).await
+    );
 
     println!("\n3. select! in a loop: periodic work with a stop signal");
     let (stop_sender, stop_receiver) = oneshot::channel();
@@ -65,10 +83,25 @@ async fn main() {
     stop_sender.send(()).unwrap();
     println!("    worker ran {} ticks", task.await.unwrap());
 
-    println!("\n4. Cancellation is just dropping the future");
+    println!("\n4. Drop an unpolled operation: its async body never starts");
     let slow = ask_server("never awaited", 10_000);
-    drop(slow); // nothing ran, nothing to clean up: the future is simply gone
+    drop(slow); // the body's timer wasn't created; captured arguments are dropped
     println!("    a dropped future never runs again");
+
+    println!("\n5. A task handle needs explicit cancellation");
+    let mut task = tokio::spawn(async {
+        sleep(Duration::from_millis(200)).await;
+        "background result"
+    });
+    if timeout(Duration::from_millis(20), &mut task).await.is_err() {
+        println!("    stopped waiting; request cancellation and join the task");
+        task.abort();
+        match task.await {
+            Err(error) if error.is_cancelled() => println!("    task cancelled"),
+            Ok(result) => println!("    task had already completed: {result}"),
+            Err(error) => println!("    task failed: {error}"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -103,5 +136,44 @@ mod tests {
         sleep(Duration::from_millis(250)).await; // ticks at 0, 100, 200
         stop.send(()).unwrap();
         assert_eq!(task.await.unwrap(), 3);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dropping_the_stop_sender_also_stops_the_worker() {
+        let (stop, receiver) = oneshot::channel();
+        drop(stop);
+        assert_eq!(worker(receiver).await, 0); // shutdown takes priority over first tick
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn timing_out_a_borrowed_handle_leaves_the_task_running() {
+        let mut task = tokio::spawn(async {
+            sleep(Duration::from_millis(100)).await;
+            42
+        });
+        assert!(timeout(Duration::from_millis(10), &mut task).await.is_err());
+        assert_eq!(task.await.unwrap(), 42); // still running after the timeout
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn timing_out_an_owned_operation_drops_its_live_resources() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+        struct Notice(Arc<AtomicBool>);
+        impl Drop for Notice {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+        let dropped = Arc::new(AtomicBool::new(false));
+        let result = timeout(Duration::from_millis(10), async {
+            let _notice = Notice(Arc::clone(&dropped));
+            sleep(Duration::from_millis(100)).await;
+        })
+        .await;
+        assert!(result.is_err());
+        assert!(dropped.load(Ordering::SeqCst));
     }
 }

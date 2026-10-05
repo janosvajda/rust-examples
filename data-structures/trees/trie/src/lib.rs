@@ -110,7 +110,7 @@ impl Trie {
 
     /// Returns `true` if any stored word starts with `prefix`.
     pub fn starts_with(&self, prefix: &str) -> bool {
-        self.find_node(prefix).is_some()
+        !self.is_empty() && self.find_node(prefix).is_some()
     }
 
     /// Returns every stored word that starts with `prefix`, in alphabetical order.
@@ -148,19 +148,34 @@ impl Trie {
     }
 }
 
-/// Depth-first walk that collects every word in the subtree under `node`.
-///
-/// `current_word` holds the characters on the path so far. We push a
-/// character before visiting a child and pop it afterwards, so one `String` is
-/// reused for the whole walk instead of allocating a new one per node.
+impl Drop for Trie {
+    fn drop(&mut self) {
+        let mut pending = vec![std::mem::take(&mut self.root)];
+        while let Some(mut node) = pending.pop() {
+            pending.extend(std::mem::take(&mut node.children).into_values());
+        }
+    }
+}
+
+// Each frame holds a child iterator and the byte length of its prefix.
+// One String is reused, and traversal depth uses heap storage rather than
+// one function call per character of an arbitrarily long word.
 fn collect_words(node: &TrieNode, current_word: &mut String, words: &mut Vec<String>) {
     if node.is_word_end {
         words.push(current_word.clone());
     }
-    for (&c, child) in &node.children {
-        current_word.push(c);
-        collect_words(child, current_word, words);
-        current_word.pop();
+    let mut stack = vec![(node.children.iter(), current_word.len())];
+    while let Some((children, prefix_len)) = stack.last_mut() {
+        current_word.truncate(*prefix_len);
+        if let Some((&character, child)) = children.next() {
+            current_word.push(character);
+            if child.is_word_end {
+                words.push(current_word.clone());
+            }
+            stack.push((child.children.iter(), current_word.len()));
+        } else {
+            stack.pop();
+        }
     }
 }
 
@@ -216,7 +231,10 @@ mod tests {
         let trie = trie_from(&["dog", "cat", "cart", "car", "do"]);
         assert_eq!(trie.words_with_prefix("ca"), vec!["car", "cart", "cat"]);
         assert_eq!(trie.words_with_prefix("do"), vec!["do", "dog"]);
-        assert_eq!(trie.words_with_prefix(""), vec!["car", "cart", "cat", "do", "dog"]);
+        assert_eq!(
+            trie.words_with_prefix(""),
+            vec!["car", "cart", "cat", "do", "dog"]
+        );
         assert!(trie.words_with_prefix("x").is_empty());
     }
 
@@ -225,5 +243,21 @@ mod tests {
         let trie = trie_from(&["alma", "álom", "ágy"]);
         assert!(trie.contains("álom"));
         assert_eq!(trie.words_with_prefix("á"), vec!["ágy", "álom"]);
+    }
+    #[test]
+    fn long_unicode_words_and_cleanup_do_not_recurse_on_the_call_stack() {
+        std::thread::Builder::new()
+            .stack_size(128 * 1024)
+            .spawn(|| {
+                let mut trie = Trie::new();
+                assert!(!trie.starts_with(""));
+                let word = "é".repeat(20_000);
+                trie.insert(&word);
+                assert_eq!(trie.words_with_prefix("é"), [word]);
+                drop(trie);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

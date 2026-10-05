@@ -1,127 +1,145 @@
 use std::io;
+use std::str::FromStr;
 
-fn main() {
-    // Welcome message
-    println!("Welcome to the Calorie Calculator!");
-
-    // Gather user input
-    let (weight, height, age, activity_level) = get_user_input();
-
-    // Calculate BMR and TDEE
-    let (bmr, tdee) = calculate_calories(weight, height, age, activity_level);
-
-    // Display results
-    println!("Your Basal Metabolic Rate (BMR) is: {:.2} calories", bmr);
-    println!("Your Total Daily Energy Expenditure (TDEE) is: {:.2} calories", tdee);
+#[derive(Clone, Copy, Debug)]
+enum Sex {
+    Male,
+    Female,
 }
 
-fn get_user_input() -> (f64, f64, u32, f64) {
-    // Prompt for weight
-    println!("Please enter your weight in kilograms:");
-    let weight = read_f64_input();
-
-    // Prompt for height
-    println!("Please enter your height in centimeters:");
-    let height = read_f64_input();
-
-    // Prompt for age
-    println!("Please enter your age:");
-    let age = read_u32_input();
-
-    // Prompt for activity level
-    println!("Select your activity level:");
-    println!("1. Sedentary (little to no exercise)");
-    println!("2. Lightly active (light exercise/sports 1-3 days a week)");
-    println!("3. Moderately active (moderate exercise/sports 3-5 days a week)");
-    println!("4. Very active (hard exercise/sports 6-7 days a week)");
-    println!("5. Super active (very hard exercise/sports, physical job, or training twice a day)");
-    let activity_level = read_f64_input();
-
-    (weight, height, age, activity_level)
+impl FromStr for Sex {
+    type Err = &'static str;
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        match text {
+            "1" => Ok(Self::Male),
+            "2" => Ok(Self::Female),
+            _ => Err("choose 1 or 2"),
+        }
+    }
 }
 
-fn calculate_calories(weight: f64, height: f64, age: u32, activity_level: f64) -> (f64, f64) {
-    // Calculate BMR using the Mifflin-St Jeor Equation
-    let bmr = 10.0 * weight + 6.25 * height - 5.0 * f64::from(age) + 5.0;
-
-    // Apply activity level to calculate TDEE
-    let tdee = bmr * activity_level;
-
-    (bmr, tdee)
+#[derive(Clone, Copy, Debug)]
+enum Activity {
+    Sedentary,
+    Light,
+    Moderate,
+    VeryActive,
+    ExtraActive,
 }
 
-fn read_f64_input() -> f64 {
-    // Read a f64 input from the user
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read input");
-    input.trim().parse().expect("Invalid input")
+impl Activity {
+    fn multiplier(self) -> f64 {
+        match self {
+            Self::Sedentary => 1.2,
+            Self::Light => 1.375,
+            Self::Moderate => 1.55,
+            Self::VeryActive => 1.725,
+            Self::ExtraActive => 1.9,
+        }
+    }
 }
 
-fn read_u32_input() -> u32 {
-    // Read a u32 input from the user
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Failed to read input");
-    input.trim().parse().expect("Invalid input")
+impl FromStr for Activity {
+    type Err = &'static str;
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        match text {
+            "1" => Ok(Self::Sedentary),
+            "2" => Ok(Self::Light),
+            "3" => Ok(Self::Moderate),
+            "4" => Ok(Self::VeryActive),
+            "5" => Ok(Self::ExtraActive),
+            _ => Err("choose 1 to 5"),
+        }
+    }
+}
+
+// These are estimates from an adult equation, with rough activity multipliers.
+fn calculate_calories(
+    weight: f64,
+    height: f64,
+    age: u32,
+    sex: Sex,
+    activity: Activity,
+) -> Result<(f64, f64), &'static str> {
+    if !weight.is_finite() || weight <= 0.0 || !height.is_finite() || height <= 0.0 {
+        return Err("weight and height must be positive finite numbers");
+    }
+    if !(19..=78).contains(&age) {
+        return Err("this example covers the original study's adult age range, 19 to 78");
+    }
+    let offset = match sex {
+        Sex::Male => 5.0,
+        Sex::Female => -161.0,
+    };
+    let resting = 10.0 * weight + 6.25 * height - 5.0 * f64::from(age) + offset;
+    let daily = resting * activity.multiplier();
+    if !resting.is_finite() || !daily.is_finite() || resting <= 0.0 {
+        return Err("these inputs do not produce a valid positive estimate");
+    }
+    Ok((resting, daily))
+}
+
+fn read_value<T: FromStr>(prompt: &str, valid: impl Fn(&T) -> bool) -> io::Result<T> {
+    loop {
+        println!("{prompt}");
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input)? == 0 {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "input ended"));
+        }
+        if let Ok(value) = input.trim().parse::<T>() {
+            if valid(&value) {
+                return Ok(value);
+            }
+        }
+        println!("Please enter a valid value from the range shown.");
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Adult energy estimate: Mifflin–St Jeor. Results are estimates in kcal/day.");
+    let weight = read_value("Weight in kilograms (positive):", |n: &f64| {
+        n.is_finite() && *n > 0.0
+    })?;
+    let height = read_value("Height in centimetres (positive):", |n: &f64| {
+        n.is_finite() && *n > 0.0
+    })?;
+    let age = read_value("Age in years (19–78, the original study's range):", |n| {
+        (19..=78).contains(n)
+    })?;
+    let sex = read_value(
+        "Sex coefficient from the original equation: 1 male, 2 female:",
+        |_| true,
+    )?;
+    let activity = read_value(
+        "Activity: 1 sedentary, 2 light, 3 moderate, 4 very active, 5 extra active:",
+        |_| true,
+    )?;
+    let (resting, daily) = calculate_calories(weight, height, age, sex, activity)?;
+    println!("Estimated resting energy: {resting:.2} kcal/day");
+    println!("Estimated total daily energy: {daily:.2} kcal/day");
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn test_calculate_calories() {
-        // Test case with moderate values
-        let weight = 70.0;
-        let height = 175.0;
-        let age = 30;
-        let activity_level = 1.5;
-
-        let (bmr, tdee) = calculate_calories(weight, height, age, activity_level);
-
-        // Calculate expected values based on the formula
-        let expected_bmr = 10.0 * weight + 6.25 * height - 5.0 * f64::from(age) + 5.0;
-        let expected_tdee = expected_bmr * activity_level;
-
-        // Compare calculated values to expected values with a small delta
-        assert!((bmr - expected_bmr).abs() < 0.01);
-        assert!((tdee - expected_tdee).abs() < 0.01);
+    fn menu_choices_map_to_factors_and_both_equation_variants_work() {
+        let activity = "3".parse().unwrap();
+        assert_eq!(
+            calculate_calories(70.0, 175.0, 30, Sex::Male, activity),
+            Ok((1648.75, 2555.5625))
+        );
+        let (resting, daily) = calculate_calories(70.0, 175.0, 30, Sex::Female, activity).unwrap();
+        assert_eq!(resting, 1482.75);
+        assert!((daily - 2298.2625).abs() < 1e-9);
     }
-
     #[test]
-    fn test_lower_weight() {
-        // Test case with lower weight and moderate activity level
-        let weight = 55.0;
-        let height = 160.0;
-        let age = 25;
-        let activity_level = 1.3;
-
-        let (bmr, tdee) = calculate_calories(weight, height, age, activity_level);
-
-        // Calculate expected values based on the formula
-        let expected_bmr = 10.0 * weight + 6.25 * height - 5.0 * f64::from(age) + 5.0;
-        let expected_tdee = expected_bmr * activity_level;
-
-        // Compare calculated values to expected values with a small delta
-        assert!((bmr - expected_bmr).abs() < 0.01);
-        assert!((tdee - expected_tdee).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_high_activity_level() {
-        // Test case with higher weight and very high activity level
-        let weight = 80.0;
-        let height = 180.0;
-        let age = 35;
-        let activity_level = 2.0;
-
-        let (bmr, tdee) = calculate_calories(weight, height, age, activity_level);
-
-        // Calculate expected values based on the formula
-        let expected_bmr = 10.0 * weight + 6.25 * height - 5.0 * f64::from(age) + 5.0;
-        let expected_tdee = expected_bmr * activity_level;
-
-        // Compare calculated values to expected values with a small delta
-        assert!((bmr - expected_bmr).abs() < 0.01);
-        assert!((tdee - expected_tdee).abs() < 0.01);
+    fn invalid_inputs_are_errors() {
+        for weight in [f64::NAN, f64::INFINITY, -1.0, 0.0, f64::MAX] {
+            assert!(calculate_calories(weight, 175.0, 30, Sex::Male, Activity::Light).is_err());
+        }
+        assert!(calculate_calories(70.0, 175.0, 10, Sex::Female, Activity::Light).is_err());
+        assert!("6".parse::<Activity>().is_err());
     }
 }

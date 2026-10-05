@@ -91,27 +91,32 @@ impl<'a> IntoIterator for &'a Playlist {
 
 /// The Fibonacci sequence: 0, 1, 1, 2, 3, 5, 8, ...
 /// There's no collection behind it. Each item is calculated when it's asked
-/// for, so the sequence can be endless.
+/// for. This iterator ends after the last Fibonacci number that fits in u64.
 struct Fibonacci {
-    current: u64,
-    next: u64,
+    pair: Option<(u64, u64)>,
+    last: Option<u64>,
 }
 
 fn fibonacci() -> Fibonacci {
-    Fibonacci { current: 0, next: 1 }
+    Fibonacci {
+        pair: Some((0, 1)),
+        last: None,
+    }
 }
 
 impl Iterator for Fibonacci {
     type Item = u64;
 
     fn next(&mut self) -> Option<u64> {
-        let value = self.current;
-        // `checked_add` returns None on overflow, which ends the iterator
-        // cleanly instead of crashing once the numbers get too big for a u64.
-        let following = self.current.checked_add(self.next)?;
-        self.current = self.next;
-        self.next = following;
-        Some(value)
+        let Some((current, next)) = self.pair.take() else {
+            return self.last.take();
+        };
+        if let Some(following) = current.checked_add(next) {
+            self.pair = Some((next, following));
+        } else {
+            self.last = Some(next);
+        }
+        Some(current)
     }
 }
 
@@ -131,7 +136,13 @@ fn main() {
 
     println!("--- Playing (song 3 skipped) ---");
     for (number, song) in playlist.iter().enumerate() {
-        println!("{}. {} – {} ({})", number + 1, song.title, song.artist, format_duration(song.seconds));
+        println!(
+            "{}. {} – {} ({})",
+            number + 1,
+            song.title,
+            song.artist,
+            format_duration(song.seconds)
+        );
     }
 
     // Because PlaylistIter implements Iterator, all of these come for free.
@@ -149,7 +160,7 @@ fn main() {
     let longest = playlist.iter().max_by_key(|song| song.seconds).unwrap();
     println!("longest: {}", longest.title);
 
-    println!("\n--- An endless iterator, used lazily ---");
+    println!("\n--- A generated sequence, used lazily ---");
     // Nothing is calculated until `take` asks for items, so an infinite
     // sequence is fine.
     let first_ten: Vec<u64> = fibonacci().take(10).collect();
@@ -158,7 +169,10 @@ fn main() {
     let first_over_1000 = fibonacci().find(|&n| n > 1000).unwrap();
     println!("first one over 1000: {first_over_1000}");
 
-    let even_sum: u64 = fibonacci().take_while(|&n| n < 100).filter(|n| n % 2 == 0).sum();
+    let even_sum: u64 = fibonacci()
+        .take_while(|&n| n < 100)
+        .filter(|n| n % 2 == 0)
+        .sum();
     println!("sum of the even ones below 100: {even_sum}");
 }
 
@@ -215,7 +229,14 @@ mod tests {
 
     #[test]
     fn fibonacci_stops_before_overflowing() {
-        // It's endless in theory, but ends once the next value won't fit in a u64.
+        // Yields every representable term, then ends before an overflowing term.
         assert!(fibonacci().count() > 90);
+    }
+    #[test]
+    fn fibonacci_keeps_the_last_two_representable_terms() {
+        let terms: Vec<_> = fibonacci().collect();
+        assert_eq!(terms.len(), 94);
+        assert_eq!(terms[92], 7_540_113_804_746_346_429);
+        assert_eq!(terms[93], 12_200_160_415_121_876_738);
     }
 }

@@ -24,7 +24,7 @@ Think of a TV remote's "next channel" button. You press it and get the next chan
 
 ## Built into Rust
 
-Most languages need you to write this pattern yourself. **Rust has it built in.** The standard `Iterator` trait is this pattern, and it's used everywhere: every `for` loop in Rust runs on an iterator.
+Many languages provide iteration protocols. **Rust provides the `Iterator` trait.** The standard `Iterator` trait is this pattern, and it's used everywhere: every `for` loop in Rust runs on an iterator.
 
 You only write **one method**, `next()`. In return you get dozens of methods for free: `map`, `filter`, `sum`, `max_by_key`, `take`, `enumerate`, `collect`, and many more.
 
@@ -37,7 +37,7 @@ You only write **one method**, `next()`. In return you get dozens of methods for
 - `.max_by_key(...)` finds the longest song;
 - `for song in &playlist` works because of `IntoIterator`.
 
-**2. The Fibonacci sequence** (0, 1, 1, 2, 3, 5, 8, …). There's no collection behind this iterator at all. Each number is **calculated when it's asked for**. That's why the sequence can be endless: `take(10)` asks for exactly ten numbers, and nothing more is ever computed. This is called *lazy* evaluation. To avoid an overflow crash, the iterator simply ends once the numbers no longer fit in a `u64`.
+**2. The Fibonacci sequence** (0, 1, 1, 2, 3, 5, 8, …). There's no collection behind this iterator at all. Each number is **calculated when it's asked for**. `take(10)` requests ten items; each item requires only a small state update rather than storing the whole sequence. This is called *lazy* evaluation. To avoid an overflow crash, the iterator simply ends once the numbers no longer fit in a `u64`.
 
 ## Things worth knowing
 
@@ -51,6 +51,8 @@ You only write **one method**, `next()`. In return you get dozens of methods for
 ## When to use it
 
 In Rust: whenever your type holds or produces a sequence of items. Implement `Iterator` (and `IntoIterator` for `for` loops), and your type works with the entire iterator toolbox and with any function that accepts an iterator.
+
+The real Fibonacci sequence never ends, but a `u64` can only hold the first 94 numbers, up to `F(93) = 12_200_160_415_121_876_738`. After that, the iterator returns `None` instead of overflowing.
 
 ## Run it
 

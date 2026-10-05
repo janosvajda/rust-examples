@@ -8,13 +8,11 @@ use lambda_http::{self, Body, RequestExt};
 use serde_json::json;
 use uuid::Uuid;
 
-use common::{body_as_string, setup_environment};
+use common::body_as_string;
 
 #[tokio::test]
 async fn user_crud_and_constraints_flow() -> Result<()> {
-    let Some(setup) = setup_environment().await else {
-        return Ok(());
-    };
+    common::with_environment(|setup| Box::pin(async move {
 
     let ctx = setup.ctx.clone();
     let family_id = format!("family-{}", Uuid::new_v4().simple());
@@ -152,6 +150,10 @@ async fn user_crud_and_constraints_flow() -> Result<()> {
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     assert_eq!(second_response.status(), 201);
 
+    const INDEX_WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(5);
+    // Base-table transactions commit before their GSI changes become visible.
+    tokio::time::timeout(INDEX_WAIT_LIMIT, async {
+        loop {
     let query_resp = setup
         .client
         .query()
@@ -162,7 +164,12 @@ async fn user_crud_and_constraints_flow() -> Result<()> {
         .expression_attribute_values(":fid", AttributeValue::S(family_id.clone()))
         .send()
         .await?;
-    assert_eq!(query_resp.count(), 2);
+    if query_resp.count() == 2 { break; }
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        Ok::<_, anyhow::Error>(())
+    }).await.map_err(|_| anyhow::anyhow!("GSI did not show the two users before the test deadline"))??;
 
     Ok(())
+    })).await
 }

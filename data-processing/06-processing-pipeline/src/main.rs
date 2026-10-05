@@ -6,7 +6,8 @@
 //
 // Each stage is a plain function that's easy to test on its own. Because the
 // middle stages work on one line at a time and don't share anything, the
-// whole pipeline can run on every CPU core with rayon by changing one word.
+// middle stages can use Rayon's parallel fold/reduce; reading and writing
+// remain sequential.
 
 use rayon::prelude::*;
 use std::collections::BTreeMap;
@@ -28,7 +29,7 @@ struct Stats {
     count: u64,
     min: f64,
     max: f64,
-    sum: f64,
+    mean: f64,
 }
 
 /// The result of the aggregate stage: statistics per sensor, and how many
@@ -45,7 +46,7 @@ struct Totals {
 /// threads. (For files bigger than memory, process them in chunks: see the README.)
 ///
 /// Reads bytes, not text: a line that isn't valid UTF-8 becomes a line with
-/// replacement characters (�), which the next stage rejects and counts.
+/// an empty rejection sentinel, which the next stage rejects and counts.
 /// `BufRead::lines()` would return an error instead, and end the whole run.
 fn read_lines(path: &Path) -> io::Result<Vec<String>> {
     let bytes = std::fs::read(path)?;
@@ -53,7 +54,11 @@ fn read_lines(path: &Path) -> io::Result<Vec<String>> {
         .split(|&b| b == b'\n')
         .skip(1) // the header
         .filter(|line| !line.is_empty())
-        .map(|line| String::from_utf8_lossy(line).trim_end_matches('\r').to_string())
+        .map(|line| {
+            std::str::from_utf8(line)
+                .map(|text| text.trim_end_matches('\r').to_owned())
+                .unwrap_or_default()
+        })
         .collect())
 }
 
@@ -62,9 +67,23 @@ fn read_lines(path: &Path) -> io::Result<Vec<String>> {
 /// One line → a reading in its original unit, or None if the line is unusable.
 fn parse(line: &str) -> Option<(Reading<'_>, &str)> {
     let mut fields = line.split(',');
-    let (_time, sensor, value, unit) = (fields.next()?, fields.next()?, fields.next()?, fields.next()?);
+    let (time, sensor, value, unit) = (
+        fields.next()?,
+        fields.next()?,
+        fields.next()?,
+        fields.next()?,
+    );
+    if time.is_empty() || sensor.trim().is_empty() || fields.next().is_some() {
+        return None;
+    }
     let value: f64 = value.parse().ok()?;
-    Some((Reading { sensor, celsius: value }, unit))
+    Some((
+        Reading {
+            sensor,
+            celsius: value,
+        },
+        unit,
+    ))
 }
 
 // ---- Stage 3: convert units --------------------------------------------------------------------
@@ -96,10 +115,15 @@ impl Totals {
                     s.count += 1;
                     s.min = s.min.min(r.celsius);
                     s.max = s.max.max(r.celsius);
-                    s.sum += r.celsius;
+                    s.mean += (r.celsius - s.mean) / s.count as f64; // a running mean
                 }
                 None => {
-                    let stats = Stats { count: 1, min: r.celsius, max: r.celsius, sum: r.celsius };
+                    let stats = Stats {
+                        count: 1,
+                        min: r.celsius,
+                        max: r.celsius,
+                        mean: r.celsius,
+                    };
                     self.per_sensor.insert(r.sensor.to_string(), stats);
                 }
             },
@@ -116,10 +140,12 @@ impl Totals {
             self.per_sensor
                 .entry(sensor)
                 .and_modify(|s| {
-                    s.count += o.count;
+                    // Each mean counts as much as the number of readings behind it.
+                    let total = s.count + o.count;
+                    s.mean = (s.mean * s.count as f64 + o.mean * o.count as f64) / total as f64;
+                    s.count = total;
                     s.min = s.min.min(o.min);
                     s.max = s.max.max(o.max);
-                    s.sum += o.sum;
                 })
                 .or_insert(o);
         }
@@ -129,7 +155,10 @@ impl Totals {
 
 /// The whole middle of the pipeline, one line after another.
 fn run_sequential(lines: &[String]) -> Totals {
-    lines.iter().map(|line| process(line)).fold(Totals::default(), Totals::add)
+    lines
+        .iter()
+        .map(|line| process(line))
+        .fold(Totals::default(), Totals::add)
 }
 
 /// The same pipeline on every core: `par_iter` instead of `iter`. Each thread
@@ -148,7 +177,11 @@ fn write_report(path: &Path, totals: &Totals) -> io::Result<()> {
     let mut out = BufWriter::new(File::create(path)?);
     writeln!(out, "sensor,count,min,max,mean")?;
     for (sensor, s) in &totals.per_sensor {
-        writeln!(out, "{sensor},{},{:.2},{:.2},{:.2}", s.count, s.min, s.max, s.sum / s.count as f64)?;
+        writeln!(
+            out,
+            "{sensor},{},{:.2},{:.2},{:.2}",
+            s.count, s.min, s.max, s.mean
+        )?;
     }
     out.flush()
 }
@@ -162,7 +195,9 @@ fn generate_input(path: &Path, lines: u64) -> io::Result<()> {
     let mut seed: u64 = 7;
     writeln!(out, "time,sensor,value,unit")?;
     for i in 0..lines {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let sensor = sensors[(seed >> 33) as usize % sensors.len()];
         let celsius = 15.0 + (seed >> 40) as f64 / (1u64 << 24) as f64 * 15.0;
         match i {
@@ -193,18 +228,36 @@ fn main() -> io::Result<()> {
 
     let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
     println!("sequential: {sequential_time:>10.2?}");
-    println!("parallel:   {parallel_time:>10.2?}  on {cores} cores, {:.1}× faster", sequential_time.as_secs_f64() / parallel_time.as_secs_f64());
+    println!(
+        "parallel:   {parallel_time:>10.2?}  with {cores} estimated available workers, {:.1}× faster",
+        sequential_time.as_secs_f64() / parallel_time.as_secs_f64()
+    );
 
-    // Same counts, minimums and maximums. The sums can differ in the last digits:
+    // Same counts, minimums and maximums. The means can differ in the last digits:
     // floating-point addition gives slightly different results in a different order.
-    let counts = |t: &Totals| t.per_sensor.values().map(|s| (s.count, s.min, s.max)).collect::<Vec<_>>();
+    let counts = |t: &Totals| {
+        t.per_sensor
+            .values()
+            .map(|s| (s.count, s.min, s.max))
+            .collect::<Vec<_>>()
+    };
     assert_eq!(counts(&sequential), counts(&parallel));
     assert_eq!(sequential.rejected, parallel.rejected);
-    let a12 = (sequential.per_sensor["A12"].sum, parallel.per_sensor["A12"].sum);
-    println!("\nA12 sum, sequential: {:.10}\nA12 sum, parallel:   {:.10}", a12.0, a12.1);
+    let a12 = (
+        sequential.per_sensor["A12"].mean,
+        parallel.per_sensor["A12"].mean,
+    );
+    println!(
+        "\nA12 mean, sequential: {:.10}\nA12 mean, parallel:   {:.10}",
+        a12.0, a12.1
+    );
 
     write_report(&report, &parallel)?;
-    println!("\nReport ({}), {} lines rejected:", report.display(), parallel.rejected);
+    println!(
+        "\nReport ({}), {} lines rejected:",
+        report.display(),
+        parallel.rejected
+    );
     print!("{}", std::fs::read_to_string(&report)?);
 
     std::fs::remove_file(&input)?;
@@ -218,37 +271,98 @@ mod tests {
 
     #[test]
     fn each_stage_on_its_own() {
-        assert_eq!(parse("1,A12,21.5,C"), Some((Reading { sensor: "A12", celsius: 21.5 }, "C")));
+        assert_eq!(
+            parse("1,A12,21.5,C"),
+            Some((
+                Reading {
+                    sensor: "A12",
+                    celsius: 21.5
+                },
+                "C"
+            ))
+        );
         assert_eq!(parse("1,A12,ERR,C"), None);
-        assert_eq!(to_celsius((Reading { sensor: "X", celsius: 212.0 }, "F")), Some(Reading { sensor: "X", celsius: 100.0 }));
-        assert_eq!(to_celsius((Reading { sensor: "X", celsius: 1.0 }, "K")), None);
-        assert_eq!(to_celsius((Reading { sensor: "X", celsius: -500.0 }, "C")), None);
+        assert_eq!(
+            to_celsius((
+                Reading {
+                    sensor: "X",
+                    celsius: 212.0
+                },
+                "F"
+            )),
+            Some(Reading {
+                sensor: "X",
+                celsius: 100.0
+            })
+        );
+        assert_eq!(
+            to_celsius((
+                Reading {
+                    sensor: "X",
+                    celsius: 1.0
+                },
+                "K"
+            )),
+            None
+        );
+        assert_eq!(
+            to_celsius((
+                Reading {
+                    sensor: "X",
+                    celsius: -500.0
+                },
+                "C"
+            )),
+            None
+        );
     }
 
     #[test]
     fn aggregate_counts_rejections() {
-        let lines: Vec<String> = ["1,A,10,C", "2,A,20,C", "3,B,x,C", "4,B,50,F"].map(String::from).to_vec();
+        let lines: Vec<String> = ["1,A,10,C", "2,A,20,C", "3,B,x,C", "4,B,50,F"]
+            .map(String::from)
+            .to_vec();
         let totals = run_sequential(&lines);
-        assert_eq!(totals.per_sensor["A"], Stats { count: 2, min: 10.0, max: 20.0, sum: 30.0 });
+        assert_eq!(
+            totals.per_sensor["A"],
+            Stats {
+                count: 2,
+                min: 10.0,
+                max: 20.0,
+                mean: 15.0
+            }
+        );
         assert_eq!(totals.per_sensor["B"].count, 1);
         assert_eq!(totals.rejected, 1);
     }
 
     #[test]
     fn parallel_gives_the_same_answer() {
-        let lines: Vec<String> = (0..10_000).map(|i| format!("{i},S{},{}.5,C", i % 5, i % 40)).collect();
+        let lines: Vec<String> = (0..10_000)
+            .map(|i| format!("{i},S{},{}.5,C", i % 5, i % 40))
+            .collect();
         let (seq, par) = (run_sequential(&lines), run_parallel(&lines));
         assert_eq!(seq.rejected, par.rejected);
         for (sensor, s) in &seq.per_sensor {
             let p = par.per_sensor[sensor];
             assert_eq!((s.count, s.min, s.max), (p.count, p.min, p.max));
-            assert!((s.sum - p.sum).abs() < 1e-6, "sums differ by more than rounding");
+            assert!(
+                (s.mean - p.mean).abs() < 1e-6,
+                "means differ by more than rounding"
+            );
         }
     }
 
     #[test]
     fn nan_infinity_and_broken_text_are_rejected() {
-        for line in ["1,A,NaN,C", "1,A,inf,C", "1,A,1e400,C", "1,A,\u{FFFD}\u{FFFD},C", "", "1,A"] {
+        for line in [
+            "1,A,NaN,C",
+            "1,A,inf,C",
+            "1,A,1e400,C",
+            "1,A,\u{FFFD}\u{FFFD},C",
+            "",
+            "1,A",
+        ] {
             assert_eq!(process(line), None, "{line:?} should be rejected");
         }
     }
@@ -256,7 +370,11 @@ mod tests {
     #[test]
     fn invalid_utf8_lines_are_counted_not_fatal() {
         let path = std::env::temp_dir().join("rust-examples-pipeline-utf8-test.csv");
-        std::fs::write(&path, b"header\r\n1,A,20.0,C\r\n2,A,\xff\xfe,C\r\n3,A,22.0,C\r\n").unwrap();
+        std::fs::write(
+            &path,
+            b"header\r\n1,A,20.0,C\r\n2,A,\xff\xfe,C\r\n3,A,22.0,C\r\n",
+        )
+        .unwrap();
         let totals = run_parallel(&read_lines(&path).unwrap());
         std::fs::remove_file(&path).unwrap();
         assert_eq!(totals.per_sensor["A"].count, 2);
@@ -271,10 +389,36 @@ mod tests {
 
     #[test]
     fn merge_combines_partial_results() {
-        let a = Totals::default().add(Some(Reading { sensor: "A", celsius: 1.0 }));
-        let b = Totals::default().add(Some(Reading { sensor: "A", celsius: 5.0 })).add(None);
+        let a = Totals::default().add(Some(Reading {
+            sensor: "A",
+            celsius: 1.0,
+        }));
+        let b = Totals::default()
+            .add(Some(Reading {
+                sensor: "A",
+                celsius: 5.0,
+            }))
+            .add(None);
         let merged = a.merge(b);
-        assert_eq!(merged.per_sensor["A"], Stats { count: 2, min: 1.0, max: 5.0, sum: 6.0 });
+        assert_eq!(
+            merged.per_sensor["A"],
+            Stats {
+                count: 2,
+                min: 1.0,
+                max: 5.0,
+                mean: 3.0
+            }
+        );
         assert_eq!(merged.rejected, 1);
+    }
+    #[test]
+    fn invalid_utf8_in_an_identifier_does_not_create_a_different_sensor() {
+        let path = std::env::temp_dir().join("rust-examples-pipeline-invalid-id.csv");
+        std::fs::write(&path, b"header\n1,A\xff,20,C\n2,A,21,C\n").unwrap();
+        let totals = run_parallel(&read_lines(&path).unwrap());
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(totals.rejected, 1);
+        assert_eq!(totals.per_sensor.len(), 1);
+        assert!(process("t,A,20,C,extra").is_none());
     }
 }

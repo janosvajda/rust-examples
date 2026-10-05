@@ -13,7 +13,9 @@ use std::iter;
 /// Powers of two up to `limit`: each item is computed from the previous one.
 /// `successors` stops when the closure returns None.
 fn powers_of_two(limit: u32) -> impl Iterator<Item = u32> {
-    iter::successors(Some(1u32), move |&n| n.checked_mul(2).filter(|&next| next <= limit))
+    iter::successors((limit >= 1).then_some(1u32), move |&n| {
+        n.checked_mul(2).filter(|&next| next <= limit)
+    })
 }
 
 /// A die that rolls the same "random" sequence every time (for tests).
@@ -34,11 +36,15 @@ fn fake_dice(seed: u32) -> impl Iterator<Item = u32> {
 struct Countdown {
     high: u32,      // the next number from the front
     low: u32,       // the next number from the back
-    remaining: u32, // how many numbers are left
+    remaining: u64, // includes zero: u32::MAX + 1 items must fit too
 }
 
 fn countdown(from: u32) -> Countdown {
-    Countdown { high: from, low: 0, remaining: from + 1 }
+    Countdown {
+        high: from,
+        low: 0,
+        remaining: u64::from(from) + 1,
+    }
 }
 
 impl Iterator for Countdown {
@@ -57,8 +63,10 @@ impl Iterator for Countdown {
     /// Telling iterator methods exactly how many items are left lets
     /// `collect` allocate the right amount of memory up front.
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let left = self.remaining as usize;
-        (left, Some(left))
+        match usize::try_from(self.remaining) {
+            Ok(left) => (left, Some(left)),
+            Err(_) => (usize::MAX, None),
+        }
     }
 }
 
@@ -69,12 +77,14 @@ impl DoubleEndedIterator for Countdown {
         }
         self.remaining -= 1;
         let value = self.low;
-        self.low += 1;
+        self.low = self.low.saturating_add(1);
         Some(value)
     }
 }
 
 /// The length is exact, so `.len()` is available too.
+// A full u32 countdown fits usize on 64-bit targets, but not on 32-bit ones.
+#[cfg(target_pointer_width = "64")]
 impl ExactSizeIterator for Countdown {}
 
 // ---- 3. Making your own collection iterable ---------------------------------------------
@@ -139,13 +149,28 @@ impl<I: Iterator> EveryNthExt for I {}
 
 fn main() {
     println!("1. Iterators from closures");
-    println!("    powers of two up to 100: {:?}", powers_of_two(100).collect::<Vec<_>>());
-    println!("    five dice rolls: {:?}", fake_dice(42).take(5).collect::<Vec<_>>());
+    println!(
+        "    powers of two up to 100: {:?}",
+        powers_of_two(100).collect::<Vec<_>>()
+    );
+    println!(
+        "    five dice rolls: {:?}",
+        fake_dice(42).take(5).collect::<Vec<_>>()
+    );
 
     println!("\n2. A struct implementing Iterator (+ DoubleEnded + ExactSize)");
-    println!("    countdown(5):       {:?}", countdown(5).collect::<Vec<_>>());
-    println!("    countdown(5).rev(): {:?}", countdown(5).rev().collect::<Vec<_>>());
-    println!("    countdown(5).len(): {}", countdown(5).len());
+    println!(
+        "    countdown(5):       {:?}",
+        countdown(5).collect::<Vec<_>>()
+    );
+    println!(
+        "    countdown(5).rev(): {:?}",
+        countdown(5).rev().collect::<Vec<_>>()
+    );
+    println!(
+        "    countdown(5).size_hint(): {:?}",
+        countdown(5).size_hint()
+    );
     let mut both_ends = countdown(4);
     println!(
         "    from both ends: front {:?}, back {:?}, front {:?}, rest {:?}",
@@ -156,7 +181,9 @@ fn main() {
     );
 
     println!("\n3. A collection that works in for loops");
-    let playlist = Playlist { songs: vec![String::from("Imagine"), String::from("Hey Jude")] };
+    let playlist = Playlist {
+        songs: vec![String::from("Imagine"), String::from("Hey Jude")],
+    };
     for song in &playlist {
         println!("    playing {song}");
     }
@@ -164,9 +191,22 @@ fn main() {
     println!("    took ownership: {titles:?}");
 
     println!("\n4. Our own adapter, on any iterator");
-    println!("    (1..=10).every_nth(3): {:?}", (1..=10).every_nth(3).collect::<Vec<_>>());
-    println!("    letters every 2nd:     {:?}", "abcdefg".chars().every_nth(2).collect::<String>());
-    println!("    mixed with built-ins:  {:?}", (1..).map(|n| n * n).every_nth(2).take(4).collect::<Vec<_>>());
+    println!(
+        "    (1..=10).every_nth(3): {:?}",
+        (1..=10).every_nth(3).collect::<Vec<_>>()
+    );
+    println!(
+        "    letters every 2nd:     {:?}",
+        "abcdefg".chars().every_nth(2).collect::<String>()
+    );
+    println!(
+        "    mixed with built-ins:  {:?}",
+        (1..)
+            .map(|n| n * n)
+            .every_nth(2)
+            .take(4)
+            .collect::<Vec<_>>()
+    );
 }
 
 #[cfg(test)]
@@ -190,7 +230,7 @@ mod tests {
     fn countdown_forwards_backwards_and_len() {
         assert_eq!(countdown(3).collect::<Vec<_>>(), [3, 2, 1, 0]);
         assert_eq!(countdown(3).rev().collect::<Vec<_>>(), [0, 1, 2, 3]);
-        assert_eq!(countdown(3).len(), 4);
+        assert_eq!(countdown(3).size_hint(), (4, Some(4)));
         assert_eq!(countdown(0).collect::<Vec<_>>(), [0]);
     }
 
@@ -199,13 +239,15 @@ mod tests {
         let mut c = countdown(3); // 3 2 1 0
         assert_eq!(c.next(), Some(3));
         assert_eq!(c.next_back(), Some(0));
-        assert_eq!(c.len(), 2);
+        assert_eq!(c.size_hint(), (2, Some(2)));
         assert_eq!(c.collect::<Vec<_>>(), [2, 1]);
     }
 
     #[test]
     fn playlist_in_for_loops() {
-        let playlist = Playlist { songs: vec![String::from("a"), String::from("b")] };
+        let playlist = Playlist {
+            songs: vec![String::from("a"), String::from("b")],
+        };
         let borrowed: Vec<&String> = (&playlist).into_iter().collect();
         assert_eq!(borrowed.len(), 2);
         let owned: Vec<String> = playlist.into_iter().collect();
@@ -217,5 +259,15 @@ mod tests {
         assert_eq!((0..10).every_nth(4).collect::<Vec<_>>(), [0, 4, 8]);
         assert_eq!((0..3).every_nth(1).collect::<Vec<_>>(), [0, 1, 2]);
         assert_eq!(std::iter::empty::<u8>().every_nth(2).count(), 0);
+    }
+    #[test]
+    fn iterator_boundaries_keep_all_representable_items() {
+        assert!(powers_of_two(0).next().is_none());
+        let mut c = countdown(u32::MAX);
+        assert_eq!(c.next(), Some(u32::MAX));
+        assert_eq!(c.next_back(), Some(0));
+        let mut zero = countdown(0);
+        assert_eq!(zero.next_back(), Some(0));
+        assert_eq!(zero.next(), None);
     }
 }

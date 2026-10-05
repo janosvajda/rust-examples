@@ -35,7 +35,12 @@ pub struct Face {
 
 impl Face {
     pub fn new() -> Self {
-        Face { x: WIDTH as f32 / 2.0, y: HEIGHT as f32 / 2.0, vx: 3.0, vy: 2.0 }
+        Face {
+            x: WIDTH as f32 / 2.0,
+            y: HEIGHT as f32 / 2.0,
+            vx: 3.0,
+            vy: 2.0,
+        }
     }
 
     /// One frame. With the mouse in the window, steer towards it; without,
@@ -118,7 +123,13 @@ pub fn spawn_firework(particles: &mut Vec<Particle>, x: f32, y: f32, random: &mu
         let angle = random.unit() * std::f32::consts::TAU;
         let speed = 1.0 + random.unit() * 4.0;
         let colour = 0x0080_8080 | (random.next_u32() & 0x00FF_FFFF); // never too dark
-        particles.push(Particle { x, y, vx: speed * angle.cos(), vy: speed * angle.sin(), colour });
+        particles.push(Particle {
+            x,
+            y,
+            vx: speed * angle.cos(),
+            vy: speed * angle.sin(),
+            colour,
+        });
     }
 }
 
@@ -172,10 +183,23 @@ pub fn draw(buffer: &mut [u32], face: &Face, particles: &[Particle]) {
     }
     draw_circle(buffer, face.x, face.y, FACE_RADIUS, FACE_COLOUR);
     for side in [-1.0, 1.0] {
-        draw_circle(buffer, face.x + side * EYE_OFFSET.0, face.y + EYE_OFFSET.1, EYE_RADIUS, EYE_COLOUR);
+        draw_circle(
+            buffer,
+            face.x + side * EYE_OFFSET.0,
+            face.y + EYE_OFFSET.1,
+            EYE_RADIUS,
+            EYE_COLOUR,
+        );
     }
     let (width, height) = MOUTH_SIZE;
-    draw_rectangle(buffer, face.x - width / 2.0, face.y + MOUTH_OFFSET_Y, width, height, MOUTH_COLOUR);
+    draw_rectangle(
+        buffer,
+        face.x - width / 2.0,
+        face.y + MOUTH_OFFSET_Y,
+        width,
+        height,
+        MOUTH_COLOUR,
+    );
 }
 
 #[cfg(test)]
@@ -211,27 +235,50 @@ mod tests {
         let mut buffer = vec![0; WIDTH * HEIGHT];
         draw_circle(&mut buffer, -50.0, -50.0, 80.0, 1);
         draw_circle(&mut buffer, 10_000.0, 10_000.0, 80.0, 1);
-        draw_rectangle(&mut buffer, WIDTH as f32 - 5.0, HEIGHT as f32 - 5.0, 100.0, 100.0, 1);
+        draw_rectangle(
+            &mut buffer,
+            WIDTH as f32 - 5.0,
+            HEIGHT as f32 - 5.0,
+            100.0,
+            100.0,
+            1,
+        );
     }
 
     #[test]
     fn the_face_never_leaves_the_window() {
         // The mouse in every corner, for a long time: the case that used to
         // crash (an unsigned subtraction below zero) and push the face outside.
-        let corners = [(0.0, 0.0), (WIDTH as f32, 0.0), (0.0, HEIGHT as f32), (WIDTH as f32, HEIGHT as f32)];
+        let corners = [
+            (0.0, 0.0),
+            (WIDTH as f32, 0.0),
+            (0.0, HEIGHT as f32),
+            (WIDTH as f32, HEIGHT as f32),
+        ];
         for corner in corners {
             let mut face = Face::new();
             for _ in 0..500 {
                 face.update(Some(corner));
-                assert!((FACE_RADIUS..=WIDTH as f32 - FACE_RADIUS).contains(&face.x), "{face:?}");
-                assert!((FACE_RADIUS..=HEIGHT as f32 - FACE_RADIUS).contains(&face.y), "{face:?}");
+                assert!(
+                    (FACE_RADIUS..=WIDTH as f32 - FACE_RADIUS).contains(&face.x),
+                    "{face:?}"
+                );
+                assert!(
+                    (FACE_RADIUS..=HEIGHT as f32 - FACE_RADIUS).contains(&face.y),
+                    "{face:?}"
+                );
             }
         }
     }
 
     #[test]
     fn without_a_mouse_it_bounces() {
-        let mut face = Face { x: WIDTH as f32 - FACE_RADIUS - 1.0, y: 240.0, vx: 5.0, vy: 0.0 };
+        let mut face = Face {
+            x: WIDTH as f32 - FACE_RADIUS - 1.0,
+            y: 240.0,
+            vx: 5.0,
+            vy: 0.0,
+        };
         face.update(None);
         assert_eq!(face.vx, -5.0); // reversed at the right wall
         assert_eq!(face.x, WIDTH as f32 - FACE_RADIUS); // and kept inside

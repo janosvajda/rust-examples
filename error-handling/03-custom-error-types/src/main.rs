@@ -62,7 +62,9 @@ fn get_number(text: &str, key: &str, max: u32) -> Result<u32, ConfigError> {
         .filter_map(|line| line.split_once('='))
         .find(|(k, _)| k.trim() == key)
         .map(|(_, v)| v.trim())
-        .ok_or_else(|| ConfigError::Missing { key: key.to_string() })?;
+        .ok_or_else(|| ConfigError::Missing {
+            key: key.to_string(),
+        })?;
 
     let value: u32 = raw.parse().map_err(|source| ConfigError::NotANumber {
         key: key.to_string(),
@@ -70,7 +72,11 @@ fn get_number(text: &str, key: &str, max: u32) -> Result<u32, ConfigError> {
     })?;
 
     if value > max {
-        return Err(ConfigError::OutOfRange { key: key.to_string(), value, max });
+        return Err(ConfigError::OutOfRange {
+            key: key.to_string(),
+            value,
+            max,
+        });
     }
     Ok(value)
 }
@@ -123,7 +129,7 @@ impl From<std::io::Error> for AppError {
     }
 }
 
-fn start_server(path: &str) -> Result<ServerConfig, AppError> {
+fn start_server(path: impl AsRef<std::path::Path>) -> Result<ServerConfig, AppError> {
     let text = std::fs::read_to_string(path)?; // io::Error → AppError::Io
     let config = load_config(&text)?; // ConfigError → AppError::Config
     Ok(config)
@@ -166,7 +172,7 @@ fn main() {
     println!("\n3. `?` converts errors with From, and source() keeps the chain");
     let path = std::env::temp_dir().join("rust-examples-config.txt");
     std::fs::write(&path, "port=eighty\nworkers=4").unwrap();
-    for file in [path.to_str().unwrap(), "/no/such/config.txt"] {
+    for file in [path.as_path(), std::path::Path::new("/no/such/config.txt")] {
         if let Err(error) = start_server(file) {
             println!("    error: {}", report(&error));
         }
@@ -183,7 +189,10 @@ mod tests {
     fn valid_config() {
         assert_eq!(
             load_config("port = 80\nworkers = 2"),
-            Ok(ServerConfig { port: 80, workers: 2 })
+            Ok(ServerConfig {
+                port: 80,
+                workers: 2
+            })
         );
     }
 
@@ -192,14 +201,27 @@ mod tests {
         // assert_matches! checks the shape of a value against a pattern, and on failure
         // prints the value it actually got.
         assert_matches!(load_config("workers=2"), Err(ConfigError::Missing { key }) if key == "port");
-        assert_matches!(load_config("port=x\nworkers=2"), Err(ConfigError::NotANumber { .. }));
-        assert_matches!(load_config("port=80\nworkers=99"), Err(ConfigError::OutOfRange { value: 99, max: 64, .. }));
+        assert_matches!(
+            load_config("port=x\nworkers=2"),
+            Err(ConfigError::NotANumber { .. })
+        );
+        assert_matches!(
+            load_config("port=80\nworkers=99"),
+            Err(ConfigError::OutOfRange {
+                value: 99,
+                max: 64,
+                ..
+            })
+        );
     }
 
     #[test]
     fn display_message_is_human_readable() {
         let error = load_config("port=80\nworkers=99").unwrap_err();
-        assert_eq!(error.to_string(), "setting `workers` is 99, but the maximum is 64");
+        assert_eq!(
+            error.to_string(),
+            "setting `workers` is 99, but the maximum is 64"
+        );
     }
 
     #[test]

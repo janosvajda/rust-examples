@@ -4,7 +4,7 @@
 
 ## The idea in one sentence
 
-Don't load a big file into memory: read one line at a time, update a small summary, and forget the line, so the memory you need stays the same whether the file has a thousand lines or a billion.
+Don't load a big file into memory: read one line at a time, update a small summary, and forget the line. Then the memory you need stays the same, however long the file gets.
 
 ## Two ways to read a file
 
@@ -19,7 +19,7 @@ while let Some(complete) = next_line(&mut input, &mut buf)? {   // ONE line in m
 }
 ```
 
-The first is perfect for a config file. For a server log that grows by gigabytes a day, it needs as much memory as the file is large, and fails when the file is bigger than your RAM. The second is called **streaming**: memory use doesn't depend on the file size at all.
+The first is perfect for a config file. For a server log that grows by gigabytes a day, it needs as much memory as the file is large, and can fail when allocating or reading a very large file. The second is called **streaming**: it only ever holds one line, plus a small summary per sensor.
 
 ## The program
 
@@ -32,7 +32,7 @@ timestamp,sensor,value
 …
 ```
 
-It then streams the log and keeps only a summary per sensor: count, minimum, maximum and sum.
+It then streams the log and keeps only a summary per sensor: count, minimum, maximum and running mean.
 
 ```text
     sensor     count     min     max    mean
@@ -41,19 +41,19 @@ It then streams the log and keeps only a summary per sensor: count, minimum, max
     …
 ```
 
-On an Apple M2, with `cargo run --release`, streaming the 60 MB took about 0.13 seconds. The **whole program's** peak memory was about **1.7 MB**: less than 3% of the file's size. With 600 MB or 6 GB of data, it would still be about the same.
+On an Apple M2, with `cargo run --release`, streaming the 60 MB took about 0.13 seconds. The **whole program's** peak memory was about **1.7 MB**: less than 3% of the file's size. For the same sensor IDs and bounded lines, retained memory remains similar as readings grow. These figures describe an earlier run, not a guarantee for every platform.
 
 ## What makes it streaming
 
 ### 1. Keep a summary, not the data
 
 ```rust
-struct SensorStats { count: u64, min: f64, max: f64, sum: f64 }
+struct SensorStats { count: u64, min: f64, max: f64, mean: f64 }
 ```
 
-Four numbers per sensor, updated with each line. The mean is computed at the end: `sum / count`. Any question you can answer by **updating a running result** works this way: counts, sums, minimum, maximum, mean, "the last value seen".
+Four numbers per sensor, updated with each line. The mean is a **running mean**: each new reading moves it a fraction of the way towards the new value, `mean += (value - mean) / count`, so the program never needs a list of the values. Any question you can answer by **updating a running result** works this way: counts, sums, minimum, maximum, mean, "the last value seen".
 
-Some questions **can't** be streamed this simply. The **median** needs all the values, sorted ([lesson 4](../04-aggregation-and-statistics/)). For those, you either keep the data, or use approximate algorithms built for streams.
+Some questions **can't** be streamed this simply. The exact median needs all the values, sorted ([lesson 4](../04-aggregation-and-statistics/)). For huge data there are approximate methods that estimate the median from a small summary instead.
 
 ### 2. Reuse one buffer, and read bytes, not text
 
@@ -67,10 +67,10 @@ fn next_line(input: &mut impl BufRead, buf: &mut Vec<u8>) -> io::Result<Option<b
 }
 ```
 
-The same `Vec<u8>` is cleared and reused for every line, so the memory is allocated once. Three details make it robust:
+The same `Vec<u8>` is cleared and reused for every line, so no new memory is needed per line. (The per-sensor map still grows when a new sensor ID appears.) Three details make it robust:
 
 - **Bytes first, then text.** The line is read as raw bytes and turned into text with `std::str::from_utf8` afterwards. The obvious `for line in input.lines()` returns an **error** for a line that isn't valid UTF-8, and with `line?` that error ends the whole run, possibly hours into a big file, because of one corrupt byte. Here it's just one bad line.
-- **A maximum line length.** `read_line` keeps growing its buffer until it finds a newline. A broken file with gigabytes and no newline would fill the memory. `take(MAX_LINE_BYTES + 1)` stops reading at 1,025 bytes, and the rest of the over-long line is skipped in chunks without being stored.
+- **A maximum line length.** The limit is 1,024 bytes, including a line ending when present. `read_line` keeps growing its buffer until it finds a newline; a broken file with gigabytes and no newline would fill the memory. `take(MAX_LINE_BYTES + 1)` reads at most 1,025 bytes, using one extra byte to detect an oversized line. The rest is skipped in chunks without being stored, preserving the following line.
 - **Bad lines are counted, not just skipped.** The summary ends with `bad lines: 0`. If that number is large, something upstream is broken, and you'd want to know.
 
 ### 3. Buffer the reading and writing
@@ -80,7 +80,7 @@ The same `Vec<u8>` is cleared and reused for every line, so the memory is alloca
 ### 4. Accept any input: `impl BufRead`
 
 ```rust
-fn summarize(mut input: impl BufRead) -> io::Result<BTreeMap<String, SensorStats>>
+fn summarize(mut input: impl BufRead) -> io::Result<Summary>
 ```
 
 `summarize` doesn't open a file itself. It takes **anything that can be read line by line**:
@@ -95,13 +95,13 @@ That makes the function easy to test with a few lines of text, while the real pr
 
 ### 5. Results come out sorted
 
-The summary is a `BTreeMap`, not a `HashMap`, so the sensors print in alphabetical order. A `HashMap` would print them in a different order on every run.
+The summary is a `BTreeMap`, not a `HashMap`, so the sensors print in alphabetical order. A `HashMap` has no guaranteed iteration order; `BTreeMap` supplies key order.
 
 ## Edge cases
 
 | Edge case | What happens | Test |
 |---|---|---|
-| a file far bigger than memory | streamed: about 1.7 MB of memory for 60 MB, the same for 60 GB | (the demo) |
+| a file far bigger than memory | streamed with a bounded line buffer; the summary grows with distinct sensor IDs | (the demo) |
 | a malformed line | counted in `bad_lines`, the run continues | `counts_bad_lines_and_handles_a_missing_final_newline` |
 | `NaN`, `inf` as a value | counted as bad: they parse as `f64`, so `is_finite()` checks them | same |
 | a line that isn't valid UTF-8 | counted as bad, the run continues | `invalid_utf8_and_windows_line_endings` |
@@ -112,6 +112,8 @@ The summary is a `BTreeMap`, not a `HashMap`, so the sensors print in alphabetic
 | a new sensor appears halfway through | gets its own entry: the map grows with the number of **sensors**, never with the number of lines | `summarizes_per_sensor` |
 
 The last row is the limit of "constant memory": if every line had a **different** key, for example a unique id, the map itself would grow with the file. Streaming keeps memory flat only when the summary has a fixed number of entries.
+
+Each row must have exactly three fields, with a non-empty timestamp and sensor. Bad rows, invalid UTF-8 and values that aren't finite numbers are counted as bad lines, never silently skipped.
 
 ## Run it
 

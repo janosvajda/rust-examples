@@ -182,7 +182,10 @@ impl DirectedGraph {
             match colour[next] {
                 Colour::Grey => {
                     // `next` is on the current path: we've found a loop.
-                    let start = path.iter().position(|&n| n == next).expect("grey nodes are on the path");
+                    let start = path
+                        .iter()
+                        .position(|&n| n == next)
+                        .expect("grey nodes are on the path");
                     let mut cycle = path[start..].to_vec();
                     cycle.push(next);
                     return Some(cycle);
@@ -255,7 +258,9 @@ mod tests {
         // 0 can be ordered; 1, 2, 3 are the cycle; 4 depends on it.
         assert_eq!(
             graph.topological_sort(),
-            Err(CycleError { unordered: vec![1, 2, 3, 4] })
+            Err(CycleError {
+                unordered: vec![1, 2, 3, 4]
+            })
         );
         assert_eq!(graph.find_cycle(), Some(vec![1, 2, 3, 1]));
     }

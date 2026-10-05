@@ -4,7 +4,7 @@
 
 ## The idea in one sentence
 
-CSV looks like "split each line at the commas", but a field can contain commas and quotes, so reading it correctly takes a little more care, and a missing file or a bad row must be an error, never silently empty data.
+CSV looks like "split each line at the commas", but a field can contain commas and quotes, so reading it correctly takes a little more care. And a missing file or a bad row must be an error, never silently empty data.
 
 ## The data
 
@@ -121,6 +121,8 @@ Every data processing job has this shape: **read, keep what you need, change it,
 | run from another folder | works: the path comes from `CARGO_MANIFEST_DIR` | `the_data_file_reads_completely` |
 
 Two choices here are deliberate. This lesson **stops at the first bad row**, which is right for small files you control. [Lesson 3](../03-cleaning-and-validation/) shows the alternative for big, messy files: keep going and collect every problem. And a byte-order mark (BOM, the invisible `\u{feff}` some Windows tools put at the start of a file) only affects the header line here, which is skipped. A program that reads header names should strip it.
+
+A quote may only start a field. Once a quoted field is closed, only a comma or the end of the line may follow, so `a,"b"x,c` and `a,b"c,d` are errors; a doubled quote `""` inside a quoted field is still fine.
 
 ## When to use a crate instead
 

@@ -97,6 +97,7 @@ pub fn fake_uart() -> UartRegisters {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum UartError {
+    InvalidBaudRate,
     NotEnabled,
     /// The hardware is still busy sending the previous byte: try again later.
     WouldBlock,
@@ -112,20 +113,34 @@ impl<'a> Uart<'a> {
 
     /// Configures the UART: baud rate, parity, then switches it on. The
     /// order matters on real chips: configure first, enable last.
-    pub fn enable(registers: &'a UartRegisters, baud: u32, parity: bool) -> Self {
-        registers.baud_divisor.write(Self::CLOCK_HZ / baud);
+    pub fn enable(
+        registers: &'a UartRegisters,
+        baud: u32,
+        parity: bool,
+    ) -> Result<Self, UartError> {
+        let divisor = Self::CLOCK_HZ
+            .checked_div(baud)
+            .filter(|&n| n > 0)
+            .ok_or(UartError::InvalidBaudRate)?;
+        registers.baud_divisor.write(divisor);
         registers.control.modify(|bits| {
-            let bits = if parity { bits | CONTROL_PARITY } else { bits & !CONTROL_PARITY };
+            let bits = if parity {
+                bits | CONTROL_PARITY
+            } else {
+                bits & !CONTROL_PARITY
+            };
             bits | CONTROL_ENABLE | CONTROL_TX_ENABLE
         });
-        Uart { registers }
+        Ok(Uart { registers })
     }
 
     /// Tries to send one byte without waiting. Embedded drivers often work
     /// this way, so the program can do other things while the hardware is
     /// busy, instead of spinning in a loop.
     pub fn try_send(&self, byte: u8) -> Result<(), UartError> {
-        if self.registers.control.read() & CONTROL_ENABLE == 0 {
+        if self.registers.control.read() & (CONTROL_ENABLE | CONTROL_TX_ENABLE)
+            != (CONTROL_ENABLE | CONTROL_TX_ENABLE)
+        {
             return Err(UartError::NotEnabled);
         }
         if self.registers.status.read() & STATUS_TX_READY == 0 {
@@ -138,7 +153,9 @@ impl<'a> Uart<'a> {
     }
 
     pub fn disable(&self) {
-        self.registers.control.modify(|bits| bits & !(CONTROL_ENABLE | CONTROL_TX_ENABLE));
+        self.registers
+            .control
+            .modify(|bits| bits & !(CONTROL_ENABLE | CONTROL_TX_ENABLE));
     }
 }
 
@@ -163,16 +180,22 @@ impl SimulatedWire {
 }
 
 /// Sends a whole message, letting the "hardware" run whenever it's busy.
-pub fn send_message(uart: &Uart, wire: &mut SimulatedWire, registers: &UartRegisters, text: &str) -> usize {
+pub fn send_message(uart: &Uart, wire: &mut SimulatedWire, text: &str) -> Result<usize, UartError> {
     let mut waits = 0;
     for &byte in text.as_bytes() {
-        while uart.try_send(byte) == Err(UartError::WouldBlock) {
-            wire.tick(registers); // on a real chip, time passes instead
-            waits += 1;
+        loop {
+            match uart.try_send(byte) {
+                Ok(()) => break,
+                Err(UartError::WouldBlock) => {
+                    wire.tick(uart.registers);
+                    waits += 1;
+                }
+                Err(error) => return Err(error),
+            }
         }
     }
-    wire.tick(registers); // let the last byte go out
-    waits
+    wire.tick(uart.registers);
+    Ok(waits)
 }
 
 fn main() {
@@ -181,12 +204,26 @@ fn main() {
     println!("1. Bit manipulation on the control register");
     registers.control.write(0);
     registers.control.modify(|b| b | CONTROL_PARITY); // set a bit
-    println!("    after setting PARITY:  {:#010b}", registers.control.read());
-    registers.control.modify(|b| b | CONTROL_ENABLE | CONTROL_TX_ENABLE); // set two more
-    println!("    after setting ENABLE:  {:#010b}", registers.control.read());
+    println!(
+        "    after setting PARITY:  {:#010b}",
+        registers.control.read()
+    );
+    registers
+        .control
+        .modify(|b| b | CONTROL_ENABLE | CONTROL_TX_ENABLE); // set two more
+    println!(
+        "    after setting ENABLE:  {:#010b}",
+        registers.control.read()
+    );
     registers.control.modify(|b| b & !CONTROL_PARITY); // clear a bit
-    println!("    after clearing PARITY: {:#010b}", registers.control.read());
-    println!("    is TX enabled? {}", registers.control.read() & CONTROL_TX_ENABLE != 0);
+    println!(
+        "    after clearing PARITY: {:#010b}",
+        registers.control.read()
+    );
+    println!(
+        "    is TX enabled? {}",
+        registers.control.read() & CONTROL_TX_ENABLE != 0
+    );
     registers.control.write(0);
 
     println!("\n2. The register block's layout matches the datasheet");
@@ -197,20 +234,28 @@ fn main() {
         ("control", &registers.control),
         ("baud_divisor", &registers.baud_divisor),
     ] {
-        println!("    {name:<13} at offset {:#04x}", field as *const Register as usize - base);
+        println!(
+            "    {name:<13} at offset {:#04x}",
+            field as *const Register as usize - base
+        );
     }
 
     println!("\n3. A safe driver");
-    let unconfigured = Uart { registers: &registers };
-    println!("    sending before enabling: {:?}", unconfigured.try_send(b'x'));
-    let uart = Uart::enable(&registers, 115_200, false);
+    let unconfigured = Uart {
+        registers: &registers,
+    };
+    println!(
+        "    sending before enabling: {:?}",
+        unconfigured.try_send(b'x')
+    );
+    let uart = Uart::enable(&registers, 115_200, false).unwrap();
     println!(
         "    enabled at 115200 baud: divisor = {} (16 MHz ÷ 115200)",
         registers.baud_divisor.read()
     );
 
     let mut wire = SimulatedWire { sent: Vec::new() };
-    let waits = send_message(&uart, &mut wire, &registers, "Hello, hardware!");
+    let waits = send_message(&uart, &mut wire, "Hello, hardware!").unwrap();
     println!(
         "    the wire received {:?}, after waiting for the hardware {waits} times",
         String::from_utf8_lossy(&wire.sent)
@@ -243,16 +288,19 @@ mod tests {
     #[test]
     fn enable_sets_divisor_and_flags() {
         let regs = fake_uart();
-        Uart::enable(&regs, 9_600, true);
+        Uart::enable(&regs, 9_600, true).unwrap();
         assert_eq!(regs.baud_divisor.read(), 16_000_000 / 9_600);
         let control = regs.control.read();
-        assert_eq!(control & (CONTROL_ENABLE | CONTROL_TX_ENABLE | CONTROL_PARITY), 0b10011);
+        assert_eq!(
+            control & (CONTROL_ENABLE | CONTROL_TX_ENABLE | CONTROL_PARITY),
+            0b10011
+        );
     }
 
     #[test]
     fn sending_waits_for_the_hardware() {
         let regs = fake_uart();
-        let uart = Uart::enable(&regs, 115_200, false);
+        let uart = Uart::enable(&regs, 115_200, false).unwrap();
         assert_eq!(uart.try_send(b'a'), Ok(()));
         assert_eq!(uart.try_send(b'b'), Err(UartError::WouldBlock)); // still busy
         let mut wire = SimulatedWire { sent: Vec::new() };
@@ -265,17 +313,38 @@ mod tests {
     #[test]
     fn whole_message_arrives() {
         let regs = fake_uart();
-        let uart = Uart::enable(&regs, 115_200, false);
+        let uart = Uart::enable(&regs, 115_200, false).unwrap();
         let mut wire = SimulatedWire { sent: Vec::new() };
-        send_message(&uart, &mut wire, &regs, "OK");
+        send_message(&uart, &mut wire, "OK").unwrap();
         assert_eq!(wire.sent, b"OK");
     }
 
     #[test]
     fn disabled_uart_refuses_to_send() {
         let regs = fake_uart();
-        let uart = Uart::enable(&regs, 115_200, false);
+        let uart = Uart::enable(&regs, 115_200, false).unwrap();
         uart.disable();
         assert_eq!(uart.try_send(b'x'), Err(UartError::NotEnabled));
+    }
+    #[test]
+    fn invalid_configuration_and_disabled_transmission_are_errors() {
+        let registers = fake_uart();
+        assert!(matches!(
+            Uart::enable(&registers, 0, false),
+            Err(UartError::InvalidBaudRate)
+        ));
+        assert!(matches!(
+            Uart::enable(&registers, Uart::CLOCK_HZ + 1, false),
+            Err(UartError::InvalidBaudRate)
+        ));
+        let uart = Uart::enable(&registers, 9600, false).unwrap();
+        registers.control.modify(|bits| bits & !CONTROL_TX_ENABLE);
+        assert_eq!(uart.try_send(b'x'), Err(UartError::NotEnabled));
+        let mut wire = SimulatedWire { sent: Vec::new() };
+        assert_eq!(
+            send_message(&uart, &mut wire, "x"),
+            Err(UartError::NotEnabled)
+        );
+        assert!(wire.sent.is_empty());
     }
 }

@@ -134,7 +134,7 @@ mod tests {
         let env = DeploymentEnv::detect();
         assert_eq!(env.name(), "Staging");
         assert_eq!(env.table_name(), "Users_Staging");
-        matches!(env.source(), ResolutionSource::ExplicitVar);
+        assert!(matches!(env.source(), ResolutionSource::ExplicitVar));
         unsafe { std::env::remove_var("ENVIRONMENT_NAME") }; // SAFETY: as in `clear_env_vars`
     }
 
@@ -147,7 +147,7 @@ mod tests {
         let env = DeploymentEnv::detect();
         assert_eq!(env.name(), "Local");
         assert_eq!(env.table_name(), "Users_Local");
-        matches!(env.source(), ResolutionSource::LocalTooling);
+        assert!(matches!(env.source(), ResolutionSource::LocalTooling));
         unsafe { std::env::remove_var("AWS_SAM_LOCAL") }; // SAFETY: as in `clear_env_vars`
     }
 
@@ -159,7 +159,7 @@ mod tests {
         let env = DeploymentEnv::detect();
         assert_eq!(env.name(), DEFAULT_REMOTE_ENVIRONMENT);
         assert_eq!(env.table_name(), "Users_Prod");
-        matches!(env.source(), ResolutionSource::AwsRuntime);
+        assert!(matches!(env.source(), ResolutionSource::AwsRuntime));
         unsafe { std::env::remove_var("AWS_EXECUTION_ENV") }; // SAFETY: as in `clear_env_vars`
     }
 }

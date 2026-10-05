@@ -57,7 +57,10 @@ impl<T> Pair<T> {
     }
 
     fn swap(self) -> Pair<T> {
-        Pair { first: self.second, second: self.first }
+        Pair {
+            first: self.second,
+            second: self.first,
+        }
     }
 }
 
@@ -65,7 +68,11 @@ impl<T> Pair<T> {
 /// `Pair<Vec<i32>>` still exists, it just doesn't get `bigger()`.
 impl<T: PartialOrd + Display> Pair<T> {
     fn bigger(&self) -> &T {
-        if self.first >= self.second { &self.first } else { &self.second }
+        if self.first >= self.second {
+            &self.first
+        } else {
+            &self.second
+        }
     }
 }
 
@@ -115,10 +122,12 @@ fn main() {
     println!("    swapped: {words:?}, bigger: {}", words.bigger());
     let lists = Pair::new(vec![1], vec![2, 3]); // no `bigger()`: Vec isn't Display
     println!("    {lists:?}");
-    println!("    estimates: {:?}, {:?}, {:?}",
+    println!(
+        "    estimates: {:?}, {:?}, {:?}",
         Measurement::Exact(20.5).estimate(),
         Measurement::Range { low: 10, high: 20 }.estimate(),
-        Measurement::<f64>::Unknown.estimate());
+        Measurement::<f64>::Unknown.estimate()
+    );
 
     println!("\n4. Two type parameters");
     let capitals = [("Hungary", "Budapest"), ("Austria", "Vienna")];
@@ -154,7 +163,10 @@ mod tests {
 
     #[test]
     fn generic_enum() {
-        assert_eq!(Measurement::Range { low: 10, high: 20 }.estimate(), Some(15));
+        assert_eq!(
+            Measurement::Range { low: 10, high: 20 }.estimate(),
+            Some(15)
+        );
         assert_eq!(Measurement::Exact(1.5).estimate(), Some(1.5));
         assert_eq!(Measurement::<i32>::Unknown.estimate(), None);
     }

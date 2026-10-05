@@ -177,7 +177,12 @@ impl<T> DoublyLinkedList<T> {
         self.tail.take().map(|old_tail| {
             // `upgrade` turns the Weak back into an Rc. It succeeds here because
             // the previous node is still owned by the node before it (or the head).
-            match old_tail.borrow_mut().prev.take().and_then(|weak| weak.upgrade()) {
+            match old_tail
+                .borrow_mut()
+                .prev
+                .take()
+                .and_then(|weak| weak.upgrade())
+            {
                 Some(new_tail) => {
                     // Drop the new tail's strong link to the node we're removing.
                     new_tail.borrow_mut().next = None;

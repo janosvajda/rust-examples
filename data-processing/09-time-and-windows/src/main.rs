@@ -47,7 +47,8 @@ fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
     let day_of_era = z - era * 146_097;
-    let year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
     let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     let mp = (5 * day_of_year + 2) / 153;
     let day = day_of_year - (153 * mp + 2) / 5 + 1;
@@ -60,12 +61,22 @@ impl Timestamp {
     /// Parses `YYYY-MM-DD HH:MM:SS`, and rejects dates that don't exist.
     fn parse(text: &str) -> Result<Timestamp, String> {
         let bad = || format!("`{text}` is not a valid `YYYY-MM-DD HH:MM:SS` time");
-        let (date, time) = text.trim().split_once(' ').ok_or_else(bad)?;
+        let text = text.trim();
+        let (date, time) = text.split_once(' ').ok_or_else(bad)?;
         let numbers = |s: &str, sep: char| -> Result<Vec<i64>, String> {
-            s.split(sep).map(|n| n.parse::<i64>().map_err(|_| bad())).collect()
+            s.split(sep)
+                .map(|n| {
+                    if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) {
+                        return Err(bad());
+                    }
+                    n.parse::<i64>().map_err(|_| bad())
+                })
+                .collect()
         };
         let (d, t) = (numbers(date, '-')?, numbers(time, ':')?);
-        let (&[year, month, day], &[hour, minute, second]) = (&d[..], &t[..]) else { return Err(bad()) };
+        let (&[year, month, day], &[hour, minute, second]) = (&d[..], &t[..]) else {
+            return Err(bad());
+        };
         // Years outside 1..=9999 are surely typos, and astronomically large ones
         // would overflow the seconds calculation.
         if !(1..=9999).contains(&year) {
@@ -74,10 +85,12 @@ impl Timestamp {
         if !(1..=12).contains(&month) || !(1..=days_in_month(year, month)).contains(&day) {
             return Err(format!("{year}-{month:02}-{day:02} doesn't exist"));
         }
-        if hour > 23 || minute > 59 || second > 59 {
+        if !(0..=23).contains(&hour) || !(0..=59).contains(&minute) || !(0..=59).contains(&second) {
             return Err(bad());
         }
-        Ok(Timestamp(days_from_civil(year, month, day) * DAY + hour * 3600 + minute * MINUTE + second))
+        Ok(Timestamp(
+            days_from_civil(year, month, day) * DAY + hour * 3600 + minute * MINUTE + second,
+        ))
     }
 }
 
@@ -85,7 +98,13 @@ impl fmt::Display for Timestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (days, secs) = (self.0.div_euclid(DAY), self.0.rem_euclid(DAY));
         let (year, month, day) = civil_from_days(days);
-        write!(f, "{year}-{month:02}-{day:02} {:02}:{:02}:{:02}", secs / 3600, secs / 60 % 60, secs % 60)
+        write!(
+            f,
+            "{year}-{month:02}-{day:02} {:02}:{:02}:{:02}",
+            secs / 3600,
+            secs / 60 % 60,
+            secs % 60
+        )
     }
 }
 
@@ -101,6 +120,9 @@ fn parse_readings(text: &str) -> Result<Vec<Reading>, String> {
         .map(|line| {
             let mut fields = line.split(',');
             let (at, _sensor, value) = (fields.next(), fields.next(), fields.next());
+            if fields.next().is_some() || _sensor.is_none_or(|s| s.trim().is_empty()) {
+                return Err(format!("expected timestamp,sensor,value in `{line}`"));
+            }
             let at = Timestamp::parse(at.unwrap_or_default())?;
             let celsius = value
                 .and_then(|v| v.trim().parse::<f64>().ok())
@@ -115,18 +137,26 @@ fn parse_readings(text: &str) -> Result<Vec<Reading>, String> {
 
 /// The start of the window a timestamp falls in: 00:07 → 00:00 for 15-minute windows.
 fn window_start(at: Timestamp, size: i64) -> Timestamp {
+    assert!(size > 0, "window size must be positive");
     Timestamp(at.0 - at.0.rem_euclid(size))
 }
 
-/// Average temperature per window. Windows without readings simply don't appear.
+/// Average temperature per window; empty windows are omitted.
 fn average_per_window(readings: &[Reading], size: i64) -> BTreeMap<Timestamp, (usize, f64)> {
-    let mut sums: BTreeMap<Timestamp, (usize, f64)> = BTreeMap::new();
+    let mut groups: BTreeMap<Timestamp, Vec<f64>> = BTreeMap::new();
     for r in readings {
-        let entry = sums.entry(window_start(r.at, size)).or_default();
-        entry.0 += 1;
-        entry.1 += r.celsius;
+        groups
+            .entry(window_start(r.at, size))
+            .or_default()
+            .push(r.celsius);
     }
-    sums.into_iter().map(|(start, (count, sum))| (start, (count, sum / count as f64))).collect()
+    groups
+        .into_iter()
+        .map(|(start, values)| {
+            let count = values.len();
+            (start, (count, values.iter().sum::<f64>() / count as f64))
+        })
+        .collect()
 }
 
 // ---- 3. Gaps: when the data stops ------------------------------------------------------------------
@@ -134,6 +164,7 @@ fn average_per_window(readings: &[Reading], size: i64) -> BTreeMap<Timestamp, (u
 /// A gap is a pause between two readings longer than the expected interval.
 /// Returns (last reading before the gap, first reading after it, readings missed).
 fn find_gaps(sorted: &[Reading], expected_interval: i64) -> Vec<(Timestamp, Timestamp, i64)> {
+    assert!(expected_interval > 0, "expected interval must be positive");
     sorted
         .array_windows()
         .filter(|[a, b]| b.at.0 - a.at.0 > expected_interval)
@@ -143,7 +174,12 @@ fn find_gaps(sorted: &[Reading], expected_interval: i64) -> Vec<(Timestamp, Time
 
 fn main() -> Result<(), String> {
     println!("1. Text → timestamps: real dates only");
-    for text in ["2024-09-10 23:55:00", "2024-02-29 12:00:00", "2023-02-29 12:00:00", "2024-13-01 00:00:00"] {
+    for text in [
+        "2024-09-10 23:55:00",
+        "2024-02-29 12:00:00",
+        "2023-02-29 12:00:00",
+        "2024-13-01 00:00:00",
+    ] {
         match Timestamp::parse(text) {
             Ok(ts) => println!("    {text} → {} seconds since 1970", ts.0),
             Err(error) => println!("    {text} → error: {error}"),
@@ -153,21 +189,35 @@ fn main() -> Result<(), String> {
     let mut readings = parse_readings(include_str!("../data/readings.csv"))?;
 
     println!("\n2. Out of order: the file isn't sorted by time");
-    let out_of_order = readings.array_windows().filter(|[a, b]| b.at < a.at).count();
+    let out_of_order = readings
+        .array_windows()
+        .filter(|[a, b]| b.at < a.at)
+        .count();
     println!("    {out_of_order} readings arrived earlier than the one before them");
     readings.sort_by_key(|r| r.at); // a number sorts correctly, always
-    println!("    sorted: {} → {}", readings[0].at, readings[readings.len() - 1].at);
+    println!(
+        "    sorted: {} → {}",
+        readings[0].at,
+        readings[readings.len() - 1].at
+    );
     let span = readings[readings.len() - 1].at.0 - readings[0].at.0;
     println!("    span: {} minutes, across midnight", span / MINUTE);
 
     println!("\n3. Gaps: the sensor reports every 5 minutes");
     for (before, after, missed) in find_gaps(&readings, 5 * MINUTE) {
-        println!("    silent from {before} to {after}: {} minutes, {missed} readings missing", (after.0 - before.0) / MINUTE);
+        println!(
+            "    silent from {before} to {after}: {} minutes, {missed} readings missing",
+            (after.0 - before.0) / MINUTE
+        );
     }
 
     println!("\n4. 15-minute windows");
     for (start, (count, average)) in average_per_window(&readings, 15 * MINUTE) {
-        let note = if count < 3 { "  ← incomplete window" } else { "" };
+        let note = if count < 3 {
+            "  ← incomplete window"
+        } else {
+            ""
+        };
         println!("    {start}  readings: {count}, average {average:.2} °C{note}");
     }
     Ok(())
@@ -181,9 +231,18 @@ mod tests {
     fn known_timestamps() {
         // reference values from Python's datetime, in UTC
         assert_eq!(Timestamp::parse("1970-01-01 00:00:00"), Ok(Timestamp(0)));
-        assert_eq!(Timestamp::parse("2024-09-10 12:00:00"), Ok(Timestamp(1_725_969_600)));
-        assert_eq!(Timestamp::parse("2024-02-29 23:59:59"), Ok(Timestamp(1_709_251_199)));
-        assert_eq!(Timestamp::parse("2000-03-01 00:00:00"), Ok(Timestamp(951_868_800)));
+        assert_eq!(
+            Timestamp::parse("2024-09-10 12:00:00"),
+            Ok(Timestamp(1_725_969_600))
+        );
+        assert_eq!(
+            Timestamp::parse("2024-02-29 23:59:59"),
+            Ok(Timestamp(1_709_251_199))
+        );
+        assert_eq!(
+            Timestamp::parse("2000-03-01 00:00:00"),
+            Ok(Timestamp(951_868_800))
+        );
     }
 
     #[test]
@@ -199,7 +258,10 @@ mod tests {
     #[test]
     fn formats_people_actually_write() {
         // no zero padding: accepted, and means the same moment
-        assert_eq!(Timestamp::parse("2024-9-1 9:05:00"), Timestamp::parse("2024-09-01 09:05:00"));
+        assert_eq!(
+            Timestamp::parse("2024-9-1 9:05:00"),
+            Timestamp::parse("2024-09-01 09:05:00")
+        );
         // ISO 8601 with a T, and a time zone suffix: rejected, not misread
         assert!(Timestamp::parse("2024-09-10T12:00:00").is_err());
         assert!(Timestamp::parse("2024-09-10 12:00:00Z").is_err());
@@ -219,10 +281,21 @@ mod tests {
     fn window_boundaries_and_equal_timestamps() {
         let at = |t: &str| Timestamp::parse(t).unwrap();
         // exactly on a boundary: belongs to the window that STARTS there
-        assert_eq!(window_start(at("2024-09-11 00:15:00"), 15 * MINUTE), at("2024-09-11 00:15:00"));
-        assert_eq!(window_start(at("2024-09-11 00:14:59"), 15 * MINUTE), at("2024-09-11 00:00:00"));
+        assert_eq!(
+            window_start(at("2024-09-11 00:15:00"), 15 * MINUTE),
+            at("2024-09-11 00:15:00")
+        );
+        assert_eq!(
+            window_start(at("2024-09-11 00:14:59"), 15 * MINUTE),
+            at("2024-09-11 00:00:00")
+        );
         // two readings at the same moment are not a gap
-        let same: Vec<Reading> = (0..2).map(|_| Reading { at: at("2024-09-11 00:00:00"), celsius: 1.0 }).collect();
+        let same: Vec<Reading> = (0..2)
+            .map(|_| Reading {
+                at: at("2024-09-11 00:00:00"),
+                celsius: 1.0,
+            })
+            .collect();
         assert!(find_gaps(&same, 5 * MINUTE).is_empty());
         // and too few readings for any gap at all
         assert!(find_gaps(&same[..1], 5 * MINUTE).is_empty());
@@ -231,7 +304,12 @@ mod tests {
 
     #[test]
     fn display_round_trips() {
-        for text in ["1970-01-01 00:00:00", "2024-02-29 23:59:59", "1969-12-31 23:59:59", "2400-12-31 12:34:56"] {
+        for text in [
+            "1970-01-01 00:00:00",
+            "2024-02-29 23:59:59",
+            "1969-12-31 23:59:59",
+            "2400-12-31 12:34:56",
+        ] {
             assert_eq!(Timestamp::parse(text).unwrap().to_string(), text);
         }
     }
@@ -239,12 +317,25 @@ mod tests {
     #[test]
     fn windows_and_gaps() {
         let at = |t: &str| Timestamp::parse(t).unwrap();
-        assert_eq!(window_start(at("2024-09-11 00:07:30"), 15 * MINUTE), at("2024-09-11 00:00:00"));
-        let readings: Vec<Reading> = ["2024-09-11 00:00:00", "2024-09-11 00:05:00", "2024-09-11 00:30:00"]
-            .iter()
-            .map(|t| Reading { at: at(t), celsius: 20.0 })
-            .collect();
-        assert_eq!(find_gaps(&readings, 5 * MINUTE), [(at("2024-09-11 00:05:00"), at("2024-09-11 00:30:00"), 4)]);
+        assert_eq!(
+            window_start(at("2024-09-11 00:07:30"), 15 * MINUTE),
+            at("2024-09-11 00:00:00")
+        );
+        let readings: Vec<Reading> = [
+            "2024-09-11 00:00:00",
+            "2024-09-11 00:05:00",
+            "2024-09-11 00:30:00",
+        ]
+        .iter()
+        .map(|t| Reading {
+            at: at(t),
+            celsius: 20.0,
+        })
+        .collect();
+        assert_eq!(
+            find_gaps(&readings, 5 * MINUTE),
+            [(at("2024-09-11 00:05:00"), at("2024-09-11 00:30:00"), 4)]
+        );
     }
 
     #[test]
@@ -254,5 +345,17 @@ mod tests {
         let gaps = find_gaps(&readings, 5 * MINUTE);
         assert_eq!(gaps.len(), 1);
         assert_eq!(gaps[0].2, 6);
+    }
+    #[test]
+    fn negative_clock_fields_are_not_normalized_to_another_date() {
+        for time in [
+            "2025-01-01 -1:00:00",
+            "2025-01-01 00:-1:00",
+            "2025-01-01 00:00:-1",
+            "2025-01-01 -9223372036854775808:00:00",
+            "2025-01-01 24:00:00",
+        ] {
+            assert!(Timestamp::parse(time).is_err());
+        }
     }
 }

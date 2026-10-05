@@ -80,7 +80,10 @@ impl StrExt for str {
 
     fn is_shouting(&self) -> bool {
         self.chars().any(char::is_alphabetic)
-            && self.chars().filter(|c| c.is_alphabetic()).all(char::is_uppercase)
+            && self
+                .chars()
+                .filter(|c| c.is_alphabetic())
+                .all(char::is_uppercase)
     }
 }
 
@@ -128,7 +131,11 @@ fn main() {
 
     println!("\n4. Extension trait: new methods on &str");
     for text in ["Rust is fun", "STOP SHOUTING", "1 2 3"] {
-        println!("    {text:?}: {} words, shouting: {}", text.word_count(), text.is_shouting());
+        println!(
+            "    {text:?}: {} words, shouting: {}",
+            text.word_count(),
+            text.is_shouting()
+        );
     }
 
     println!("\n5. Same method name in several traits");
@@ -136,7 +143,10 @@ fn main() {
     println!("    person.fly():          {}", person.fly()); // the type's own method wins
     println!("    Pilot::fly(&person):   {}", Pilot::fly(&person));
     println!("    Wizard::fly(&person):  {}", Wizard::fly(&person));
-    println!("    <Person as Wizard>::fly(&person): {}", <Person as Wizard>::fly(&person));
+    println!(
+        "    <Person as Wizard>::fly(&person): {}",
+        <Person as Wizard>::fly(&person)
+    );
     // Without the inherent `impl Person { fn fly }`, `person.fly()` would be ambiguous:
     //     error[E0034]: multiple applicable items in scope
 }

@@ -7,9 +7,11 @@
 // pattern behind MutexGuard, File and every other self-cleaning type: RAII.
 
 use std::cell::Cell;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 // ---- 1. A smart pointer that counts how it's used ------------------------------------------
 
@@ -22,7 +24,11 @@ pub struct Tracked<T> {
 
 impl<T> Tracked<T> {
     pub fn new(value: T) -> Self {
-        Tracked { value: Box::new(value), reads: Cell::new(0), writes: 0 }
+        Tracked {
+            value: Box::new(value),
+            reads: Cell::new(0),
+            writes: 0,
+        }
     }
 
     pub fn stats(&self) -> (u32, u32) {
@@ -34,7 +40,7 @@ impl<T> Tracked<T> {
 impl<T> Deref for Tracked<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        self.reads.set(self.reads.get() + 1);
+        self.reads.set(self.reads.get().saturating_add(1));
         &self.value
     }
 }
@@ -42,7 +48,7 @@ impl<T> Deref for Tracked<T> {
 /// `*tracked = …` and `tracked.push(…)` change the value inside.
 impl<T> DerefMut for Tracked<T> {
     fn deref_mut(&mut self) -> &mut T {
-        self.writes += 1;
+        self.writes = self.writes.saturating_add(1);
         &mut self.value
     }
 }
@@ -64,16 +70,28 @@ impl Drop for Noisy<'_> {
 // ---- 3. RAII: a resource that cleans itself up ----------------------------------------------
 
 /// A temporary file that is deleted when this value goes away: at the end of
-/// the scope, on an early `return`, on `?`, even during a panic. The clean-up
-/// can't be forgotten, because nobody has to remember to call it.
+/// the scope, on an early `return`, on `?`, or during a panic.
 pub struct TempFile {
     path: PathBuf,
 }
 
 impl TempFile {
-    pub fn create(name: &str, contents: &str) -> std::io::Result<TempFile> {
+    pub fn create(contents: &str) -> std::io::Result<Self> {
+        // A new name for every file: this process's id plus a counter.
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let name = format!(
+            "rust-examples-temp-{}-{}.txt",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
         let path = std::env::temp_dir().join(name);
-        fs::write(&path, contents)?;
+        // `create_new` fails if the file already exists, so we never take over
+        // (and later delete) a file that belongs to someone else.
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        file.write_all(contents.as_bytes())?;
         Ok(TempFile { path })
     }
 
@@ -84,14 +102,13 @@ impl TempFile {
 
 impl Drop for TempFile {
     fn drop(&mut self) {
-        // Drop can't return an error, so a failure here can only be ignored or logged.
+        // `drop` can't return an error, so a failed removal is ignored.
         let _ = fs::remove_file(&self.path);
     }
 }
 
-/// Uses a temporary file and leaves early on purpose: the file is still deleted.
-fn count_words_via_temp_file(text: &str, name: &str) -> std::io::Result<usize> {
-    let file = TempFile::create(name, text)?;
+fn count_words_via_temp_file(text: &str) -> std::io::Result<usize> {
+    let file = TempFile::create(text)?;
     let contents = fs::read_to_string(file.path())?;
     if contents.is_empty() {
         return Ok(0); // early return: `file` is dropped here, and deleted
@@ -115,17 +132,28 @@ fn main() {
     println!("\n2. Drop runs in reverse order of creation");
     let log = std::cell::RefCell::new(Vec::new());
     {
-        let _first = Noisy { name: "first", log: &log };
-        let _second = Noisy { name: "second", log: &log };
-        let early = Noisy { name: "early", log: &log };
+        let _first = Noisy {
+            name: "first",
+            log: &log,
+        };
+        let _second = Noisy {
+            name: "second",
+            log: &log,
+        };
+        let early = Noisy {
+            name: "early",
+            log: &log,
+        };
         drop(early); // `drop(x)` ends a value early; `x.drop()` isn't allowed
         log.borrow_mut().push("— end of scope —");
     }
     println!("    {:?}", log.borrow());
 
     println!("\n3. RAII: a temporary file deletes itself");
-    match count_words_via_temp_file("one two three", "rust-examples-raii.txt") {
-        Ok(words) => println!("    {words} words; file still there afterwards? {}", std::env::temp_dir().join("rust-examples-raii.txt").exists()),
+    match count_words_via_temp_file("one two three") {
+        Ok(words) => println!(
+            "    {words} words; the owned temporary file was removed when its guard dropped"
+        ),
         Err(error) => println!("    error: {error}"),
     }
 }
@@ -153,29 +181,40 @@ mod tests {
     fn drop_order_is_reverse_creation_order() {
         let log = std::cell::RefCell::new(Vec::new());
         {
-            let _a = Noisy { name: "a", log: &log };
-            let _b = Noisy { name: "b", log: &log };
+            let _a = Noisy {
+                name: "a",
+                log: &log,
+            };
+            let _b = Noisy {
+                name: "b",
+                log: &log,
+            };
         }
         assert_eq!(*log.borrow(), ["b", "a"]);
     }
 
     #[test]
-    fn the_temp_file_is_gone_on_every_path() {
-        let name = "rust-examples-raii-test.txt";
-        assert_eq!(count_words_via_temp_file("a b c", name).unwrap(), 3);
-        assert!(!std::env::temp_dir().join(name).exists()); // normal end
-        assert_eq!(count_words_via_temp_file("", name).unwrap(), 0);
-        assert!(!std::env::temp_dir().join(name).exists()); // early return
+    fn temporary_files_are_distinct_and_removed_on_drop() {
+        let first = TempFile::create("one").unwrap();
+        let second = TempFile::create("two").unwrap();
+        let path = first.path().to_owned();
+        assert_ne!(path, second.path());
+        drop(first);
+        assert!(!path.exists());
+        assert_eq!(fs::read_to_string(second.path()).unwrap(), "two");
+        assert_eq!(count_words_via_temp_file("a b c").unwrap(), 3);
+        assert_eq!(count_words_via_temp_file("").unwrap(), 0);
     }
 
     #[test]
     fn the_temp_file_is_gone_even_after_a_panic() {
-        let name = "rust-examples-raii-panic.txt";
-        let result = std::panic::catch_unwind(|| {
-            let _file = TempFile::create(name, "x").unwrap();
+        let mut path = None;
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let file = TempFile::create("x").unwrap();
+            path = Some(file.path().to_owned());
             panic!("something went wrong");
-        });
+        }));
         assert!(result.is_err());
-        assert!(!std::env::temp_dir().join(name).exists()); // Drop ran while unwinding
+        assert!(!path.unwrap().exists());
     }
 }

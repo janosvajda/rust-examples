@@ -40,7 +40,12 @@ fn collect_readings() -> Vec<String> {
         let sender = sender.clone(); // each producer gets its own Sender
         thread::spawn(move || {
             for i in 0..2 {
-                sender.send(Reading { sensor, value: base + i as f64 }).unwrap();
+                sender
+                    .send(Reading {
+                        sensor,
+                        value: base + i as f64,
+                    })
+                    .unwrap();
             }
         });
     }
@@ -64,7 +69,10 @@ fn bounded_channel_demo() -> Vec<String> {
         let mut log = Vec::new();
         for job in 1..=5 {
             sender.send(job).unwrap(); // blocks while 2 messages are waiting
-            log.push(format!("sent {job} after {:>3} ms", start.elapsed().as_millis()));
+            log.push(format!(
+                "sent {job} after {:>3} ms",
+                start.elapsed().as_millis()
+            ));
         }
         log
     });

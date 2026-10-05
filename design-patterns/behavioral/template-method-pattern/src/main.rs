@@ -20,21 +20,21 @@ impl Sale {
         }
     }
 
-    fn total_cents(&self) -> u32 {
-        self.quantity * self.unit_price_cents
+    fn total_cents(&self) -> u64 {
+        u64::from(self.quantity) * u64::from(self.unit_price_cents)
     }
 }
 
-fn euros(cents: u32) -> String {
+fn euros(cents: u64) -> String {
     format!("{}.{:02}", cents / 100, cents % 100)
 }
 
 trait ReportExporter {
     // ---- The template method ------------------------------------------------
     //
-    // This is the fixed recipe. It has a default body, so formats don't
-    // implement it; they get it for free. It decides the *order* of the steps
-    // and does the shared work (looping, adding up the total).
+    // These formats reuse this default recipe. It decides the order of the
+    // steps and does the shared work (looping, adding up the total).
+    // Rust also allows implementors to override this default method.
 
     fn export(&self, title: &str, sales: &[Sale]) -> String {
         let mut output = String::new();
@@ -43,7 +43,11 @@ trait ReportExporter {
         for sale in sales {
             output.push_str(&self.row(sale));
         }
-        let total: u32 = sales.iter().map(Sale::total_cents).sum();
+        let total = sales
+            .iter()
+            .map(Sale::total_cents)
+            .try_fold(0_u64, u64::checked_add)
+            .expect("report total exceeds u64 cents");
         output.push_str(&self.footer(total));
         output
     }
@@ -61,7 +65,7 @@ trait ReportExporter {
     }
 
     /// By default there's no total line.
-    fn footer(&self, _total_cents: u32) -> String {
+    fn footer(&self, _total_cents: u64) -> String {
         String::new()
     }
 }
@@ -71,6 +75,14 @@ trait ReportExporter {
 /// Comma-separated values, for spreadsheets. Spreadsheets don't want a title
 /// line, so it overrides `title` to produce nothing.
 struct CsvExporter;
+
+fn csv_field(value: &str) -> String {
+    if value.contains([',', '"', '\r', '\n']) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_owned()
+    }
+}
 
 impl ReportExporter for CsvExporter {
     fn title(&self, _title: &str) -> String {
@@ -84,9 +96,9 @@ impl ReportExporter for CsvExporter {
     fn row(&self, sale: &Sale) -> String {
         format!(
             "{},{},{},{}\n",
-            sale.product,
+            csv_field(&sale.product),
             sale.quantity,
-            euros(sale.unit_price_cents),
+            euros(u64::from(sale.unit_price_cents)),
             euros(sale.total_cents())
         )
     }
@@ -96,9 +108,42 @@ impl ReportExporter for CsvExporter {
 /// heading and `footer` to add a total row.
 struct MarkdownExporter;
 
+fn markdown_text(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut chars = value.chars().peekable();
+    while let Some(c) = chars.next() {
+        let escaped = match c {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '|' => "&#124;",
+            '*' => "&#42;",
+            '_' => "&#95;",
+            '~' => "&#126;",
+            '[' => "&#91;",
+            ']' => "&#93;",
+            '`' => "&#96;",
+            '\\' => "&#92;",
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                "<br>"
+            }
+            '\n' => "<br>",
+            _ => {
+                output.push(c);
+                continue;
+            }
+        };
+        output.push_str(escaped);
+    }
+    output
+}
+
 impl ReportExporter for MarkdownExporter {
     fn title(&self, title: &str) -> String {
-        format!("## {title}\n\n")
+        format!("## {}\n\n", markdown_text(title))
     }
 
     fn header(&self) -> String {
@@ -108,14 +153,14 @@ impl ReportExporter for MarkdownExporter {
     fn row(&self, sale: &Sale) -> String {
         format!(
             "| {} | {} | {} € | {} € |\n",
-            sale.product,
+            markdown_text(&sale.product),
             sale.quantity,
-            euros(sale.unit_price_cents),
+            euros(u64::from(sale.unit_price_cents)),
             euros(sale.total_cents())
         )
     }
 
-    fn footer(&self, total_cents: u32) -> String {
+    fn footer(&self, total_cents: u64) -> String {
         format!("| **Total** | | | **{} €** |\n", euros(total_cents))
     }
 }
@@ -130,11 +175,21 @@ impl ReportExporter for PlainTextExporter {
     }
 
     fn row(&self, sale: &Sale) -> String {
-        format!("{:<12} {:>4} {:>10}\n", sale.product, sale.quantity, euros(sale.total_cents()))
+        format!(
+            "{:<12} {:>4} {:>10}\n",
+            sale.product,
+            sale.quantity,
+            euros(sale.total_cents())
+        )
     }
 
-    fn footer(&self, total_cents: u32) -> String {
-        format!("{}\n{:<12} {:>15}\n", "-".repeat(28), "Total", euros(total_cents))
+    fn footer(&self, total_cents: u64) -> String {
+        format!(
+            "{}\n{:<12} {:>15}\n",
+            "-".repeat(28),
+            "Total",
+            euros(total_cents)
+        )
     }
 }
 
@@ -186,8 +241,12 @@ mod tests {
 
     #[test]
     fn every_format_follows_the_same_order() {
-        // The template method guarantees: title, header, then rows in order.
-        for exporter in [&CsvExporter as &dyn ReportExporter, &MarkdownExporter, &PlainTextExporter] {
+        // These exporters reuse the default recipe and preserve row order.
+        for exporter in [
+            &CsvExporter as &dyn ReportExporter,
+            &MarkdownExporter,
+            &PlainTextExporter,
+        ] {
             let output = exporter.export("T", &sales());
             let a = output.find("A").unwrap();
             let b = output.find("B").unwrap();
@@ -200,5 +259,28 @@ mod tests {
         let output = PlainTextExporter.export("Empty", &[]);
         assert!(output.contains("Product"));
         assert!(output.contains("0.00"));
+    }
+    #[test]
+    fn csv_quotes_delimiters_quotes_and_newlines() {
+        let sale = Sale::new("Tea, \"iced\"\nlarge", 1, 100);
+        assert_eq!(
+            CsvExporter.row(&sale),
+            "\"Tea, \"\"iced\"\"\nlarge\",1,1.00,1.00\n"
+        );
+        assert_eq!(
+            Sale::new("A", u32::MAX, u32::MAX).total_cents(),
+            u64::from(u32::MAX).pow(2)
+        );
+    }
+
+    #[test]
+    fn markdown_names_keep_their_text_and_one_table_cell() {
+        let row = MarkdownExporter.row(&Sale::new("A|B\n<script>*x*", 1, 100));
+        assert_eq!(row.matches('|').count(), 5);
+        assert!(row.contains("A&#124;B<br>&lt;script&gt;&#42;x&#42;"));
+        assert_eq!(
+            markdown_text("~~sale~~\r\n"),
+            "&#126;&#126;sale&#126;&#126;<br>"
+        );
     }
 }

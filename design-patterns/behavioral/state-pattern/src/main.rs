@@ -24,7 +24,11 @@ struct InvalidAction {
 
 impl fmt::Display for InvalidAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "cannot {} an order that is {:?}", self.action, self.state)
+        write!(
+            f,
+            "cannot {} an order that is {:?}",
+            self.action, self.state
+        )
     }
 }
 
@@ -118,7 +122,11 @@ impl Order {
 /// Prints the result of an action and the order's new status.
 fn report(order: &Order, action: &str, result: Result<(), InvalidAction>) {
     match result {
-        Ok(()) => println!("{action:<8} ok      → #{} is {}", order.id, order.status_message()),
+        Ok(()) => println!(
+            "{action:<8} ok      → #{} is {}",
+            order.id,
+            order.status_message()
+        ),
         Err(error) => println!("{action:<8} refused → {error}"),
     }
 }
@@ -160,7 +168,12 @@ mod tests {
         order.pay(10).unwrap();
         assert_eq!(order.state, OrderState::Paid { amount: 10 });
         order.ship("T1").unwrap();
-        assert_eq!(order.state, OrderState::Shipped { tracking: "T1".to_string() });
+        assert_eq!(
+            order.state,
+            OrderState::Shipped {
+                tracking: "T1".to_string()
+            }
+        );
         order.deliver().unwrap();
         assert_eq!(order.state, OrderState::Delivered);
     }

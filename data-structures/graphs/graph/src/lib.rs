@@ -229,9 +229,17 @@ impl Graph {
             if visited[start] {
                 continue;
             }
-            let component = self.bfs(start);
-            for &node in &component {
-                visited[node] = true;
+            let mut component = Vec::new();
+            let mut queue = VecDeque::from([start]);
+            visited[start] = true;
+            while let Some(node) = queue.pop_front() {
+                component.push(node);
+                for &neighbour in &self.adjacency[node] {
+                    if !visited[neighbour] {
+                        visited[neighbour] = true;
+                        queue.push_back(neighbour);
+                    }
+                }
             }
             components.push(component);
         }

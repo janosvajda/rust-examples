@@ -6,7 +6,7 @@ Rust programs that run on Amazon Web Services. These are **examples**: each one 
 
 ## AWS Lambda
 
-| Example | What it is | What it teaches |
+| Example | What it is | Concepts demonstrated |
 |---|---|---|
 | [Hello world](aws-lambda/hello-world/) | the smallest useful Lambda function: an HTTP greeting | what Lambda and "serverless" are, why Rust fits, and why user input must never be served as HTML (a real XSS fix) |
 | [User API with DynamoDB](aws-lambda/user-api-dynamodb/) | a complete user service: registration, login, JWT access tokens, refresh token rotation, three DynamoDB tables, a SAM template | a realistic serverless backend, integration tests against DynamoDB Local, and a **security review** with a test for every attack it fixes |

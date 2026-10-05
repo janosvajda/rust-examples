@@ -14,7 +14,12 @@ fn main() {
     let add_one = |x: i32| -> i32 { x + 1 }; // fully annotated
     let double = |x| x * 2; // types inferred from use
     let greet = || String::from("hello"); // no parameters
-    println!("    add_one(4) = {}, double(4) = {}, greet() = {}", add_one(4), double(4), greet());
+    println!(
+        "    add_one(4) = {}, double(4) = {}, greet() = {}",
+        add_one(4),
+        double(4),
+        greet()
+    );
 
     println!("\n2. Closures capture their surroundings; functions can't");
     let tax_rate = 0.27;
@@ -27,7 +32,10 @@ fn main() {
     println!("\n3. Three ways to capture: borrow, borrow mutably, take ownership");
     let names = vec![String::from("Ana"), String::from("Bob")];
     let count = || names.len(); // only reads → borrows `names`
-    println!("    count() = {}, and names is still usable: {names:?}", count());
+    println!(
+        "    count() = {}, and names is still usable: {names:?}",
+        count()
+    );
 
     let mut log = Vec::new();
     let mut record = |entry: &str| log.push(entry.to_string()); // changes → borrows mutably
@@ -47,7 +55,11 @@ fn main() {
     //     = note: no two closures, even if identical, have the same type
     let a = |x: i32| x + 1;
     let b = |x: i32| x + 1;
-    println!("    a(1) = {}, b(1) = {}: same code, different types", a(1), b(1));
+    println!(
+        "    a(1) = {}, b(1) = {}: same code, different types",
+        a(1),
+        b(1)
+    );
 
     println!("\n5. Closures that capture nothing become plain function pointers");
     // `fn(i32) -> i32` is a function pointer type. Closures that don't
@@ -99,9 +111,7 @@ mod tests {
 
     #[test]
     fn non_capturing_closures_coerce_to_fn_pointers() {
-        let pick = |double: bool| -> fn(i32) -> i32 {
-            if double { |x| x * 2 } else { |x| x + 1 }
-        };
+        let pick = |double: bool| -> fn(i32) -> i32 { if double { |x| x * 2 } else { |x| x + 1 } };
         assert_eq!(pick(true)(5), 10);
         assert_eq!(pick(false)(5), 6);
     }

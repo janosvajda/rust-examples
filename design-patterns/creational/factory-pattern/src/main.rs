@@ -152,7 +152,10 @@ mod tests {
     #[test]
     fn factory_applies_its_settings() {
         let f = factory();
-        assert_eq!(f.build(Job::Guard).work(), "patrols the warehouse for 12 hours");
+        assert_eq!(
+            f.build(Job::Guard).work(),
+            "patrols the warehouse for 12 hours"
+        );
         assert_eq!(f.build(Job::Explore).work(), "explores up to 5 km away");
     }
 

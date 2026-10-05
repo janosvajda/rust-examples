@@ -25,14 +25,14 @@ Rust's standard library comes in three layers:
 - **`alloc`** adds heap-allocated types, once you provide an allocator.
 - **`std`** adds everything that needs an operating system.
 
-`#![no_std]` means: **link only `core`**. You keep the language and its zero-cost tools (`Option`, iterators, slices, pattern matching, traits), but lose everything that assumes an operating system underneath.
+`#![no_std]` means "don't use `std`, only `core`". (`alloc` can be added back, once you provide an allocator: that's [lesson 3](../03-custom-allocator/).) You keep the language and its zero-cost tools (`Option`, iterators, slices, pattern matching, traits), but lose everything that assumes an operating system underneath.
 
 | Without `std` you lose… | So in this example we use… |
 |---|---|
 | `println!` | C's `printf` and `snprintf` |
 | `Vec`, `String`, `Box` | C's `malloc` / `free`, or fixed-size buffers on the stack |
 | `std::env` | C's `getenv` |
-| `slice::sort` *(that one is actually in `core`)* | C's `qsort`, to show a Rust callback called from C |
+| `slice::sort` *(provided by `alloc`; `sort_unstable` is in `core`)* | C's `qsort`, to show a Rust callback called from C |
 | the normal `fn main` | `#![no_main]` and our own C-style `main` |
 | panic messages and unwinding | our own `#[panic_handler]`, which calls `abort()` |
 
@@ -51,7 +51,7 @@ Rust's standard library comes in three layers:
 
 ### This example is a special case
 
-On a real microcontroller there's **no C library either**: you talk to the hardware directly, usually through a hardware abstraction crate. This example runs on a normal desktop OS, where the C library *is* available. That makes it easy to run and experiment with, and it teaches the two skills that carry over to every `no_std` and FFI project:
+On a bare-metal microcontroller, you cannot assume that a C library is available: it depends on the target and toolchain. Embedded C libraries such as [Newlib](https://sourceware.org/newlib/info.html) exist, but need platform support. Hardware access often uses a hardware abstraction crate. This example runs on a desktop OS, where the C library is available. It demonstrates two patterns useful in `no_std` and FFI projects:
 1. living with only `core`;
 2. calling C code safely.
 
@@ -64,7 +64,7 @@ Both built with the same release settings (`opt-level = 3`, LTO, `panic = "abort
 | `println!("Hello World!")` with `std` | **302,432 bytes** |
 | this `no_std` program, doing seven different things | **50,336 bytes** |
 
-About **6× smaller**, while doing more. Both use the operating system's C library as a shared library (`libSystem` on macOS), so the difference is Rust's standard library itself. On a microcontroller with 32 KB of flash memory, that difference decides whether the program fits at all.
+About **6× smaller**, while doing more. Both programs use the C library that's already installed with macOS (`libSystem`), so its size isn't counted in either. On a microcontroller, sizes are different again: measure the real firmware build.
 
 ## The examples
 
@@ -97,7 +97,7 @@ no_std Rust, talking directly to the C library
 
 ### 1. Wrap every `unsafe` call in a safe function
 
-The compiler can't check what C code does, so every call into C is `unsafe`. The rule professionals follow: keep each `unsafe` block **tiny**, check everything C requires *before* calling it, write a `// SAFETY:` comment explaining why the call is correct, and expose a **safe** function.
+The compiler can't check what C code does, so calling a C function is `unsafe`. The rule professionals follow: keep each `unsafe` block **tiny**, check everything C requires *before* calling it, write a `// SAFETY:` comment explaining why the call is correct, and expose a **safe** function.
 
 ```rust
 pub fn find<'a>(haystack: &'a CStr, needle: &CStr) -> Option<&'a CStr> {
@@ -183,6 +183,12 @@ pub extern "C" fn rust_eh_personality() {}
 
 `no_std` only applies to the real program. `cargo test` builds with `std`, so the safe wrappers are tested like any normal Rust code.
 
+## `malloc` gives you bytes, not numbers
+
+`malloc` returns raw, **uninitialised** memory: whatever bytes happened to be there. `sum_of_malloc_buffer` therefore writes every `i32` through a raw pointer **first**, and only then turns the memory into a slice `&mut [i32]`. Making a slice over uninitialised integers would already break Rust's rules, even before reading it ([`from_raw_parts`'s safety rules](https://doc.rust-lang.org/std/slice/fn.from_raw_parts.html)).
+
+It also checks everything `malloc` can't: a count of zero returns `Some(0)` without allocating; a count so large that the byte size overflows, or an allocation that fails (`malloc` returns null), returns `None`. The memory is freed exactly once, after its last use.
+
 ## Run it
 
 ```bash
@@ -193,10 +199,10 @@ cargo test             # tests run with std
 
 This crate is kept **outside** the repository's Cargo workspace, because it needs its own `panic = "abort"` profile, and Cargo ignores profiles set in workspace members. Run it from this folder.
 
-Next: [Lesson 2: A core-only library](../02-core-only-library/) · Back to the [course overview](../)
-
 ## Learn more
 
 - [The Embedded Rust Book](https://docs.rust-embedded.org/book/): `no_std` on real microcontrollers.
 - [The Rustonomicon, FFI chapter](https://doc.rust-lang.org/nomicon/ffi.html): calling C safely.
 - [Raw pointers and unsafe](../../pointers-and-memory/06-raw-pointers-and-unsafe/), on writing sound `unsafe` code, and the ownership course on [lifetimes](../../ownership-and-borrowing/05-lifetimes/), which explains the `'a` in `find`.
+
+Next: [Lesson 2: A core-only library](../02-core-only-library/) · Back to the [course overview](../)

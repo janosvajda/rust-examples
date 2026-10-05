@@ -43,7 +43,18 @@ pub fn reading(seq: u64) -> f64 {
     let mut x = seq.wrapping_add(1).wrapping_mul(0x9E37_79B9_7F4A_7C15);
     x ^= x >> 31;
     let noise = (x >> 40) as f64 / (1u64 << 24) as f64;
-    if seq % 9 == 8 { 35.0 + noise * 5.0 } else { 21.0 + noise * 2.0 } // every 9th: a spike
+    if seq % 9 == 8 {
+        35.0 + noise * 5.0
+    } else {
+        21.0 + noise * 2.0
+    } // every 9th: a spike
+}
+
+struct ClientSlot(Arc<AtomicUsize>);
+impl Drop for ClientSlot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 pub fn serve(listener: TcpListener, config: ServerConfig) {
@@ -58,9 +69,18 @@ pub fn serve(listener: TcpListener, config: ServerConfig) {
             let _ = writeln!(stream, "ERR busy");
             continue;
         }
-        let (config, faults, clients) = (Arc::clone(&config), Arc::clone(&faults), Arc::clone(&clients));
+        let (config, faults, clients) = (
+            Arc::clone(&config),
+            Arc::clone(&faults),
+            Arc::clone(&clients),
+        );
+        let slot = ClientSlot(clients);
         thread::spawn(move || {
-            let peer = stream.peer_addr().map(|a| a.to_string()).unwrap_or_default();
+            let _slot = slot;
+            let peer = stream
+                .peer_addr()
+                .map(|a| a.to_string())
+                .unwrap_or_default();
             let result = handle_client(stream, &config, &faults);
             if config.log {
                 match result {
@@ -68,7 +88,6 @@ pub fn serve(listener: TcpListener, config: ServerConfig) {
                     Err(error) => println!("[server] {peer}: {error}"),
                 }
             }
-            clients.fetch_sub(1, Ordering::SeqCst); // the slot is free again
         });
     }
 }
@@ -102,6 +121,10 @@ fn handle_client(mut stream: TcpStream, config: &ServerConfig, faults: &Faults) 
         writeln!(stream, "ERR bad-request")?;
         return Err(io::Error::other("bad first-seq"));
     };
+    if seq == u64::MAX {
+        writeln!(stream, "ERR bad-request")?;
+        return Err(io::Error::other("sequence exhausted"));
+    }
     writeln!(stream, "OK")?;
 
     // At-least-once delivery: after a reconnect, a real server often resends a
@@ -111,7 +134,7 @@ fn handle_client(mut stream: TcpStream, config: &ServerConfig, faults: &Faults) 
     }
 
     let mut out = io::BufWriter::new(stream);
-    while config.last_seq.is_none_or(|last| seq <= last) {
+    while seq < u64::MAX && config.last_seq.is_none_or(|last| seq <= last) {
         if config.faults {
             match seq {
                 5 => writeln!(out, "%%% garbage %%%")?,
@@ -138,7 +161,9 @@ fn handle_client(mut stream: TcpStream, config: &ServerConfig, faults: &Faults) 
         }
         out.flush()?;
         if config.faults && seq == 21 && !faults.dropped.swap(true, Ordering::SeqCst) {
-            return Err(io::Error::other("connection dropped on purpose after seq 21"));
+            return Err(io::Error::other(
+                "connection dropped on purpose after seq 21",
+            ));
         }
         seq += 1;
         thread::sleep(config.interval);

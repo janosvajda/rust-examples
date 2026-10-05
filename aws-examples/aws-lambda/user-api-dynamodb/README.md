@@ -2,7 +2,7 @@
 
 # User API on AWS Lambda with DynamoDB
 
-A complete user service in Rust, built to run on AWS Lambda: people can **register**, **log in**, read and update **their own** profile, and stay logged in with **tokens**. The data lives in DynamoDB.
+A user-service example in Rust, built to run on AWS Lambda: people can **register**, **log in**, read and update **their own** profile, and stay logged in with **tokens**. The data lives in DynamoDB.
 
 > **No AWS account needed.** You can run every test, and try the API by hand, on your own computer, against DynamoDB Local. Deploying to AWS is optional and described at the very end.
 
@@ -15,6 +15,9 @@ A complete user service in Rust, built to run on AWS Lambda: people can **regist
 5. [Security](#5-security)
 6. [Reference: API, data and configuration](#6-reference)
 7. [Deploying to AWS (optional)](#7-deploying-to-aws-optional)
+8. [Under the hood: many requests at once](#8-under-the-hood-many-requests-at-once)
+9. [Moving existing data](#9-moving-existing-data)
+10. [What the test results mean](#10-what-the-test-results-mean)
 
 ## 1. What it is
 
@@ -29,7 +32,7 @@ A complete user service in Rust, built to run on AWS Lambda: people can **regist
 ```
 
 - **API Gateway** receives HTTP requests and hands each one to the Lambda function.
-- **The Lambda function** is this Rust program. AWS starts it when requests arrive, and stops it when they don't.
+- **The Lambda function** is this Rust program. AWS manages its execution environments and invokes the handler for incoming requests. Environments can be reused; their lifetime is not controlled by this program.
 - **DynamoDB** is AWS's key-value database. It holds three tables: the users, their password hashes, and their refresh tokens.
 - **SSM Parameter Store** keeps the secret used to sign login tokens, outside the code.
 
@@ -66,7 +69,7 @@ Either way, leave it running. It keeps everything in memory (`-inMemory`; the Do
 REQUIRE_DYNAMODB=1 cargo test
 ```
 
-Every test should pass, including the four attack tests in `security_flow`.
+Every test should pass, including the security and concurrency cases in `security_flow`.
 
 **Why `REQUIRE_DYNAMODB=1`?** Without a database, the integration tests print `skipping integration test: DynamoDB not reachable` and pass, so a plain `cargo test` still works anywhere. But then "passed" would mean "tested nothing". With `REQUIRE_DYNAMODB=1`, a missing database is a **failure**, so a green result really means the tests ran. CI does exactly this: on every pull request and every push to `main`, it starts DynamoDB Local next to the tests.
 
@@ -121,7 +124,7 @@ Argon2::default().hash_password(password.as_bytes(), &salt)  // slow on purpose
 
 - A **hash** is a one-way function: easy to compute from the password, practically impossible to reverse. At login, the typed password is hashed again and compared with the stored hash.
 - The **salt** is random data mixed in, different for every user. Two users with the same password get different hashes, so one cracked password doesn't reveal the others.
-- Argon2 is **slow on purpose**, and needs a lot of memory. A login takes a small fraction of a second, which nobody notices. But an attacker who steals the table and tries billions of guesses is slowed down enormously. Fast hashes like SHA-256 are the wrong tool for passwords.
+- Argon2 is **slow on purpose**, and needs a lot of memory. Its duration depends on the configured parameters and machine. But an attacker who steals the table and tries billions of guesses is slowed down enormously. Fast hashes like SHA-256 are the wrong tool for passwords.
 
 ### Logging in: two kinds of token
 
@@ -129,21 +132,21 @@ After a correct password, the user gets **two** tokens:
 
 | | Access token | Refresh token |
 |---|---|---|
-| what it is | a **JWT**: signed data that says who you are | a random id, stored in the `UserRefreshTokens` table |
+| what it is | a **JWT**: signed data that says who you are | a user-id prefix plus a random UUID credential, stored in `UserRefreshTokens` |
 | used for | every request that needs to know who you are | only to get new tokens |
 | lives for | 15 minutes | 7 days |
 | checked by | verifying the **signature**, without the database | looking it up **in the database** |
-| can it be cancelled? | no: it's valid until it expires | yes: delete it (`/token/revoke`) |
+| can it be cancelled? | this service does not revoke individual JWTs; expiry or a signing-key change invalidates them | yes: delete it (`/token/revoke`) |
 
 **A JWT** ("JSON Web Token") has three parts, separated by dots: a header, the **claims** (here: the user id `sub`, the family id `fid`, and the expiry time `exp`), and a **signature**. The signature is computed from the header, the claims and a **secret** that only the server knows (HS256: HMAC with SHA-256). Changing a single character of the claims makes the signature wrong. So the server can trust a JWT without asking the database, which makes it fast.
 
-**Why two tokens?** That speed has a cost: a JWT can't be cancelled before it expires. Hence the split:
+**Why two tokens?** That speed has a cost: this service does not check a JWT revocation list. Hence the split:
 - The access token is short-lived. If it's stolen, it's useless after 15 minutes.
 - The refresh token can be cancelled at any time, because it lives in the database. Checking it there is slower, but it's only needed every 15 minutes.
 
 ### Refreshing: rotation
 
-`POST /token/refresh` **uses up** the refresh token: it deletes it and returns a brand-new pair. This is called **rotation**. A stolen refresh token stops working as soon as the real user refreshes. And because the delete is *conditional* (only if the token still exists), two requests racing with the same token can't both win: the database lets exactly one delete succeed.
+`POST /token/refresh` **uses up** the refresh token: it conditionally replaces the user's stored credential and returns a new pair. This is called **rotation**. A stolen refresh token stops working as soon as the real user refreshes. The replacement requires the old credential to match and remain unexpired in the same write. Two requests racing with that credential cannot both succeed. Signing the access token happens before the write, so a signing failure does not consume the refresh credential.
 
 Each user has at most one active refresh token: logging in again replaces it.
 
@@ -191,8 +194,8 @@ A security review of this example found real problems. Each fix comes with a tes
 |---|---|---|
 | **Account takeover.** `POST /users` with a `userId` was an "update" that set a new password for any email, with no authentication | updates need the user's own access token, and DynamoDB checks that the email belongs to that user in the same write | `nobody_can_change_someone_elses_password` |
 | **Issued tokens were never checked.** `GET /users` returned anyone's record, email included, to anyone | `GET /users` needs the user's own access token. Tokens are verified: signature, HS256 only, not expired | `reading_a_user_needs_that_users_token` |
-| **Login timing revealed registered emails.** An unknown email answered instantly; a known one only after Argon2's work | an unknown email runs a dummy Argon2 check first, so both take as long | (timing: not unit-testable reliably) |
-| **A refresh token could be used twice** by two simultaneous requests | using a token is a *conditional* delete: the database lets exactly one request succeed | `a_refresh_token_works_only_once_even_at_the_same_moment` |
+| **Login timing revealed registered emails.** An unknown email answered instantly; a known one only after Argon2's work | an unknown email runs a dummy Argon2 check first, to reduce the timing difference; exact response-time equality is not guaranteed | (timing: not unit-testable reliably) |
+| **A refresh token could be used twice** by two simultaneous requests | rotation conditionally replaces the one stored credential, so only one reuse can win | `a_refresh_token_works_only_once_even_at_the_same_moment` |
 | **The JWT secret silently fell back** to an environment variable when SSM failed, in any environment | the fallback is allowed only in `Local` | (in `main.rs`) |
 | **No input limits:** empty passwords accepted; huge ones made Argon2 do unbounded work | passwords 8–1024 bytes, emails checked, names limited | `weak_or_malformed_input_is_rejected` |
 | **Personal data in logs:** every 4xx response body (some with emails) was logged | only the status code is logged | (in `json_response`) |
@@ -201,7 +204,7 @@ A security review of this example found real problems. Each fix comes with a tes
 Before the fixes, those tests failed: they proved each attack worked. One existing test, `user_flow.rs`, even tested the unprotected update as a *feature*. A test suite can lock a security hole in place, if nobody asks whether the behaviour is right.
 
 **Not addressed here, worth doing in production:**
-- **Store refresh tokens hashed.** Today they're stored as-is, so anyone who can read the table can use them. Store a hash, like passwords, and look tokens up by hash.
+- **Store refresh tokens hashed.** Today they're stored as-is, so anyone who can read the table can use them. Store a cryptographic hash of the random credential in the user's stable row and compare that hash during rotation. Passwords need a password-hashing algorithm; a high-entropy random token has different hashing requirements.
 - **Rate limiting** on `/login` and `/users`, against password guessing and mass registration. API Gateway usage plans or AWS WAF can do this in front of the Lambda.
 - **Registration reveals existing emails** (`409 Conflict`). That's a common trade-off for a clear user experience. The alternative is to always answer "check your inbox" and send the details by email.
 - **Keep the deployment private:** API Gateway with IAM authorisation or a private integration, so only your own services can call it.
@@ -234,7 +237,7 @@ Each environment has its own three tables, named after it: `Users_Prod`, `Users_
 | Attribute | Type | Notes |
 |---|---|---|
 | `userId` | string | partition key; generated when absent |
-| `userName` | string | required; unique per family, via the `FamilyUserIndex` index |
+| `userName` | string | required; unique per family through transactionally written reservation rows; the GSI supports queries |
 | `email` | string | required; indexed via `EmailIndex` |
 | `familyId` | string | required grouping id; indexed via `FamilyIdIndex` |
 | `createdAt` | string | RFC 3339 timestamp |
@@ -242,9 +245,9 @@ Each environment has its own three tables, named after it: `Users_Prod`, `Users_
 
 **`UserCredentials_<env>`**: `email` (partition key), `userId`, `familyId`, `passwordHash`.
 
-**`UserRefreshTokens_<env>`**: `refreshToken` (partition key), `userId`, `familyId`, `expiresAt`.
+**`UserRefreshTokens_<env>`**: `refreshToken` (partition key containing `ACTIVE#<userId>`), `token` (the current credential), `userId`, `familyId`, `expiresAt`. There is one active row per user; rotation replaces it in place.
 
-To add a field, change `UserRecord` in `src/user.rs` and the `UserTable` resource in `template.yaml`.
+To add an ordinary stored field, update `UserRecord` and its item conversion. DynamoDB attribute definitions in the template describe table/index keys, not every stored field; change the template when the key/index schema changes.
 
 ### Configuration
 
@@ -331,3 +334,39 @@ It looks like `https://abc123.execute-api.us-east-1.amazonaws.com/Prod/users`. U
 The template sets `AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH=true`, which tells `lambda_http` to remove the stage (`/Prod`) from the path before routing. So the address can be used exactly as shown.
 
 To look inside: `aws dynamodb scan --table-name Users_Prod` shows the records. The function's logs are in CloudWatch, under `/aws/lambda/aws-lambda-example-db`. CloudWatch also gets a dashboard named `<stack-name>-lambda`, with invocations, errors, duration percentiles, concurrency and recent log events.
+
+## 8. Under the hood: many requests at once
+
+These are the details that make the service correct when many requests arrive at once.
+
+**All or nothing.** Registration writes three items, the user, their email login and a reservation of their name, in **one DynamoDB transaction**: either all three are saved, or none is. That's what keeps two people from registering the same name at the same moment. (A reservation's key is `NAME#<family-byte-length>:<family><userName>`. The length prefix keeps different name pairs from ever producing the same key.)
+
+**Updating a user** needs the user's token. It keeps `createdAt` and the email unchanged, and checks a `revision` number: if someone else changed the record in the meantime, the update fails with `409 Conflict`, and the client should read the record again before retrying. A taken name also gives `409`.
+
+**Input rules.** Names and emails are compared exactly, including upper and lower case. Name and family fields must be 1–100 bytes and not only spaces. The email check only looks at the basic shape of an address: it can't tell whether the mailbox exists.
+
+**Reading fresh data.** Users, logins and refresh tokens are read with **strongly consistent** reads, which always see the latest write. DynamoDB's secondary indexes (GSIs) are only **eventually consistent**, a moment behind, and can't enforce uniqueness: that's why names use reservations instead. [DynamoDB transactions](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/transaction-apis.html), [read consistency](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html)
+
+**Refresh tokens.** A refresh token looks like `<user-UUID>.<random-UUID>`. The first half only says which user it's for; the random second half is the secret. Each user has one active refresh token:
+- a new login replaces it, so if two logins happen at once, the one saved last wins;
+- refreshing checks the whole old token before replacing it, so of two simultaneous refreshes only one succeeds;
+- logging out deletes the token only if it's still the current one, so logging out with an old token can't log out a newer session.
+
+**Password hashing** with Argon2 is deliberately slow, so it runs on a separate thread (`spawn_blocking`), at most two at a time per Lambda instance. For an unknown email, login still hashes a dummy password, so the response time gives fewer hints about which emails exist.
+
+**Small details.** A token whose expiry time `exp` is the current second already counts as expired. At start-up, the code waits until each table is `ACTIVE`, and returns an error if that takes too long.
+
+## 9. Moving existing data
+
+New, empty tables need nothing. To use these handlers with **existing** data, first stop all writes (a maintenance window), then:
+- create a name reservation for every existing user, after fixing any duplicate (family, name) pairs;
+- make sure every user ID is a 36-character UUID, like the ones registration creates;
+- delete the old-style refresh tokens, so users log in again.
+
+A missing `revision` is fine: it's treated as the first version. Never run old and new handlers at the same time: the old ones would skip the reservation and token rules.
+
+## 10. What the test results mean
+
+- Without DynamoDB Local running, the integration tests are **skipped**, and say so; the unit tests still run. Run `REQUIRE_DYNAMODB=1 cargo test` to make a missing database a failure instead.
+- With the database running, any problem creating the tables fails the test, never skips it. Every test deletes its tables afterwards, even when it fails or panics.
+- The concurrency tests check the cases above: a losing registration leaves no half-created user, a failed rename keeps the old password, logging out with an old token keeps the newer one, and of two simultaneous refreshes only one wins.

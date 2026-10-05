@@ -89,7 +89,11 @@ pub struct ByteRing<const N: usize> {
 
 impl<const N: usize> ByteRing<N> {
     pub const fn new() -> Self {
-        ByteRing { buffer: [0; N], head: 0, len: 0 }
+        ByteRing {
+            buffer: [0; N],
+            head: 0,
+            len: 0,
+        }
     }
 
     /// Stores a byte. Returns false (and drops the byte) if the buffer is
@@ -145,7 +149,11 @@ const fn build_crc32_table() -> [u32; 256] {
         let mut crc = i as u32;
         let mut bit = 0;
         while bit < 8 {
-            crc = if crc & 1 != 0 { 0xEDB8_8320 ^ (crc >> 1) } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                0xEDB8_8320 ^ (crc >> 1)
+            } else {
+                crc >> 1
+            };
             bit += 1;
         }
         table[i] = crc;
@@ -243,7 +251,10 @@ pub struct StackString<const N: usize> {
 
 impl<const N: usize> StackString<N> {
     pub const fn new() -> Self {
-        StackString { bytes: [0; N], len: 0 }
+        StackString {
+            bytes: [0; N],
+            len: 0,
+        }
     }
 
     pub fn as_str(&self) -> &str {
@@ -276,7 +287,11 @@ impl fmt::Display for SensorReading {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let whole = self.temperature_tenths / 10;
         let tenth = (self.temperature_tenths % 10).abs();
-        let sign = if self.temperature_tenths < 0 && whole == 0 { "-" } else { "" };
+        let sign = if self.temperature_tenths < 0 && whole == 0 {
+            "-"
+        } else {
+            ""
+        };
         write!(
             f,
             "sensor {}: {sign}{whole}.{tenth} °C, {}% humidity",
@@ -308,7 +323,10 @@ mod tests {
         assert!(!ring.write(4)); // full
         assert_eq!(ring.read(), Some(1));
         assert!(ring.write(4)); // reuses the freed slot
-        assert_eq!([ring.read(), ring.read(), ring.read(), ring.read()], [Some(2), Some(3), Some(4), None]);
+        assert_eq!(
+            [ring.read(), ring.read(), ring.read(), ring.read()],
+            [Some(2), Some(3), Some(4), None]
+        );
     }
 
     #[test]
@@ -320,25 +338,47 @@ mod tests {
 
     #[test]
     fn packet_round_trip() {
-        let reading = SensorReading { sensor_id: 7, temperature_tenths: -45, humidity_percent: 63 };
+        let reading = SensorReading {
+            sensor_id: 7,
+            temperature_tenths: -45,
+            humidity_percent: 63,
+        };
         let bytes = reading.to_bytes();
         assert_eq!(SensorReading::parse(&bytes), Ok(reading));
     }
 
     #[test]
     fn corrupted_packets_are_rejected() {
-        let mut bytes = SensorReading { sensor_id: 1, temperature_tenths: 215, humidity_percent: 40 }.to_bytes();
-        assert_eq!(SensorReading::parse(&bytes[..5]), Err(PacketError::WrongLength(5)));
+        let mut bytes = SensorReading {
+            sensor_id: 1,
+            temperature_tenths: 215,
+            humidity_percent: 40,
+        }
+        .to_bytes();
+        assert_eq!(
+            SensorReading::parse(&bytes[..5]),
+            Err(PacketError::WrongLength(5))
+        );
         bytes[3] ^= 0x01; // flip one bit of the temperature
-        assert!(matches!(SensorReading::parse(&bytes), Err(PacketError::ChecksumMismatch { .. })));
+        assert!(matches!(
+            SensorReading::parse(&bytes),
+            Err(PacketError::ChecksumMismatch { .. })
+        ));
         bytes[0] = 0x00;
-        assert_eq!(SensorReading::parse(&bytes), Err(PacketError::BadSyncByte(0)));
+        assert_eq!(
+            SensorReading::parse(&bytes),
+            Err(PacketError::BadSyncByte(0))
+        );
     }
 
     #[test]
     fn formatting_into_a_stack_buffer() {
         let mut text: StackString<64> = StackString::new();
-        let reading = SensorReading { sensor_id: 3, temperature_tenths: -5, humidity_percent: 80 };
+        let reading = SensorReading {
+            sensor_id: 3,
+            temperature_tenths: -5,
+            humidity_percent: 80,
+        };
         write!(text, "{reading}").unwrap();
         assert_eq!(text.as_str(), "sensor 3: -0.5 °C, 80% humidity");
 

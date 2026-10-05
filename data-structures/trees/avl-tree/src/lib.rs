@@ -127,10 +127,16 @@ impl<T> Node<T> {
 }
 
 /// A self-balancing binary search tree holding unique values (like a set).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct AvlTree<T: Ord> {
     root: Link<T>,
     len: usize,
+}
+
+impl<T: Ord> Default for AvlTree<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: Ord> AvlTree<T> {
@@ -278,7 +284,10 @@ fn rebalance<T>(mut node: Box<Node<T>>) -> Box<Node<T>> {
     if balance > 1 {
         // Left side too tall. If the left child leans right, it's the
         // Left-Right case: straighten it into Left-Left first.
-        let left = node.left.take().expect("balance > 1 means there is a left child");
+        let left = node
+            .left
+            .take()
+            .expect("balance > 1 means there is a left child");
         node.left = Some(if balance_factor(&left) < 0 {
             rotate_left(left)
         } else {
@@ -289,7 +298,10 @@ fn rebalance<T>(mut node: Box<Node<T>>) -> Box<Node<T>> {
 
     if balance < -1 {
         // Mirror image: Right-Left becomes Right-Right, then rotate left.
-        let right = node.right.take().expect("balance < -1 means there is a right child");
+        let right = node
+            .right
+            .take()
+            .expect("balance < -1 means there is a right child");
         node.right = Some(if balance_factor(&right) > 0 {
             rotate_right(right)
         } else {
@@ -391,8 +403,14 @@ mod tests {
     /// balance factors within −1..=1. Returns the subtree's height.
     fn check<T: Ord>(link: &Link<T>, lower: Option<&T>, upper: Option<&T>) -> usize {
         let Some(node) = link else { return 0 };
-        assert!(lower.is_none_or(|low| &node.value > low), "BST order broken");
-        assert!(upper.is_none_or(|high| &node.value < high), "BST order broken");
+        assert!(
+            lower.is_none_or(|low| &node.value > low),
+            "BST order broken"
+        );
+        assert!(
+            upper.is_none_or(|high| &node.value < high),
+            "BST order broken"
+        );
 
         let left = check(&node.left, lower, Some(&node.value));
         let right = check(&node.right, Some(&node.value), upper);

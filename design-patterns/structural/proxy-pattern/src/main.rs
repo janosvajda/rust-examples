@@ -26,7 +26,9 @@ struct RemoteRateService {
 
 impl RemoteRateService {
     fn new() -> Self {
-        RemoteRateService { calls: Cell::new(0) }
+        RemoteRateService {
+            calls: Cell::new(0),
+        }
     }
 }
 
@@ -131,7 +133,9 @@ mod tests {
     }
 
     fn proxy() -> CachingProxy<FakeService> {
-        CachingProxy::new(FakeService { calls: Cell::new(0) })
+        CachingProxy::new(FakeService {
+            calls: Cell::new(0),
+        })
     }
 
     #[test]
@@ -163,7 +167,9 @@ mod tests {
     #[test]
     fn proxy_and_real_service_are_interchangeable() {
         // `convert` accepts either one.
-        let direct = FakeService { calls: Cell::new(0) };
+        let direct = FakeService {
+            calls: Cell::new(0),
+        };
         let cached = proxy();
         assert_eq!(convert(&direct, 10.0, "EUR", "HUF"), Some(20.0));
         assert_eq!(convert(&cached, 10.0, "EUR", "HUF"), Some(20.0));

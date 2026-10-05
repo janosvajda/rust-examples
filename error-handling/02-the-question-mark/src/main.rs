@@ -8,29 +8,56 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::num::ParseIntError;
 
+#[derive(Debug, PartialEq)]
+enum AddError {
+    Parse(ParseIntError),
+    Overflow,
+}
+impl std::fmt::Display for AddError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Parse(e) => e.fmt(f),
+            Self::Overflow => f.write_str("sum does not fit i32"),
+        }
+    }
+}
+impl Error for AddError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Parse(e) => Some(e),
+            Self::Overflow => None,
+        }
+    }
+}
+impl From<ParseIntError> for AddError {
+    fn from(e: ParseIntError) -> Self {
+        Self::Parse(e)
+    }
+}
+
 // ---- 1. Without `?` and with `?` --------------------------------------------------
 
 /// The long way: a `match` for every step that can fail.
 // Clippy suggests `?` here, which is exactly the point of this lesson:
 // this version is written out on purpose, to show what `?` replaces.
 #[allow(clippy::question_mark)]
-fn add_strings_long(a: &str, b: &str) -> Result<i32, ParseIntError> {
+fn add_strings_long(a: &str, b: &str) -> Result<i32, AddError> {
     let x = match a.trim().parse::<i32>() {
         Ok(value) => value,
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     };
     let y = match b.trim().parse::<i32>() {
         Ok(value) => value,
-        Err(error) => return Err(error),
+        Err(error) => return Err(error.into()),
     };
-    Ok(x + y)
+    x.checked_add(y).ok_or(AddError::Overflow)
 }
 
 /// Exactly the same behaviour, written with `?`.
-fn add_strings(a: &str, b: &str) -> Result<i32, ParseIntError> {
+fn add_strings(a: &str, b: &str) -> Result<i32, AddError> {
     let x: i32 = a.trim().parse()?;
     let y: i32 = b.trim().parse()?;
-    Ok(x + y)
+    x.checked_add(y).ok_or(AddError::Overflow)
 }
 
 // ---- 2. `?` chains through several functions ---------------------------------------
@@ -77,7 +104,7 @@ fn initials(full_name: &str) -> Option<String> {
 ///
 /// With `-> Result<i32, ParseIntError>` instead, the file read would fail:
 ///     error[E0277]: `?` couldn't convert the error to `ParseIntError`
-fn read_number(path: &str) -> Result<i32, Box<dyn Error>> {
+fn read_number(path: impl AsRef<std::path::Path>) -> Result<i32, Box<dyn Error>> {
     let text = std::fs::read_to_string(path)?; // io::Error → Box<dyn Error>
     let number = text.trim().parse::<i32>()?; // ParseIntError → Box<dyn Error>
     Ok(number)
@@ -105,7 +132,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("\n4. Different error types in one function");
     let path = std::env::temp_dir().join("rust-examples-number.txt");
     std::fs::write(&path, "42\n")?; // `?` in main
-    println!("    from a good file: {:?}", read_number(path.to_str().unwrap())?);
+    println!("    from a good file: {:?}", read_number(&path)?);
     match read_number("/no/such/file.txt") {
         Ok(n) => println!("    {n}"),
         Err(error) => println!("    from a missing file: error: {error}"),
@@ -134,7 +161,10 @@ mod tests {
 
     #[test]
     fn a_condition_can_be_checked_with_question_mark() {
-        assert_eq!(parse_line("=5"), Err(String::from("missing name before '=' in \"=5\"")));
+        assert_eq!(
+            parse_line("=5"),
+            Err(String::from("missing name before '=' in \"=5\""))
+        );
         assert_eq!(parse_line("x=5"), Ok((String::from("x"), 5)));
     }
 
@@ -163,5 +193,10 @@ mod tests {
         let settings = parse_settings("x=5")?;
         assert_eq!(settings["x"], 5);
         Ok(())
+    }
+    #[test]
+    fn overflow_is_an_error_in_both_versions() {
+        assert_eq!(add_strings("2147483647", "1"), Err(AddError::Overflow));
+        assert_eq!(add_strings_long("2147483647", "1"), Err(AddError::Overflow));
     }
 }

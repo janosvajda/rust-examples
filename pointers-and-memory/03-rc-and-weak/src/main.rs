@@ -42,8 +42,16 @@ impl Drop for Node {
 /// Builds a → b → a, then lets go of both. Returns a Weak to `a`, to check
 /// afterwards whether `a` still exists.
 fn make_a_cycle(log: &DropLog) -> Weak<Node> {
-    let a = Rc::new(Node { name: "a", next: RefCell::new(None), log: Rc::clone(log) });
-    let b = Rc::new(Node { name: "b", next: RefCell::new(Some(Rc::clone(&a))), log: Rc::clone(log) });
+    let a = Rc::new(Node {
+        name: "a",
+        next: RefCell::new(None),
+        log: Rc::clone(log),
+    });
+    let b = Rc::new(Node {
+        name: "b",
+        next: RefCell::new(Some(Rc::clone(&a))),
+        log: Rc::clone(log),
+    });
     *a.next.borrow_mut() = Some(Rc::clone(&b)); // a → b → a: a cycle
     Rc::downgrade(&a)
 } // `a` and `b` go out of scope here, but each is still owned by the other
@@ -65,7 +73,12 @@ impl Drop for TreeNode {
 }
 
 fn tree_node(name: &'static str, log: &DropLog) -> Rc<TreeNode> {
-    Rc::new(TreeNode { name, parent: RefCell::new(Weak::new()), children: RefCell::new(Vec::new()), log: Rc::clone(log) })
+    Rc::new(TreeNode {
+        name,
+        parent: RefCell::new(Weak::new()),
+        children: RefCell::new(Vec::new()),
+        log: Rc::clone(log),
+    })
 }
 
 fn add_child(parent: &Rc<TreeNode>, child: Rc<TreeNode>) {
@@ -86,25 +99,39 @@ fn path_to_root(node: &Rc<TreeNode>) -> Vec<&'static str> {
 
 fn main() {
     println!("1. Shared ownership: three widgets, one theme");
-    let theme = Rc::new(Theme { colour: "dark blue" });
+    let theme = Rc::new(Theme {
+        colour: "dark blue",
+    });
     println!("    owners: {}", Rc::strong_count(&theme));
     let widgets: Vec<Widget> = ["button", "menu", "title"]
         .into_iter()
-        .map(|name| Widget { name, theme: Rc::clone(&theme) }) // a new owner, NOT a copy of the theme
+        .map(|name| Widget {
+            name,
+            theme: Rc::clone(&theme),
+        }) // a new owner, NOT a copy of the theme
         .collect();
     println!("    owners after 3 widgets: {}", Rc::strong_count(&theme));
     for w in &widgets {
         println!("    {} uses {}", w.name, w.theme.colour);
     }
     drop(widgets);
-    println!("    owners after the widgets are gone: {}", Rc::strong_count(&theme));
+    println!(
+        "    owners after the widgets are gone: {}",
+        Rc::strong_count(&theme)
+    );
 
     println!("\n2. A cycle leaks");
     let log = DropLog::default();
     let a = make_a_cycle(&log);
-    println!("    both handles are gone. dropped so far: {:?}", log.borrow());
+    println!(
+        "    both handles are gone. dropped so far: {:?}",
+        log.borrow()
+    );
     println!("    does `a` still exist? {}", a.upgrade().is_some());
-    println!("    owners of `a`: {}  ← owned by `b`, which is owned by `a`…", a.strong_count());
+    println!(
+        "    owners of `a`: {}  ← owned by `b`, which is owned by `a`…",
+        a.strong_count()
+    );
 
     println!("\n3. Weak back-links: a tree that cleans up");
     let log = DropLog::default();
@@ -113,13 +140,19 @@ fn main() {
     let readme = tree_node("readme", &log);
     add_child(&docs, Rc::clone(&readme));
     add_child(&root, docs);
-    println!("    path from readme: {}", path_to_root(&readme).join(" → "));
+    println!(
+        "    path from readme: {}",
+        path_to_root(&readme).join(" → ")
+    );
     let parent_link = Rc::downgrade(&root);
     drop(root);
     println!("    after dropping root, dropped: {:?}", log.borrow());
     println!("    root still exists: {}", parent_link.upgrade().is_some());
     drop(readme);
-    println!("    after dropping our readme handle too: {:?}", log.borrow());
+    println!(
+        "    after dropping our readme handle too: {:?}",
+        log.borrow()
+    );
 }
 
 #[cfg(test)]
@@ -129,7 +162,10 @@ mod tests {
     #[test]
     fn clones_share_one_value() {
         let theme = Rc::new(Theme { colour: "red" });
-        let widget = Widget { name: "w", theme: Rc::clone(&theme) };
+        let widget = Widget {
+            name: "w",
+            theme: Rc::clone(&theme),
+        };
         assert_eq!(Rc::strong_count(&theme), 2);
         assert!(Rc::ptr_eq(&theme, &widget.theme)); // the same value, not a copy
         drop(widget);
@@ -141,7 +177,10 @@ mod tests {
         let log = DropLog::default();
         let a = make_a_cycle(&log);
         assert!(log.borrow().is_empty(), "nothing was dropped");
-        assert!(a.upgrade().is_some(), "and `a` is still alive, with no way to reach it but this Weak");
+        assert!(
+            a.upgrade().is_some(),
+            "and `a` is still alive, with no way to reach it but this Weak"
+        );
         // Break the cycle by hand, so the test itself doesn't leak:
         if let Some(a) = a.upgrade() {
             a.next.borrow_mut().take();
