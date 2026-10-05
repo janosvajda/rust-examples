@@ -218,7 +218,7 @@ Before the fixes, those tests failed: they proved each attack worked. One existi
 | `POST /users` (register) | `{"userName", "email", "password", "familyId"}` | `201` and the user record; `400` invalid input; `409` email or name taken |
 | `POST /users` (update) | the same, plus `"userId"`; header `Authorization: Bearer <accessToken>` | `201`; `401` no or invalid token; `403` not your user; `404` no such user |
 | `GET /users` | `?userId=…`; header `Authorization: Bearer <accessToken>` | `200` and the user record; `401`; `403`; `404` |
-| `POST /login` | `{"email", "password"}` | `200` with `accessToken`, `tokenType`, `expiresIn`, `refreshToken`, `refreshExpiresIn`, `userId`, `familyId`; `401` wrong email or password |
+| `POST /login` | `{"email", "password"}` | `200` with `accessToken`, `tokenType`, `expiresIn`, `refreshToken`, `refreshExpiresIn`, `userId`, `familyId`; `400` invalid JSON, or an email or password of the wrong length (a password must be 8–1024 bytes); `401` wrong email or password |
 | `POST /token/refresh` | `{"refreshToken"}` | `200` with a new token pair; `401` invalid, used or expired |
 | `POST /token/revoke` | `{"refreshToken"}` | `200` `{"revoked": true}` |
 

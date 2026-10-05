@@ -81,7 +81,7 @@ async fn login_success_and_failure() -> Result<()> {
 
             let bad_login_payload = json!({
                 "email": "integration@example.com",
-                "password": "wrong"
+                "password": "wrong-password" // long enough, so the password itself is checked
             });
             let bad_login_request = lambda_http::http::Request::builder()
                 .method("POST")
@@ -89,10 +89,26 @@ async fn login_success_and_failure() -> Result<()> {
                 .header("content-type", "application/json")
                 .body(Body::Text(bad_login_payload.to_string()))
                 .expect("bad login request");
-            let bad_login_response = aws_lambda_example_db::handle_request(ctx, bad_login_request)
-                .await
-                .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            let bad_login_response =
+                aws_lambda_example_db::handle_request(ctx.clone(), bad_login_request)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
             assert_eq!(bad_login_response.status(), 401);
+
+            // A password shorter than 8 bytes is rejected before any lookup.
+            let short_password_request = lambda_http::http::Request::builder()
+                .method("POST")
+                .uri("/login")
+                .header("content-type", "application/json")
+                .body(Body::Text(
+                    json!({ "email": "integration@example.com", "password": "short" }).to_string(),
+                ))
+                .expect("short password request");
+            let short_password_response =
+                aws_lambda_example_db::handle_request(ctx, short_password_request)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+            assert_eq!(short_password_response.status(), 400);
 
             Ok(())
         })
